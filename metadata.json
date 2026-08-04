@@ -1,0 +1,6 @@
+{
+  "name": "Comic Vault & Box Manager",
+  "description": "Desktop comic book collection manager with storage box capacity balancing, drag-and-drop box organization, reading stats, AI cover scanner, and Google Sheets import.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

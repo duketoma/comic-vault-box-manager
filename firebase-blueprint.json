@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "ComicBook": {
+      "title": "ComicBook",
+      "description": "Represents a comic book issue in the user's collection or wishlist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 500 },
+        "issueNumber": { "type": "string", "maxLength": 100 },
+        "volume": { "type": "string", "maxLength": 100 },
+        "event": { "type": "string", "maxLength": 255 },
+        "copiesOwned": { "type": "integer" },
+        "publisher": { "type": "string", "maxLength": 255 },
+        "publicationYear": { "type": "integer" },
+        "publicationMonth": { "type": "string", "maxLength": 55 },
+        "publicationDate": { "type": "string", "maxLength": 55 },
+        "genre": { "type": "string", "maxLength": 100 },
+        "writer": { "type": "string", "maxLength": 255 },
+        "artist": { "type": "string", "maxLength": 255 },
+        "coverArtist": { "type": "string", "maxLength": 255 },
+        "coverImage": { "type": "string", "maxLength": 2048 },
+        "format": { "type": "string", "maxLength": 100 },
+        "sizeThickness": { "type": "number" },
+        "currentBoxId": { "type": "integer" },
+        "proposedBoxId": { "type": "integer" },
+        "readingStatus": { "type": "string", "maxLength": 50 },
+        "userRating": { "type": "number" },
+        "condition": { "type": "string", "maxLength": 50 },
+        "purchasePrice": { "type": "number" },
+        "estimatedValue": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 5000 },
+        "tags": { "type": "array" },
+        "creatorContributions": { "type": "array" },
+        "createdAt": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "title", "issueNumber", "publisher"]
+    },
+    "StorageBox": {
+      "title": "StorageBox",
+      "description": "Represents a physical comic storage box",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string", "maxLength": 255 },
+        "location": { "type": "string", "maxLength": 255 },
+        "maxCapacity": { "type": "integer" },
+        "colorTag": { "type": "string", "maxLength": 50 },
+        "notes": { "type": "string", "maxLength": 2000 }
+      },
+      "required": ["id", "name", "location", "maxCapacity"]
+    }
+  },
+  "firestore": {
+    "/comics/{comicId}": {
+      "schema": "ComicBook",
+      "description": "Collection of user comic book records"
+    },
+    "/boxes/{boxId}": {
+      "schema": "StorageBox",
+      "description": "Collection of storage box configurations"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Comics collection
+    match /comics/{comicId} {
+      allow read, write: if true;
+    }
+
+    // Boxes collection
+    match /boxes/{boxId} {
+      allow read, write: if true;
+    }
+
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
