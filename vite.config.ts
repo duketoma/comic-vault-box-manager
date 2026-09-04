@@ -1,13 +1,29 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
 import path from 'path';
 import { defineConfig } from 'vite';
 import process from "node:process";
 const host = process.env.TAURI_DEV_HOST;
 
+// Plugin to gracefully resolve firebase-applet-config.json to local file or fallback
+const firebaseConfigPlugin = {
+  name: 'firebase-config-resolver',
+  resolveId(source: string) {
+    if (source.includes('firebase-applet-config.json')) {
+      const localConfig = path.resolve(process.cwd(), 'firebase-applet-config.json');
+      if (fs.existsSync(localConfig)) {
+        return localConfig;
+      }
+      return path.resolve(process.cwd(), 'src/config/firebaseFallback.json');
+    }
+    return null;
+  },
+};
+
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), firebaseConfigPlugin],
       // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
       //
       // 1. prevent Vite from obscuring rust errors

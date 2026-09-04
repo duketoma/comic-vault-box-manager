@@ -29,6 +29,11 @@ jobs:
         run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+      - name: Ensure Firebase config exists
+        run: |
+          if [ ! -f firebase-applet-config.json ]; then
+            cp src/config/firebaseFallback.json firebase-applet-config.json
+          fi
       - name: Build app
         run: npm run build
       - name: Wait for Postgres

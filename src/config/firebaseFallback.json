@@ -1,0 +1,12 @@
+{
+  "projectId": "comic-vault-local",
+  "appId": "1:123456789:web:mock",
+  "apiKey": "mock-api-key",
+  "authDomain": "comic-vault-local.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "comic-vault-local.firebasestorage.app",
+  "messagingSenderId": "123456789",
+  "measurementId": "",
+  "oAuthClientId": "",
+  "recaptchaSiteKey": ""
+}
