@@ -67,3 +67,16 @@ export async function saveBoxes(boxes: StorageBox[]) {
 export async function replaceBoxes(boxes: StorageBox[]) {
   await request('/api/boxes', { method: 'PUT', body: JSON.stringify({ boxes }) });
 }
+
+/**
+ * Fetch comics in a specific box, ordered for 3D visualization.
+ * Returns comics sorted by creation order (stable ordering from front to back).
+ */
+export async function fetchBoxComics(boxId: number): Promise<{
+  box: { id: number; name: string };
+  comics: ComicBook[];
+  count: number;
+}> {
+  const response = await request(`/api/boxes/${boxId}/comics`);
+  return response.json();
+}

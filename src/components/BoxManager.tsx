@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ComicBook, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
+import { fetchBoxComics } from '../services/postgresService';
 import { 
   Boxes, 
   Layers, 
@@ -19,8 +20,10 @@ import {
   Heart,
   X,
   PackageCheck,
-  Bookmark
+  Bookmark,
+  Box
 } from 'lucide-react';
+import Box3DVisualizerModal from './Box3DVisualizerModal';
 
 interface BoxManagerProps {
   boxes: StorageBox[];
@@ -64,6 +67,12 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
   
   // Wishlist Projection Mode Toggle
   const [includeWishlistInStats, setIncludeWishlistInStats] = useState<boolean>(false);
+
+  // 3D Visualizer Modal State
+  const [is3DViewerOpen, setIs3DViewerOpen] = useState<boolean>(false);
+  const [selected3DBox, setSelected3DBox] = useState<StorageBox | null>(null);
+  const [box3DComics, setBox3DComics] = useState<ComicBook[]>([]);
+  const [is3DLoading, setIs3DLoading] = useState<boolean>(false);
 
   // Edit / Add Box Modal state
   const [isBoxModalOpen, setIsBoxModalOpen] = useState<boolean>(false);
@@ -298,6 +307,26 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
     onUpdateComics(updated);
     setDraggedComicId(null);
+  };
+
+  // 3D Visualizer
+  const handleOpen3DViewer = async (box: StorageBox) => {
+    setSelected3DBox(box);
+    setIs3DViewerOpen(true);
+    setIs3DLoading(true);
+
+    try {
+      // Fetch ordered comics from backend
+      const result = await fetchBoxComics(box.id);
+      setBox3DComics(result.comics);
+    } catch (error) {
+      console.error('Failed to fetch comics for 3D viewer:', error);
+      // Fall back to local comics filtered by box
+      const localComics = comics.filter((c) => c.currentBoxId === box.id);
+      setBox3DComics(localComics);
+    } finally {
+      setIs3DLoading(false);
+    }
   };
 
   // Apply proposed moves
@@ -678,7 +707,9 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                         <div className="font-bold text-slate-900 text-xs flex items-center gap-1">
                           <span>Box #{box.id}</span>
                           {isCurrentOverCapacity && (
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-500" title="Over Capacity!" />
+                            <span title="Over Capacity!">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                            </span>
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500 truncate">
@@ -688,6 +719,16 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpen3DViewer(box);
+                        }}
+                        className="p-1 hover:bg-blue-100 rounded text-slate-400 hover:text-blue-600 transition-colors"
+                        title="View in 3D"
+                      >
+                        <Box className="w-3 h-3" />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1066,6 +1107,24 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* 3D Box Visualizer Modal */}
+      {selected3DBox && (
+        <Box3DVisualizerModal
+          isOpen={is3DViewerOpen}
+          box={selected3DBox}
+          comics={box3DComics}
+          onClose={() => {
+            setIs3DViewerOpen(false);
+            setSelected3DBox(null);
+            setBox3DComics([]);
+          }}
+          onUpdateComic={onSelectComic}
+          onDeleteComic={() => {
+            // Can implement delete from 3D view if needed
+          }}
+        />
       )}
 
     </div>

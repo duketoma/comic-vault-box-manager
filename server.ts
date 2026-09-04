@@ -76,12 +76,15 @@ async function startServer() {
     next();
   };
 
-  const comicUpsertSql = `
-    INSERT INTO comic_books (${comicColumns.join(', ')})
-    VALUES (${comicColumns.map((_, index) => `$${index + 1}`).join(', ')})
-    ON CONFLICT (id) DO UPDATE SET
-      ${comicColumns.filter((column) => column !== 'id' && column !== 'created_at').map((column) => `${column} = EXCLUDED.${column}`).join(', ')},
-      updated_at = NOW()`;
+const comicUpsertSql = `
+  INSERT INTO comic_books (${comicColumns.join(', ')})
+  VALUES (${comicColumns.map((_, index) => `$${index + 1}`).join(', ')})
+  ON CONFLICT (id) DO UPDATE SET
+    ${comicColumns
+      .filter((column) => column !== 'id' && column !== 'created_at' && column !== 'updated_at')
+      .map((column) => `${column} = EXCLUDED.${column}`)
+      .join(', ')},
+    updated_at = NOW()`;
 
   app.get('/api/collection', requireDatabase, async (_req, res) => {
     try {
@@ -192,6 +195,81 @@ async function startServer() {
       const detail = databaseErrorMessage(error);
       console.error('PostgreSQL box deletion failed:', detail);
       res.status(500).json({ error: `Unable to delete box: ${detail}` });
+    }
+  });
+
+  // --- API ROUTE: Get ordered comics in a specific box (for 3D visualizer) ---
+  app.get('/api/boxes/:id/comics', requireDatabase, async (req, res) => {
+    try {
+      const boxId = Number(req.params.id);
+      if (!Number.isInteger(boxId) || boxId < 0) {
+        return res.status(400).json({ error: 'Box ID must be a non-negative integer.' });
+      }
+
+      // Fetch the box first to verify it exists
+      const boxResult = await pool!.query('SELECT id, name FROM storage_boxes WHERE id = $1', [boxId]);
+      if (boxResult.rows.length === 0) {
+        return res.status(404).json({ error: `Box ${boxId} not found.` });
+      }
+
+      // Fetch comics in this box, sorted by creation order (stable ordering)
+      // Order by: current_box_id (ensures box filter), then created_at for stable ordering, then id as tiebreaker
+      const comicsResult = await pool!.query(
+        `SELECT ${comicColumns.join(', ')}
+         FROM comic_books
+         WHERE current_box_id = $1
+         ORDER BY created_at ASC, id ASC`,
+        [boxId]
+      );
+
+      const comics = comicsResult.rows.map(rowToComic);
+      res.json({
+        box: {
+          id: boxResult.rows[0].id,
+          name: boxResult.rows[0].name,
+        },
+        comics,
+        count: comics.length,
+      });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL box comics fetch failed:', detail);
+      res.status(500).json({ error: `Unable to fetch comics for box: ${detail}` });
+    }
+  });
+
+  // --- API ROUTE: Proxy image for 3D visualizer WebGL textures to bypass CORS ---
+  app.get('/api/proxy-image', async (req, res) => {
+    try {
+      const rawUrl = req.query.url as string;
+      if (!rawUrl) {
+        return res.status(400).json({ error: 'Missing url parameter' });
+      }
+
+      if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+        return res.status(400).json({ error: 'Invalid URL protocol' });
+      }
+
+      const response = await fetch(rawUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        },
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Upstream image fetch failed with status ${response.status}` });
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return res.send(buffer);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || 'Failed to proxy image' });
     }
   });
 

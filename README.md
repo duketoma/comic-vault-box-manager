@@ -26,6 +26,17 @@ View your app in AI Studio: https://ai.studio/apps/f278f9f7-14a3-4b40-8c16-e78aa
 4. Run the app:
    `npm run dev`
 
+### Playwright E2E (local)
+
+If you run Playwright E2E tests locally against your PostgreSQL instance on port 3001, set DATABASE_URL and start the dev server first. Example PowerShell (replace <PASSWORD>):
+
+```powershell
+$env:DATABASE_URL = 'postgres://postgres:<PASSWORD>@localhost:3001/comic_vault'; $env:PORT = '3000'; npm run dev
+npx playwright test e2e/example.spec.ts
+```
+
+(Note: do NOT commit secrets. Use .env.local for persistent env values.)
+
 ## PostgreSQL storage
 
 Comic and box data is now stored through the app's local Express API in PostgreSQL. On the first successful connection to an empty database, the app copies the collection currently cached in the browser into PostgreSQL. Subsequent edits, imports, resets, cover changes, and deletes are persisted there.

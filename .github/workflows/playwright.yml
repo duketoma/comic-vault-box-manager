@@ -1,0 +1,47 @@
+name: Playwright E2E Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: comic_vault
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+      - name: Build app
+        run: npm run build
+      - name: Wait for Postgres
+        run: |
+          for i in {1..20}; do
+            pg_isready -h localhost -p 5432 -U postgres && break || sleep 1
+          done
+      - name: Start server
+        run: |
+          export DATABASE_URL='postgres://postgres:postgres@localhost:5432/comic_vault'
+          export PORT=3000
+          NODE_ENV=production node dist/server.cjs &
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=github
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000

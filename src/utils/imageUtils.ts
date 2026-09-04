@@ -142,7 +142,7 @@ export function doesFileNameMatchComic(
   driveFileName: string,
   comicTitle: string,
   issueNumber: string | number,
-  volume?: number
+  volume?: string |number
 ): boolean {
   if (!driveFileName || !comicTitle) return false;
 
@@ -254,7 +254,7 @@ export function compressBase64Image(dataUrl: string, maxDimension = 800, quality
     }
 
     // If it's already reasonably small (under 250KB string length), resolve immediately
-    if (dataUrl.length < 250000) {
+    if (dataUrl.length < 2500000) {
       resolve(dataUrl);
       return;
     }
