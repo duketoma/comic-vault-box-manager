@@ -936,7 +936,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                             onClick={() => onSelectComic(comic)}
                             className="font-bold text-slate-800 text-xs truncate hover:text-slate-900 cursor-pointer flex items-center gap-1.5"
                           >
-                            <span>{comic.title} #{comic.issueNumber}</span>
+                            <span>{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'} #{comic.issueNumber}</span>
                             {comic.readingStatus === 'Wishlist' && (
                               <span className="px-1.5 py-0.2 text-[9px] font-bold bg-rose-100 text-rose-700 rounded border border-rose-200">
                                 Wishlist

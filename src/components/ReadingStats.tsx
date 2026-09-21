@@ -34,10 +34,19 @@ import {
   FolderKanban,
   CheckCheck,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Filter,
   Info,
   Layers3,
-  Bookmark
+  Bookmark,
+  Palette,
+  Users,
+  PenTool,
+  Feather,
+  Flame,
+  Search,
+  X
 } from 'lucide-react';
 
 interface ReadingStatsProps {
@@ -49,7 +58,7 @@ const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'
 
 export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => {
   // Navigation & Sub-Tab State
-  const [activeStatsTab, setActiveStatsTab] = useState<'events' | 'series' | 'achievements' | 'general'>('events');
+  const [activeStatsTab, setActiveStatsTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   
   // Box Inspector State
   const [selectedBoxId, setSelectedBoxId] = useState<number | 'all'>('all');
@@ -59,6 +68,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
   
   // Series Filter & Sort State
   const [seriesSortBy, setSeriesSortBy] = useState<'owned' | 'completion' | 'value' | 'alphabetical'>('owned');
+
+  // Creator & Contributor State
+  const [creatorSearchQuery, setCreatorSearchQuery] = useState<string>('');
+  const [creatorRoleFilter, setCreatorRoleFilter] = useState<string>('all');
+  const [onlyPencillersWhoWrite, setOnlyPencillersWhoWrite] = useState<boolean>(false);
+  const [selectedCreatorForIssues, setSelectedCreatorForIssues] = useState<string | null>(null);
 
   // Aggregate stats
   const inCollectionComics = useMemo(() => comics.filter((c) => c.readingStatus !== 'Wishlist'), [comics]);
@@ -301,6 +316,216 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
   }, [seriesSummary]);
 
   // -------------------------------------------------------------
+  // CREATORS & CONTRIBUTOR ROLES ANALYTICS
+  // -------------------------------------------------------------
+  const {
+    creatorList,
+    roleDistributionData,
+    pencillersWhoWroteList,
+    totalCreditsCount,
+    allUniqueRoles,
+    characterRankingList,
+  } = useMemo(() => {
+    interface CreatorAcc {
+      name: string;
+      totalIssues: number;
+      roles: Record<string, number>;
+      series: Record<string, number>;
+      issues: Array<{
+        id: string | number;
+        title: string;
+        issueNumber: string;
+        seriesName?: string;
+        coverImage?: string;
+        roles: string[];
+        readingStatus: string;
+      }>;
+    }
+
+    const creatorMap: Record<string, CreatorAcc> = {};
+    const roleCountMap: Record<string, number> = {};
+    const charMap: Record<string, { name: string; total: number; main: number; supporting: number; cameo: number }> = {};
+    let totalCredits = 0;
+
+    const isWritingRole = (role: string): boolean => {
+      const r = role.toLowerCase();
+      return r.includes('writ') || r.includes('story') || r.includes('script') || r.includes('plot') || r.includes('author');
+    };
+
+    const isArtRole = (role: string): boolean => {
+      const r = role.toLowerCase();
+      return r.includes('pencil') || r.includes('artist') || r.includes('illustrat') || r.includes('draw') || r.includes('art');
+    };
+
+    comics.forEach((comic) => {
+      // Gather contributors for this comic
+      const contributors: Array<{ name: string; role: string }> = [];
+
+      if (comic.creatorContributions && comic.creatorContributions.length > 0) {
+        comic.creatorContributions.forEach((cc) => {
+          if (cc.creatorName && cc.creatorName.trim()) {
+            contributors.push({
+              name: cc.creatorName.trim(),
+              role: (cc.creatorType || cc.roleName || 'Contributor').trim()
+            });
+          }
+        });
+      } else {
+        // Fallback to comic.writer and comic.artist
+        if (comic.writer && comic.writer.trim()) {
+          comic.writer.split(/[,;&]/).forEach((w) => {
+            const trimmed = w.trim();
+            if (trimmed) contributors.push({ name: trimmed, role: 'Writer' });
+          });
+        }
+        if (comic.artist && comic.artist.trim()) {
+          comic.artist.split(/[,;&]/).forEach((a) => {
+            const trimmed = a.trim();
+            if (trimmed) contributors.push({ name: trimmed, role: 'Artist' });
+          });
+        }
+      }
+
+      // Group unique roles per creator on this comic
+      const comicCreatorRoles: Record<string, string[]> = {};
+      contributors.forEach(({ name, role }) => {
+        totalCredits++;
+        roleCountMap[role] = (roleCountMap[role] || 0) + 1;
+        if (!comicCreatorRoles[name]) {
+          comicCreatorRoles[name] = [];
+        }
+        if (!comicCreatorRoles[name].includes(role)) {
+          comicCreatorRoles[name].push(role);
+        }
+      });
+
+      // Update creatorMap
+      Object.entries(comicCreatorRoles).forEach(([creatorName, roles]) => {
+        if (!creatorMap[creatorName]) {
+          creatorMap[creatorName] = {
+            name: creatorName,
+            totalIssues: 0,
+            roles: {},
+            series: {},
+            issues: [],
+          };
+        }
+
+        const cr = creatorMap[creatorName];
+        cr.totalIssues++;
+        roles.forEach((r) => {
+          cr.roles[r] = (cr.roles[r] || 0) + 1;
+        });
+
+        const seriesKey = comic.seriesName || comic.title || 'Untitled';
+        cr.series[seriesKey] = (cr.series[seriesKey] || 0) + 1;
+
+        cr.issues.push({
+          id: comic.id,
+          title: comic.title,
+          issueNumber: comic.issueNumber,
+          seriesName: comic.seriesName,
+          coverImage: comic.coverImage,
+          roles,
+          readingStatus: comic.readingStatus,
+        });
+      });
+
+      // Character appearances
+      if (comic.characterAppearances && comic.characterAppearances.length > 0) {
+        comic.characterAppearances.forEach((ca) => {
+          if (ca.characterName && ca.characterName.trim()) {
+            const cName = ca.characterName.trim();
+            if (!charMap[cName]) {
+              charMap[cName] = { name: cName, total: 0, main: 0, supporting: 0, cameo: 0 };
+            }
+            charMap[cName].total++;
+            const type = (ca.appearanceType || 'Main').toLowerCase();
+            if (type.includes('main')) charMap[cName].main++;
+            else if (type.includes('support')) charMap[cName].supporting++;
+            else if (type.includes('cameo')) charMap[cName].cameo++;
+            else charMap[cName].main++;
+          }
+        });
+      }
+    });
+
+    // Build finalized creator objects with multi-role and penciller-who-wrote detection
+    const creatorList = Object.values(creatorMap).map((cr) => {
+      const roleKeys = Object.keys(cr.roles);
+      const hasArtRole = roleKeys.some(isArtRole);
+      const hasWritingRole = roleKeys.some(isWritingRole);
+      const isPencillerWhoWrote = hasArtRole && hasWritingRole;
+
+      const dualRoleIssuesCount = cr.issues.filter((iss) => {
+        const hasArt = iss.roles.some(isArtRole);
+        const hasWrit = iss.roles.some(isWritingRole);
+        return hasArt && hasWrit;
+      }).length;
+
+      const artIssuesCount = cr.issues.filter((iss) => iss.roles.some(isArtRole)).length;
+      const writingIssuesCount = cr.issues.filter((iss) => iss.roles.some(isWritingRole)).length;
+
+      const topSeries = Object.entries(cr.series)
+        .map(([series, count]) => ({ series, count }))
+        .sort((a, b) => b.count - a.count);
+
+      return {
+        ...cr,
+        roleKeys,
+        hasArtRole,
+        hasWritingRole,
+        isPencillerWhoWrote,
+        dualRoleIssuesCount,
+        artIssuesCount,
+        writingIssuesCount,
+        topSeries,
+      };
+    }).sort((a, b) => b.totalIssues - a.totalIssues);
+
+    const pencillersWhoWroteList = creatorList.filter((c) => c.isPencillerWhoWrote);
+
+    const roleDistributionData = Object.entries(roleCountMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const allUniqueRoles = Object.keys(roleCountMap).sort((a, b) => a.localeCompare(b));
+
+    const characterRankingList = Object.values(charMap).sort((a, b) => b.total - a.total);
+
+    return {
+      creatorList,
+      roleDistributionData,
+      pencillersWhoWroteList,
+      totalCreditsCount: totalCredits,
+      allUniqueRoles,
+      characterRankingList,
+    };
+  }, [comics]);
+
+  // Filtered Creators based on search query, role filter, and dual-role toggle
+  const filteredCreators = useMemo(() => {
+    return creatorList.filter((cr) => {
+      if (creatorSearchQuery.trim()) {
+        const query = creatorSearchQuery.toLowerCase().trim();
+        const matchesName = cr.name.toLowerCase().includes(query);
+        const matchesSeries = cr.topSeries.some((s) => s.series.toLowerCase().includes(query));
+        if (!matchesName && !matchesSeries) return false;
+      }
+
+      if (creatorRoleFilter !== 'all') {
+        if (!cr.roleKeys.includes(creatorRoleFilter)) return false;
+      }
+
+      if (onlyPencillersWhoWrite && !cr.isPencillerWhoWrote) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [creatorList, creatorSearchQuery, creatorRoleFilter, onlyPencillersWhoWrite]);
+
+  // -------------------------------------------------------------
   // GENERAL STATS CHARTS (Box Capacity, Publisher, Genre, Format)
   // -------------------------------------------------------------
   const boxCapacityData = useMemo(() => {
@@ -363,7 +588,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
       // Reading status in this box
       const readCount = boxComics.filter((c) => c.readingStatus === 'Read').length;
       const unreadCount = boxComics.filter((c) => c.readingStatus === 'Unread').length;
-      const inProgressCount = boxComics.filter((c) => c.readingStatus === 'In Progress').length;
+      const inProgressCount = boxComics.filter((c) => c.readingStatus === 'Reading').length;
 
       return {
         boxId: box.id,
@@ -507,6 +732,28 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'series' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
               {seriesSummary.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveStatsTab('creators')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeStatsTab === 'creators'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+            }`}
+          >
+            <Palette className="w-4 h-4 text-violet-400" />
+            <span>Creators & Roles Breakdown</span>
+            {creatorList.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'creators' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                {creatorList.length}
+              </span>
+            )}
+            {pencillersWhoWroteList.length > 0 && (
+              <span className="text-[9px] px-1.5 py-0.2 bg-violet-100 text-violet-800 font-bold rounded-full">
+                {pencillersWhoWroteList.length} 🎨✍️
+              </span>
+            )}
           </button>
 
           <button
@@ -898,6 +1145,494 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
       )}
 
       {/* ========================================================================= */}
+      {/* SECTION 2.5: CREATORS & CONTRIBUTOR ROLES BREAKDOWN */}
+      {/* ========================================================================= */}
+      {activeStatsTab === 'creators' && (
+        <div className="space-y-6">
+          
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 rounded-2xl p-6 text-white shadow-md space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-white/20 text-white font-black">
+                    <Palette className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-xl font-black tracking-tight text-white">
+                    Comic Creators, Contributor Roles & Character Appearances
+                  </h3>
+                </div>
+                <p className="text-xs text-indigo-100 max-w-2xl">
+                  Analyze credits for writers, pencillers, inkers, colorists, and editors across your collection. Highlight creators who bridge roles—especially pencillers who also contribute to writing and stories.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3 text-center min-w-[110px]">
+                  <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider block">Creators</span>
+                  <span className="text-2xl font-black text-white">{creatorList.length}</span>
+                  <span className="text-[10px] text-white/80 block font-medium">Contributors</span>
+                </div>
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3 text-center min-w-[110px]">
+                  <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider block">Dual-Talents</span>
+                  <span className="text-2xl font-black text-amber-300">{pencillersWhoWroteList.length}</span>
+                  <span className="text-[10px] text-white/80 block font-medium">Penciller+Writer</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Summary Metric Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-indigo-200 block">Total Creator Credits</span>
+                <span className="text-lg font-black text-white">{totalCreditsCount}</span>
+                <span className="text-[10px] text-indigo-200/80 block mt-0.5">Across all issues</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-indigo-200 block">Distinct Roles</span>
+                <span className="text-lg font-black text-white">{allUniqueRoles.length} Types</span>
+                <span className="text-[10px] text-indigo-200/80 block mt-0.5">Penciller, Writer, etc.</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-amber-200 block">Pencillers Who Write</span>
+                <span className="text-lg font-black text-amber-300">{pencillersWhoWroteList.length} Creators</span>
+                <span className="text-[10px] text-amber-200/80 block mt-0.5">Art & Script masters</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-indigo-200 block">Featured Characters</span>
+                <span className="text-lg font-black text-white">{characterRankingList.length} Heroes/Villains</span>
+                <span className="text-[10px] text-indigo-200/80 block mt-0.5">Tracked appearances</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SPOTLIGHT: Pencillers Who Also Wrote & Contributed to Story */}
+          {pencillersWhoWroteList.length > 0 && (
+            <div className="bg-gradient-to-br from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-300/80 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-xs">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                      <span>Spotlight: Pencillers Who Also Contributed Writing & Story</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-black text-[10px]">
+                        {pencillersWhoWroteList.length} Creators
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Creators in your collection who both drew/pencilled issues and authored scripts, plots, or story arcs.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setOnlyPencillersWhoWrite(!onlyPencillersWhoWrite);
+                  }}
+                  className={`text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-auto ${
+                    onlyPencillersWhoWrite
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-50'
+                  }`}
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  {onlyPencillersWhoWrite ? 'Showing Only Pencillers Who Wrote ✓' : 'Filter Table to Dual-Talents'}
+                </button>
+              </div>
+
+              {/* Dual-Talent Cards Carousel / Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {pencillersWhoWroteList.slice(0, 6).map((c) => (
+                  <div
+                    key={c.name}
+                    className="bg-white border border-amber-200 rounded-xl p-3.5 shadow-xs hover:border-amber-400 transition-all flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h5 className="font-bold text-slate-900 text-sm">{c.name}</h5>
+                          <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                            🎨 Penciller & Writer ✍️
+                          </span>
+                        </div>
+                        <span className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
+                          {c.totalIssues} Issues
+                        </span>
+                      </div>
+
+                      {/* Roles breakdown stats */}
+                      <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
+                          <span className="text-[10px] text-slate-500 block font-medium">Art Credits</span>
+                          <span className="font-black text-indigo-700">{c.artIssuesCount} issues</span>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
+                          <span className="text-[10px] text-slate-500 block font-medium">Writing Credits</span>
+                          <span className="font-black text-purple-700">{c.writingIssuesCount} issues</span>
+                        </div>
+                      </div>
+
+                      {c.dualRoleIssuesCount > 0 && (
+                        <p className="text-[10px] text-emerald-700 font-semibold mt-2 flex items-center gap-1">
+                          <CheckCheck className="w-3 h-3" />
+                          <span>Both Art & Story on {c.dualRoleIssuesCount} same issue{c.dualRoleIssuesCount > 1 ? 's' : ''}!</span>
+                        </p>
+                      )}
+
+                      {/* Top Series */}
+                      {c.topSeries.length > 0 && (
+                        <div className="mt-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Top Series:</span>
+                          <p className="text-[11px] text-slate-700 font-medium truncate mt-0.5">
+                            {c.topSeries.slice(0, 2).map((s) => `${s.series} (${s.count})`).join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedCreatorForIssues(selectedCreatorForIssues === c.name ? null : c.name)}
+                      className="w-full text-[11px] font-bold py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <span>{selectedCreatorForIssues === c.name ? 'Hide Issues' : 'View Contributed Issues'}</span>
+                      {selectedCreatorForIssues === c.name ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Charts Row: Contributor Roles Breakdown & Character Appearances */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Chart 1: Creator Roles Distribution */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-violet-600" />
+                    <span>Contributor Roles Distribution</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">Total issues credits by creator role type</p>
+                </div>
+                <span className="text-xs font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-lg">
+                  {totalCreditsCount} Total Credits
+                </span>
+              </div>
+
+              {roleDistributionData.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-xs text-slate-400">
+                  No creator role data found. Import Google Sheets subsheets to populate.
+                </div>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={roleDistributionData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis type="number" stroke="#64748b" fontSize={10} />
+                      <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={90} />
+                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
+                      <Bar dataKey="count" name="Credits" fill="#8B5CF6" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* Chart 2: Top Character Appearances */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <Users className="w-4 h-4 text-pink-600" />
+                    <span>Top Featured Character Appearances</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">Main, supporting, and cameo appearances</p>
+                </div>
+                <span className="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 px-2 py-0.5 rounded-lg">
+                  {characterRankingList.length} Characters
+                </span>
+              </div>
+
+              {characterRankingList.length === 0 ? (
+                <div className="h-64 flex flex-col items-center justify-center text-center p-4 text-xs text-slate-400 space-y-2">
+                  <Users className="w-8 h-8 text-slate-300" />
+                  <p>No character appearance records found yet.</p>
+                  <p className="text-[11px] text-slate-500">Sync the "Title Character Appearances" tab from Google Sheets Importer to track character stats!</p>
+                </div>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={characterRankingList.slice(0, 7)} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                      <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-25} textAnchor="end" />
+                      <YAxis stroke="#64748b" fontSize={10} />
+                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar dataKey="main" name="Main Role" fill="#EC4899" stackId="a" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="supporting" name="Supporting" fill="#8B5CF6" stackId="a" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="cameo" name="Cameo" fill="#F59E0B" stackId="a" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Selected Creator Issues Drawer (If open) */}
+          {selectedCreatorForIssues && (() => {
+            const cr = creatorList.find((c) => c.name === selectedCreatorForIssues);
+            if (!cr) return null;
+
+            return (
+              <div className="bg-white border-2 border-indigo-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold">
+                      <Palette className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 text-base flex items-center gap-2">
+                        <span>{cr.name}</span>
+                        {cr.isPencillerWhoWrote && (
+                          <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                            🎨 Penciller & Writer ✍️
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Contributed to {cr.totalIssues} issues • Roles: {Object.entries(cr.roles).map(([r, count]) => `${r} (${count})`).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedCreatorForIssues(null)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto pr-1">
+                  {cr.issues.map((iss) => (
+                    <div key={iss.id} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-col justify-between shadow-2xs hover:border-indigo-300 transition-all">
+                      <div className="flex gap-2 items-start">
+                        <img
+                          src={getComicCoverUrl(iss.coverImage)}
+                          alt=""
+                          onError={handleImageError}
+                          className="w-10 h-14 object-cover rounded shrink-0 border border-slate-200"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h5 className="font-bold text-slate-900 text-[11px] truncate">{iss.title}</h5>
+                          <p className="text-[10px] font-black text-slate-700">#{iss.issueNumber}</p>
+                          {iss.seriesName && (
+                            <p className="text-[9px] text-slate-400 truncate">{iss.seriesName}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                        <div className="flex flex-wrap gap-1">
+                          {iss.roles.map((r) => (
+                            <span key={r} className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between text-[9px] pt-1">
+                          <span className={`font-bold px-1.5 py-0.2 rounded ${
+                            iss.readingStatus === 'Read'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : iss.readingStatus === 'Reading'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {iss.readingStatus}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Interactive Creators Directory Table & Search */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div>
+                <h4 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                  <Users className="w-4 h-4 text-slate-700" />
+                  <span>Creators Directory & Issue Breakdown</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Search creators, filter by role (Writer, Penciller, Inker, Editor), and inspect individual credits.
+                </p>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Search input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={creatorSearchQuery}
+                    onChange={(e) => setCreatorSearchQuery(e.target.value)}
+                    placeholder="Search creator or series..."
+                    className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600 w-48 sm:w-56"
+                  />
+                  {creatorSearchQuery && (
+                    <button
+                      onClick={() => setCreatorSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Role filter dropdown */}
+                <select
+                  value={creatorRoleFilter}
+                  onChange={(e) => setCreatorRoleFilter(e.target.value)}
+                  className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                >
+                  <option value="all">All Roles ({allUniqueRoles.length})</option>
+                  {allUniqueRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Pencillers Who Wrote quick toggle */}
+                <button
+                  onClick={() => setOnlyPencillersWhoWrite(!onlyPencillersWhoWrite)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+                    onlyPencillersWhoWrite
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                      : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>🎨✍️ Dual-Talents Only</span>
+                  {pencillersWhoWroteList.length > 0 && (
+                    <span className={`text-[10px] px-1.5 rounded-full ${onlyPencillersWhoWrite ? 'bg-amber-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                      {pencillersWhoWroteList.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Reset button */}
+                {(creatorSearchQuery || creatorRoleFilter !== 'all' || onlyPencillersWhoWrite) && (
+                  <button
+                    onClick={() => {
+                      setCreatorSearchQuery('');
+                      setCreatorRoleFilter('all');
+                      setOnlyPencillersWhoWrite(false);
+                    }}
+                    className="text-xs font-semibold text-rose-600 hover:underline px-1"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>Showing <strong>{filteredCreators.length}</strong> of {creatorList.length} creators</span>
+              {onlyPencillersWhoWrite && (
+                <span className="text-amber-800 font-bold">Filtered to Pencillers Who Contributed to Writing/Story</span>
+              )}
+            </div>
+
+            {filteredCreators.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 text-xs space-y-2">
+                <Users className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="font-semibold text-slate-600">No creators match your current search/filter.</p>
+                <p>Try clearing your search query or selecting "All Roles".</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {filteredCreators.slice(0, 48).map((cr) => (
+                  <div
+                    key={cr.name}
+                    className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3 ${
+                      cr.isPencillerWhoWrote ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h5 className="font-bold text-slate-900 text-sm truncate">{cr.name}</h5>
+                          {cr.isPencillerWhoWrote && (
+                            <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                              🎨 Writer & Penciller ✍️
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs font-black text-slate-800 bg-slate-100 px-2.5 py-1 rounded-xl shrink-0">
+                          {cr.totalIssues} {cr.totalIssues === 1 ? 'Issue' : 'Issues'}
+                        </span>
+                      </div>
+
+                      {/* Roles breakdown tags */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {Object.entries(cr.roles).map(([role, count]) => {
+                          const isWrit = role.toLowerCase().includes('writ') || role.toLowerCase().includes('story');
+                          const isPencil = role.toLowerCase().includes('pencil') || role.toLowerCase().includes('art');
+                          return (
+                            <span
+                              key={role}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                isWrit
+                                  ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                                  : isPencil
+                                  ? 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                                  : 'bg-slate-50 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {role}: {count}
+                            </span>
+                          );
+                        })}
+                      </div>
+
+                      {/* Top Series preview */}
+                      {cr.topSeries.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Series:</span>
+                          <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                            {cr.topSeries.slice(0, 2).map((s) => `${s.series} (${s.count})`).join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedCreatorForIssues(selectedCreatorForIssues === cr.name ? null : cr.name)}
+                      className="w-full text-xs font-bold py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 transition-all flex items-center justify-center gap-1.5 mt-auto"
+                    >
+                      <span>{selectedCreatorForIssues === cr.name ? 'Close Issues' : `Inspect ${cr.totalIssues} Issues`}</span>
+                      {selectedCreatorForIssues === cr.name ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* SECTION 3: 100% COMPLETION ACHIEVEMENTS & BADGES */}
       {/* ========================================================================= */}
       {activeStatsTab === 'achievements' && (
@@ -1255,7 +1990,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                                   outerRadius={75}
                                   paddingAngle={4}
                                   dataKey="count"
-                                  label={({ name, count }) => `${name} (${count})`}
+                                  label={({ name, value }: any) => `${name} (${value})`}
                                   labelLine={false}
                                 >
                                   {activeBox.publisherData.map((_, index) => (
@@ -1308,7 +2043,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                                   comic.readingStatus === 'Read'
                                     ? 'bg-emerald-100 text-emerald-800'
-                                    : comic.readingStatus === 'In Progress'
+                                    : comic.readingStatus === 'Reading'
                                     ? 'bg-amber-100 text-amber-800'
                                     : 'bg-indigo-100 text-indigo-800'
                                 }`}>

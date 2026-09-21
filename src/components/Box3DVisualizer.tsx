@@ -498,7 +498,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
             return comic ? (
               <div className="flex items-center gap-2 truncate">
                 <span className="inline-block w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                <span className="font-bold text-slate-900 truncate">{comic.title}</span>
+                <span className="font-bold text-slate-900 truncate">{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}</span>
                 <span className="text-slate-500">#{comic.issueNumber} ({comic.publicationYear})</span>
                 <span className="text-[11px] text-slate-400 hidden sm:inline">
                   • {isComicPulled ? 'Currently pulled out for inspection' : 'Sitting in box'}

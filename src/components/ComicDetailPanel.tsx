@@ -54,7 +54,7 @@ export const ComicDetailPanel: React.FC<ComicDetailPanelProps> = ({
         {/* Title & Issue */}
         <div>
           <h3 className="font-semibold text-slate-900 line-clamp-2 text-sm">
-            {comic.title}
+            {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
             Issue #{comic.issueNumber}

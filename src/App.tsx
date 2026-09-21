@@ -194,21 +194,42 @@ export default function App() {
     });
   };
 
-  const handleImportComics = (importedComics: ComicBook[], mode: 'append' | 'replace' = 'append') => {
+  const handleImportComics = async (
+    importedComics: ComicBook[],
+    mode: 'append' | 'replace' = 'append',
+    navigate = true
+  ): Promise<void> => {
     const sanitizedImports = importedComics.map((c) =>
       c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c
     );
     if (mode === 'replace') {
       setComics(sanitizedImports);
-      dbCall(replaceComics(sanitizedImports));
+      await dbCall(replaceComics(sanitizedImports));
     } else {
+      let combined: ComicBook[] = [];
       setComics((prev) => {
-        const combined = [...sanitizedImports, ...prev];
-        dbCall(replaceComics(combined));
+        combined = [...sanitizedImports, ...prev];
         return combined;
       });
+      await dbCall(replaceComics(combined));
     }
-    setActiveTab('catalog');
+    if (navigate) {
+      setActiveTab('catalog');
+    }
+  };
+
+  const handleRefreshCollection = async () => {
+    try {
+      const { comics: storedComics, boxes: storedBoxes } = await loadCollection();
+      if (storedBoxes.length > 0) setBoxes(storedBoxes);
+      if (storedComics.length > 0) {
+        setComics(storedComics
+          .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
+          .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c)));
+      }
+    } catch (err) {
+      console.warn('Failed to refresh collection:', err);
+    }
   };
 
   const handleRemoveDuplicates = (): number => {
@@ -217,7 +238,8 @@ export default function App() {
       const seen = new Set<string>();
       const unique: ComicBook[] = [];
       for (const comic of prev) {
-        const key = `${comic.title.trim().toLowerCase()}|${comic.issueNumber.trim().toLowerCase()}|${comic.publisher.trim().toLowerCase()}`;
+        const titleKey = (comic.title || comic.fullTitle || comic.seriesName || '').trim().toLowerCase();
+        const key = `${titleKey}|${comic.issueNumber.trim().toLowerCase()}|${comic.publisher.trim().toLowerCase()}`;
         if (!seen.has(key)) {
           seen.add(key);
           unique.push(comic);
@@ -336,7 +358,9 @@ export default function App() {
         {activeTab === 'sheets' && (
           <GoogleSheetsImporter 
             boxes={boxes} 
-            onImportComics={handleImportComics} 
+            onImportComics={handleImportComics}
+            onRefreshCollection={handleRefreshCollection}
+            onNavigateToTab={(tab) => setActiveTab(tab)}
             onOpenDataManagementModal={() => setIsDataModalOpen(true)}
             comicsCount={comics.length}
           />

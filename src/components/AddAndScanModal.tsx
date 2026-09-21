@@ -269,6 +269,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       notes: notes.trim(),
       tags,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     onAddComic(newComic);

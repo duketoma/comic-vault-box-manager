@@ -79,11 +79,16 @@ function toComic(row, index) {
   const publisher = cleaned(row['Publisher Name']) || 'Unknown Publisher';
   const idSeed = [index, publisher, title, issueNumber, releaseDate, row['Full Title']].join('|');
 
+  const seriesName = cleaned(row['Series Name']) || undefined;
+  const fullTitle = cleaned(row['Full Title']) || (issueNumber && issueNumber !== 'Unknown' ? `${title} #${issueNumber}` : title);
+
   return {
     id: `csv-${createHash('sha256').update(idSeed).digest('hex').slice(0, 24)}`,
     title,
     issueNumber,
     volume: cleaned(row.Volume) || undefined,
+    seriesName,
+    fullTitle,
     event: cleaned(row.Event) || undefined,
     copiesOwned: wishlist ? 0 : Math.max(1, integerOr(row['Copies Owned'], 1)),
     publisher,
@@ -94,7 +99,8 @@ function toComic(row, index) {
     writer: '',
     artist: '',
     creatorContributions: [],
-    coverImage: cleaned(row['Cover Image Link']) || undefined,
+    characterAppearances: [],
+    coverImage: cleaned(row['Cover Image Link']) || cleaned(row['Image Link']) || 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing',
     format: 'Single Issue',
     sizeThickness: Math.max(0.1, numberOr(row['Equivalant Comic Book Size Per Issue'], 1)),
     currentBoxId: wishlist && !box ? 0 : box,
@@ -107,31 +113,34 @@ function toComic(row, index) {
     notes: buildNotes(row) || undefined,
     tags: cleaned(row.Tags).split(/[,;]/).map((tag) => tag.trim()).filter(Boolean),
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
 const columns = [
-  'id', 'title', 'issue_number', 'volume', 'event', 'copies_owned', 'publisher', 'publication_year',
+  'id', 'title', 'issue_number', 'volume', 'series_name', 'full_title', 'event', 'copies_owned', 'publisher', 'publication_year',
   'publication_month', 'publication_date', 'genre', 'writer', 'artist', 'cover_artist',
-  'creator_contributions', 'cover_image', 'format', 'size_thickness',
+  'creator_contributions', 'character_appearances', 'cover_image', 'format', 'size_thickness',
   'current_box_id', 'proposed_box_id', 'reading_status',
   'user_rating', 'condition', 'purchase_price', 'estimated_value', 'notes', 'tags', 'created_at', 'updated_at',
 ];
 const fields = {
-  id: 'id', title: 'title', issue_number: 'issueNumber', volume: 'volume', event: 'event',
+  id: 'id', title: 'title', issue_number: 'issueNumber', volume: 'volume',
+  series_name: 'seriesName', full_title: 'fullTitle', event: 'event',
   copies_owned: 'copiesOwned', publisher: 'publisher', publication_year: 'publicationYear',
   publication_month: 'publicationMonth', publication_date: 'publicationDate', genre: 'genre', writer: 'writer',
   artist: 'artist', cover_artist: 'coverArtist', creator_contributions: 'creatorContributions',
+  character_appearances: 'characterAppearances',
   cover_image: 'coverImage', format: 'format', size_thickness: 'sizeThickness',
   current_box_id: 'currentBoxId', proposed_box_id: 'proposedBoxId', reading_status: 'readingStatus',
   user_rating: 'userRating', condition: 'condition',
   purchase_price: 'purchasePrice', estimated_value: 'estimatedValue', notes: 'notes', tags: 'tags', created_at: 'createdAt', updated_at: 'updatedAt',
 };
 const upsertSql = `INSERT INTO comic_books (${columns.join(', ')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})
-  ON CONFLICT (id) DO UPDATE SET ${columns.filter((column) => column !== 'id' && column !== 'created_at').map((column) => `${column} = EXCLUDED.${column}`).join(', ')}, updated_at = NOW()`;
+  ON CONFLICT (id) DO UPDATE SET ${columns.filter((column) => column !== 'id' && column !== 'created_at' && column !== 'updated_at').map((column) => `${column} = EXCLUDED.${column}`).join(', ')}, updated_at = NOW()`;
 const valuesFor = (comic) => columns.map((column) => {
   const value = comic[fields[column]];
-  return ['creator_contributions', 'tags'].includes(column) ? JSON.stringify(value ?? []) : value ?? null;
+  return ['creator_contributions', 'character_appearances', 'tags'].includes(column) ? JSON.stringify(value ?? []) : value ?? null;
 });
 
 const pool = new Pool({ connectionString: databaseUrl, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });

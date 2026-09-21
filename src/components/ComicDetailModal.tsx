@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ComicBook, StorageBox, CREATOR_ROLES, CreatorContribution } from '../types';
+import { ComicBook, StorageBox, CREATOR_ROLES, CreatorContribution, CharacterAppearance } from '../types';
 import { getComicCoverUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
@@ -21,7 +21,8 @@ import {
   Plus,
   Cloud,
   ExternalLink,
-  Info
+  Info,
+  ShieldAlert
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -68,6 +69,11 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [newCreatorName, setNewCreatorName] = useState('');
   const [newRoleName, setNewRoleName] = useState<string>('Writer');
 
+  // Character Appearances State
+  const [characters, setCharacters] = useState<CharacterAppearance[]>(comic.characterAppearances || []);
+  const [newCharName, setNewCharName] = useState('');
+  const [newCharType, setNewCharType] = useState('Main');
+
   const currentBox = boxes.find((b) => b.id === comic.currentBoxId);
 
   const handleAddContribution = () => {
@@ -86,6 +92,24 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
   const handleRemoveContribution = (index: number) => {
     setContributions(contributions.filter((_, i) => i !== index));
+  };
+
+  const handleAddCharacter = () => {
+    if (!newCharName.trim()) return;
+    const updated = [
+      ...characters,
+      {
+        id: `char-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        characterName: newCharName.trim(),
+        appearanceType: newCharType,
+      },
+    ];
+    setCharacters(updated);
+    setNewCharName('');
+  };
+
+  const handleRemoveCharacter = (index: number) => {
+    setCharacters(characters.filter((_, i) => i !== index));
   };
 
   const handleSaveQuickEdits = () => {
@@ -109,6 +133,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       writer: writerContrib ? writerContrib.creatorName : comic.writer,
       artist: artistContrib ? artistContrib.creatorName : comic.artist,
       creatorContributions: contributions,
+      characterAppearances: characters,
       lastReadDate: readingStatus === 'Read' ? new Date().toISOString().split('T')[0] : comic.lastReadDate,
     });
     setIsEditing(false);
@@ -143,10 +168,14 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             </div>
 
             <h2 className="text-2xl font-black text-slate-900 leading-tight">
-              {comic.title} <span className="text-slate-600">#{comic.issueNumber}</span>
+              {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'} <span className="text-slate-600">#{comic.issueNumber}</span>
             </h2>
 
-            {comic.volume && (
+            {comic.seriesName && (
+              <p className="text-xs text-indigo-700 font-semibold">{comic.seriesName}</p>
+            )}
+
+            {comic.volume && !comic.seriesName && (
               <p className="text-xs text-slate-500 font-semibold">{comic.volume}</p>
             )}
 
@@ -395,6 +424,81 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Role</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Character Appearances Section */}
+            <div className="pt-3 border-t border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="text-sm">🦸</span>
+                  <span>Character Appearances ({characters.length})</span>
+                </h4>
+              </div>
+
+              {/* Character Badges List */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {characters.length === 0 ? (
+                  <span className="text-xs text-slate-400 italic">No character appearances tracked for this issue yet.</span>
+                ) : (
+                  characters.map((char, idx) => (
+                    <div
+                      key={char.id || idx}
+                      className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-800 text-xs px-2.5 py-1 rounded-lg font-medium"
+                    >
+                      <span className="font-bold text-slate-900">{char.characterName}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase tracking-wider ${
+                        char.appearanceType?.toLowerCase().includes('main')
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : char.appearanceType?.toLowerCase().includes('cameo')
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {char.appearanceType || 'Supporting'}
+                      </span>
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCharacter(idx)}
+                          className="text-slate-400 hover:text-rose-600 ml-1 font-bold"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add New Character in Edit Mode */}
+              {isEditing && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-xl">
+                  <input
+                    type="text"
+                    placeholder="Character Name (e.g., Venom, Mary Jane)"
+                    value={newCharName}
+                    onChange={(e) => setNewCharName(e.target.value)}
+                    className="flex-1 min-w-[140px] bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                  />
+                  <select
+                    value={newCharType}
+                    onChange={(e) => setNewCharType(e.target.value)}
+                    className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
+                  >
+                    <option value="Main">Main Character</option>
+                    <option value="Supporting">Supporting</option>
+                    <option value="Cameo">Cameo</option>
+                    <option value="Cover Only">Cover Only</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddCharacter}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Character</span>
                   </button>
                 </div>
               )}

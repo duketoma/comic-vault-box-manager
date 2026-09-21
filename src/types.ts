@@ -25,7 +25,50 @@ export interface CreatorContribution {
   id?: string;
   creatorName: string;
   roleName: CreatorRole;
+  creatorType?: string;
+  isMultiRole?: boolean;
+  allRoles?: string[];
   bio?: string;
+}
+
+export interface CharacterAppearance {
+  id?: string;
+  characterName: string;
+  appearanceType: string; // 'Main' | 'Supporting' | 'Cameo' | 'Cover Only' | string
+}
+
+export interface CreatorRecord {
+  id?: number;
+  firstName?: string;
+  lastName?: string;
+  fullName: string;
+  issueCount?: number;
+  roles?: { roleName: string; count: number }[];
+  isMultiRole?: boolean;
+  series?: string[];
+}
+
+export interface CreatorTypeRecord {
+  id?: number;
+  typeName: string;
+}
+
+export interface TitleContributorRecord {
+  id?: number;
+  seriesName?: string;
+  fullTitle: string;
+  creatorFullName: string;
+  creatorType: string;
+  comicId?: string;
+}
+
+export interface TitleCharacterAppearanceRecord {
+  id?: number;
+  seriesName?: string;
+  fullTitle: string;
+  characterName: string;
+  appearanceType: string;
+  comicId?: string;
 }
 
 export interface ComicBook {
@@ -33,6 +76,8 @@ export interface ComicBook {
   title: string;
   issueNumber: string;
   volume?: string;
+  seriesName?: string; // name of comic series including Volume and years (e.g. "The Amazing Spider-Man (1963 - 1998)")
+  fullTitle?: string; // name of title including issue number (e.g. "The Amazing Spider-Man #300")
   event?: string; // Cross-title crossover event (e.g., "Civil War", "Secret Wars")
   copiesOwned?: number; // Physical copies owned (default 1)
   publisher: string;
@@ -44,6 +89,7 @@ export interface ComicBook {
   artist: string;
   coverArtist?: string;
   creatorContributions?: CreatorContribution[];
+  characterAppearances?: CharacterAppearance[];
   coverImage: string;
   format: ComicFormat;
   sizeThickness: number; // Equivalent comic book size (1.0 = standard issue)

@@ -5,6 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { parseTitleAndIssue } from './src/utils/titleParser';
 
 // Local development overrides belong in .env.local; .env remains a shared fallback.
 dotenv.config({ path: ['.env.local', '.env'] });
@@ -18,20 +19,22 @@ const pool = databaseUrl
   : null;
 
 const comicColumns = [
-  'id', 'title', 'issue_number', 'volume', 'event', 'copies_owned', 'publisher',
+  'id', 'title', 'issue_number', 'volume', 'series_name', 'full_title', 'event', 'copies_owned', 'publisher',
   'publication_year', 'publication_month', 'publication_date', 'genre', 'writer',
-  'artist', 'cover_artist', 'creator_contributions', 'cover_image', 'format',
+  'artist', 'cover_artist', 'creator_contributions', 'character_appearances', 'cover_image', 'format',
   'size_thickness', 'current_box_id', 'proposed_box_id', 'reading_status', 
   'user_rating', 'condition', 'purchase_price', 'estimated_value',
   'notes', 'tags', 'created_at', 'updated_at',
 ] as const;
 
 const comicFields: Record<(typeof comicColumns)[number], string> = {
-  id: 'id', title: 'title', issue_number: 'issueNumber', volume: 'volume', event: 'event',
-  copies_owned: 'copiesOwned', publisher: 'publisher', publication_year: 'publicationYear',
+  id: 'id', title: 'title', issue_number: 'issueNumber', volume: 'volume',
+  series_name: 'seriesName', full_title: 'fullTitle',
+  event: 'event', copies_owned: 'copiesOwned', publisher: 'publisher', publication_year: 'publicationYear',
   publication_month: 'publicationMonth', publication_date: 'publicationDate', genre: 'genre',
   writer: 'writer', artist: 'artist', cover_artist: 'coverArtist',
-  creator_contributions: 'creatorContributions', cover_image: 'coverImage', format: 'format',
+  creator_contributions: 'creatorContributions', character_appearances: 'characterAppearances',
+  cover_image: 'coverImage', format: 'format',
   size_thickness: 'sizeThickness', current_box_id: 'currentBoxId', proposed_box_id: 'proposedBoxId',
   reading_status: 'readingStatus', user_rating: 'userRating', condition: 'condition', purchase_price: 'purchasePrice',
   estimated_value: 'estimatedValue', notes: 'notes', tags: 'tags', created_at: 'createdAt', updated_at: 'updatedAt',
@@ -44,7 +47,9 @@ function databaseErrorMessage(error: unknown) {
 function comicValues(comic: Record<string, unknown>) {
   return comicColumns.map((column) => {
     const value = comic[comicFields[column]];
-    return ['creator_contributions', 'tags'].includes(column) ? JSON.stringify(value ?? []) : value ?? null;
+    return ['creator_contributions', 'character_appearances', 'tags'].includes(column)
+      ? JSON.stringify(value ?? [])
+      : value ?? null;
   });
 }
 
@@ -56,11 +61,118 @@ function rowToComic(row: Record<string, unknown>) {
   ]);
   for (const column of comicColumns) {
     const value = row[column];
-    comic[comicFields[column]] = ['creator_contributions', 'tags'].includes(column)
+    comic[comicFields[column]] = ['creator_contributions', 'character_appearances', 'tags'].includes(column)
       ? (typeof value === 'string' ? JSON.parse(value) : value ?? [])
       : numericColumns.has(column) && value !== null && value !== undefined ? Number(value) : value;
   }
+  if (!comic.title || !String(comic.title).trim()) {
+    comic.title = (comic.fullTitle as string) || (comic.seriesName as string) || 'Untitled Comic';
+  }
   return comic;
+}
+
+async function initDatabase(db: Pool) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS creators (
+      id SERIAL PRIMARY KEY,
+      first_name TEXT,
+      last_name TEXT,
+      full_name TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_creators_full_name ON creators (full_name);
+
+    CREATE TABLE IF NOT EXISTS creator_types (
+      id SERIAL PRIMARY KEY,
+      type_name TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS title_contributors (
+      id SERIAL PRIMARY KEY,
+      series_name TEXT,
+      full_title TEXT NOT NULL,
+      creator_full_name TEXT NOT NULL,
+      creator_type TEXT NOT NULL,
+      comic_id TEXT REFERENCES comic_books(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_title_contributors_full_title ON title_contributors (full_title);
+    CREATE INDEX IF NOT EXISTS idx_title_contributors_series_name ON title_contributors (series_name);
+    CREATE INDEX IF NOT EXISTS idx_title_contributors_creator_name ON title_contributors (creator_full_name);
+    CREATE INDEX IF NOT EXISTS idx_title_contributors_creator_type ON title_contributors (creator_type);
+    CREATE INDEX IF NOT EXISTS idx_title_contributors_comic_id ON title_contributors (comic_id);
+
+    CREATE TABLE IF NOT EXISTS title_character_appearances (
+      id SERIAL PRIMARY KEY,
+      series_name TEXT,
+      full_title TEXT NOT NULL,
+      character_name TEXT NOT NULL,
+      appearance_type TEXT NOT NULL,
+      comic_id TEXT REFERENCES comic_books(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_title_char_app_full_title ON title_character_appearances (full_title);
+    CREATE INDEX IF NOT EXISTS idx_title_char_app_series_name ON title_character_appearances (series_name);
+    CREATE INDEX IF NOT EXISTS idx_title_char_app_character_name ON title_character_appearances (character_name);
+    CREATE INDEX IF NOT EXISTS idx_title_char_app_comic_id ON title_character_appearances (comic_id);
+
+    ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS series_name TEXT;
+    ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS full_title TEXT;
+    ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS character_appearances JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+    UPDATE comic_books
+    SET full_title = CASE 
+      WHEN issue_number IS NOT NULL AND issue_number != '' AND issue_number != 'Unknown' THEN title || ' #' || issue_number
+      ELSE title
+    END
+    WHERE full_title IS NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_comic_books_full_title ON comic_books (full_title);
+  `);
+
+  // Auto-repair any comics where title is missing or empty
+  try {
+    const emptyTitlesResult = await db.query(
+      "SELECT id, full_title, series_name, volume, issue_number FROM comic_books WHERE title IS NULL OR title = '' OR trim(title) = ''"
+    );
+    if (emptyTitlesResult.rows.length > 0) {
+      console.log(`Found ${emptyTitlesResult.rows.length} comic(s) with empty title. Auto-repairing...`);
+      for (const row of emptyTitlesResult.rows) {
+        const source = (row.full_title as string) || (row.series_name as string) || '';
+        const parsed = parseTitleAndIssue(source, row.issue_number && row.issue_number !== '1' ? (row.issue_number as string) : undefined);
+        const newTitle = parsed.cleanTitle || source || 'Untitled Comic';
+        const newIssue = parsed.issueNumber || (row.issue_number && row.issue_number !== '1' ? (row.issue_number as string) : '1');
+        let vol = row.volume as string | null | undefined;
+        if (!vol && parsed.volume) {
+          vol = parsed.volume;
+        } else if (!vol && row.series_name) {
+          const volMatch = (row.series_name as string).match(/\b(vol|volume|v)\.?\s*(\d+)\b/i);
+          if (volMatch) vol = volMatch[2];
+        }
+
+        await db.query(
+          `UPDATE comic_books
+           SET title = $1,
+               issue_number = CASE WHEN issue_number IS NULL OR issue_number = '' OR issue_number = '1' THEN $2 ELSE issue_number END,
+               volume = COALESCE(volume, $3),
+               updated_at = NOW()
+           WHERE id = $4`,
+          [newTitle, newIssue, vol ?? null, row.id]
+        );
+      }
+      console.log(`Successfully repaired ${emptyTitlesResult.rows.length} comic title(s).`);
+    }
+  } catch (repairErr) {
+    console.warn('Auto-repair empty titles warning:', repairErr);
+  }
 }
 
 async function startServer() {
@@ -68,6 +180,15 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(express.json({ limit: '25mb' }));
+
+  if (pool) {
+    try {
+      await initDatabase(pool);
+      console.log('Database initialized with creators & character appearance tables.');
+    } catch (err) {
+      console.warn('Database initialization warning:', err);
+    }
+  }
 
   const requireDatabase: express.RequestHandler = (_req, res, next) => {
     if (!pool) {
@@ -392,94 +513,510 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
     return lines;
   }
 
-  // --- API ROUTE: Google Sheets Integration ---
+  // Helper to fetch Google Sheet data by tab name using OAuth or public CSV export
+  async function fetchSheetData(spreadsheetId: string, sheetName: string, accessToken?: string): Promise<{ headers: string[]; rows: string[][] }> {
+    let cleanId = spreadsheetId.trim();
+    const urlMatch = cleanId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (urlMatch) cleanId = urlMatch[1];
+
+    // Strategy 1: If client provided OAuth access token, use Google Sheets API
+    if (accessToken) {
+      try {
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+        const sheets = google.sheets({ version: 'v4', auth });
+        const range = sheetName ? `'${sheetName}'` : 'A1:ZZ';
+
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: cleanId,
+          range,
+        });
+
+        const rows = response.data.values;
+        if (rows && rows.length > 0) {
+          const headers = rows[0].map((h: any) => String(h ?? '').trim());
+          const dataRows = rows.slice(1).map((r: any[]) => r.map((c: any) => String(c ?? '').trim()));
+          return { headers, rows: dataRows };
+        }
+      } catch (authErr: any) {
+        console.warn(`OAuth fetch failed for tab "${sheetName}":`, authErr.message);
+      }
+    }
+
+    // Strategy 2: Fallback to public CSV export endpoint (works for any sheet shared with "Anyone with the link")
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName || 'Sheet1')}`;
+    const csvResponse = await fetch(csvUrl);
+
+    if (csvResponse.ok) {
+      const csvText = await csvResponse.text();
+      if (csvText && !csvText.includes('<!DOCTYPE html>')) {
+        const parsedRows = parseCSV(csvText);
+        if (parsedRows.length > 0) {
+          const headers = parsedRows[0].map((h) => h.trim());
+          const dataRows = parsedRows.slice(1);
+          return { headers, rows: dataRows };
+        }
+      }
+    }
+
+    // Strategy 3: Secondary export URL attempt
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(sheetName || 'Sheet1')}`;
+    const exportResponse = await fetch(exportUrl);
+    if (exportResponse.ok) {
+      const csvText = await exportResponse.text();
+      if (csvText && !csvText.includes('<!DOCTYPE html>')) {
+        const parsedRows = parseCSV(csvText);
+        if (parsedRows.length > 0) {
+          const headers = parsedRows[0].map((h) => h.trim());
+          const dataRows = parsedRows.slice(1);
+          return { headers, rows: dataRows };
+        }
+      }
+    }
+
+    throw new Error(`Could not read sheet tab "${sheetName}". Ensure the tab exists and the Google Sheet is shared with "Anyone with the link can view".`);
+  }
+
+  // --- API ROUTE: Google Sheets Fetch Single Tab ---
   app.post('/api/google-sheets/fetch', async (req, res) => {
     try {
       const { spreadsheetId, sheetName = 'Sheet1', accessToken } = req.body;
-      
       if (!spreadsheetId) {
         return res.status(400).json({ error: 'spreadsheetId is required' });
       }
 
-      // Strategy 1: If client provided OAuth access token, use Google Sheets API
-      if (accessToken) {
-        try {
-          const auth = new google.auth.OAuth2();
-          auth.setCredentials({ access_token: accessToken });
-          const sheets = google.sheets({ version: 'v4', auth });
-          const range = sheetName ? `'${sheetName}'!A1:Z500` : 'A1:Z500';
-
-          const response = await sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range,
-          });
-
-          const rows = response.data.values;
-          if (rows && rows.length > 0) {
-            const headers = rows[0].map((h: any) => String(h).trim());
-            const dataRows = rows.slice(1);
-            return res.json({
-              success: true,
-              spreadsheetId,
-              headers,
-              rowCount: dataRows.length,
-              rows: dataRows,
-            });
-          }
-        } catch (authErr: any) {
-          console.warn('Google Sheets OAuth API fetch failed, trying public CSV fallback...', authErr.message);
-        }
-      }
-
-      // Strategy 2: Fallback to public CSV export endpoint (works for any sheet shared with "Anyone with the link")
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName || 'Sheet1')}`;
-      const csvResponse = await fetch(csvUrl);
-
-      if (csvResponse.ok) {
-        const csvText = await csvResponse.text();
-        if (csvText && !csvText.includes('<!DOCTYPE html>')) {
-          const parsedRows = parseCSV(csvText);
-          if (parsedRows.length > 0) {
-            const headers = parsedRows[0];
-            const dataRows = parsedRows.slice(1);
-            return res.json({
-              success: true,
-              spreadsheetId,
-              headers,
-              rowCount: dataRows.length,
-              rows: dataRows,
-            });
-          }
-        }
-      }
-
-      // Secondary export URL attempt
-      const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
-      const exportResponse = await fetch(exportUrl);
-      if (exportResponse.ok) {
-        const csvText = await exportResponse.text();
-        if (csvText && !csvText.includes('<!DOCTYPE html>')) {
-          const parsedRows = parseCSV(csvText);
-          if (parsedRows.length > 0) {
-            const headers = parsedRows[0];
-            const dataRows = parsedRows.slice(1);
-            return res.json({
-              success: true,
-              spreadsheetId,
-              headers,
-              rowCount: dataRows.length,
-              rows: dataRows,
-            });
-          }
-        }
-      }
-
-      return res.status(400).json({
-        error: 'Could not read Google Sheet. Please ensure the Google Sheet access is set to "Anyone with the link can view", or sign in with Google Drive.',
+      const { headers, rows } = await fetchSheetData(spreadsheetId, sheetName, accessToken);
+      return res.json({
+        success: true,
+        spreadsheetId,
+        sheetName,
+        headers,
+        rowCount: rows.length,
+        rows,
       });
     } catch (err: any) {
       console.error('Google Sheets Fetch Error:', err);
-      return res.status(500).json({ error: err.message || 'Failed to fetch Google Sheet data' });
+      return res.status(400).json({ error: err.message || 'Failed to fetch Google Sheet data' });
+    }
+  });
+
+  // --- API ROUTE: Google Sheets Batch Fetch Multiple Subsheets ---
+  app.post('/api/google-sheets/fetch-subsheets', async (req, res) => {
+    try {
+      const { spreadsheetId, sheetNames = {}, accessToken } = req.body;
+      if (!spreadsheetId) {
+        return res.status(400).json({ error: 'spreadsheetId is required' });
+      }
+
+      const results: Record<string, { sheetName: string; headers: string[]; rows: string[][]; rowCount: number; error?: string }> = {};
+
+      const fetchPromises = Object.entries(sheetNames).map(async ([key, sheetName]) => {
+        const name = String(sheetName || '').trim();
+        if (!name) return;
+        try {
+          const { headers, rows } = await fetchSheetData(spreadsheetId, name, accessToken);
+          results[key] = {
+            sheetName: name,
+            headers,
+            rows,
+            rowCount: rows.length,
+          };
+        } catch (tabErr: any) {
+          results[key] = {
+            sheetName: name,
+            headers: [],
+            rows: [],
+            rowCount: 0,
+            error: tabErr.message,
+          };
+        }
+      });
+
+      await Promise.all(fetchPromises);
+
+      return res.json({
+        success: true,
+        spreadsheetId,
+        subsheets: results,
+      });
+    } catch (err: any) {
+      console.error('Google Sheets Fetch Subsheets Error:', err);
+      return res.status(500).json({ error: err.message || 'Failed to fetch subsheets' });
+    }
+  });
+
+  // --- API ROUTE: Import and Store Subsheets into Database ---
+  app.post('/api/import/subsheets', requireDatabase, async (req, res) => {
+    const client = await pool!.connect();
+    try {
+      const {
+        creators = [],
+        creatorTypes = [],
+        contributors = [],
+        characterAppearances = [],
+        syncWithComics = true,
+      } = req.body;
+
+      await client.query('BEGIN');
+
+      let creatorsInserted = 0;
+      let creatorTypesInserted = 0;
+      let contributorsInserted = 0;
+      let appearancesInserted = 0;
+      let comicsUpdated = 0;
+
+      // 1. Creators import: (First Name, Last Name, Full Name)
+      if (Array.isArray(creators) && creators.length > 0) {
+        await client.query('DELETE FROM creators');
+        for (const creator of creators) {
+          const fullName = String(creator.fullName || '').trim();
+          if (!fullName) continue;
+          const firstName = creator.firstName ? String(creator.firstName).trim() : null;
+          const lastName = creator.lastName ? String(creator.lastName).trim() : null;
+
+          await client.query(`
+            INSERT INTO creators (first_name, last_name, full_name, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (full_name) DO UPDATE SET
+              first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), creators.first_name),
+              last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), creators.last_name),
+              updated_at = NOW()
+          `, [firstName, lastName, fullName]);
+          creatorsInserted++;
+        }
+      }
+
+      // 2. Creator Types import (Penciller, Inker, Editor, Writer, etc.)
+      if (Array.isArray(creatorTypes) && creatorTypes.length > 0) {
+        await client.query('DELETE FROM creator_types');
+        for (const ct of creatorTypes) {
+          const typeName = String(ct.typeName || ct.roleName || ct.name || '').trim();
+          if (!typeName) continue;
+          await client.query(`
+            INSERT INTO creator_types (type_name, updated_at)
+            VALUES ($1, NOW())
+            ON CONFLICT (type_name) DO NOTHING
+          `, [typeName]);
+          creatorTypesInserted++;
+        }
+      }
+
+      // 3. Title Contributors import (Series Name, Full Title, Creator Full Name, Creator Type)
+      if (Array.isArray(contributors) && contributors.length > 0) {
+        await client.query('DELETE FROM title_contributors');
+
+        for (const c of contributors) {
+          const fullTitle = String(c.fullTitle || '').trim();
+          const creatorFullName = String(c.creatorFullName || c.creatorName || '').trim();
+          const creatorType = String(c.creatorType || c.roleName || 'Contributor').trim();
+          const seriesName = c.seriesName ? String(c.seriesName).trim() : null;
+
+          if (!fullTitle || !creatorFullName) continue;
+
+          // Ensure creator exists in creators table
+          const nameParts = creatorFullName.split(' ');
+          const autoFirst = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : null;
+          const autoLast = nameParts.length > 1 ? nameParts[nameParts.length - 1] : creatorFullName;
+
+          await client.query(`
+            INSERT INTO creators (first_name, last_name, full_name, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (full_name) DO NOTHING
+          `, [autoFirst, autoLast, creatorFullName]);
+
+          // Ensure creator type exists
+          await client.query(`
+            INSERT INTO creator_types (type_name, updated_at)
+            VALUES ($1, NOW())
+            ON CONFLICT (type_name) DO NOTHING
+          `, [creatorType]);
+
+          await client.query(`
+            INSERT INTO title_contributors (series_name, full_title, creator_full_name, creator_type, updated_at)
+            VALUES ($1, $2, $3, $4, NOW())
+          `, [seriesName, fullTitle, creatorFullName, creatorType]);
+          contributorsInserted++;
+        }
+      }
+
+      // 4. Character Appearances import (Series Name, Full Title, Character Name, Appearance Type)
+      if (Array.isArray(characterAppearances) && characterAppearances.length > 0) {
+        await client.query('DELETE FROM title_character_appearances');
+
+        for (const a of characterAppearances) {
+          const fullTitle = String(a.fullTitle || '').trim();
+          const characterName = String(a.characterName || '').trim();
+          const appearanceType = String(a.appearanceType || 'Supporting').trim();
+          const seriesName = a.seriesName ? String(a.seriesName).trim() : null;
+
+          if (!fullTitle || !characterName) continue;
+
+          await client.query(`
+            INSERT INTO title_character_appearances (series_name, full_title, character_name, appearance_type, updated_at)
+            VALUES ($1, $2, $3, $4, NOW())
+          `, [seriesName, fullTitle, characterName, appearanceType]);
+          appearancesInserted++;
+        }
+      }
+
+      // 5. Link with comic_books and update creator contributions and character appearances
+      if (syncWithComics) {
+        // Reset previous creator contributions and character appearances to avoid stale data
+        await client.query(`
+          UPDATE comic_books
+          SET 
+            creator_contributions = '[]'::jsonb,
+            character_appearances = '[]'::jsonb,
+            writer = CASE WHEN writer = title OR writer = series_name OR writer = full_title THEN NULL ELSE writer END,
+            artist = CASE WHEN artist = title OR artist = series_name OR artist = full_title THEN NULL ELSE artist END
+          WHERE TRUE
+        `);
+
+        // Link comic_id in contributors with fast indexed passes
+        await client.query(`
+          UPDATE title_contributors tc
+          SET comic_id = cb.id
+          FROM comic_books cb
+          WHERE LOWER(TRIM(tc.full_title)) = LOWER(TRIM(cb.full_title))
+        `);
+        await client.query(`
+          UPDATE title_contributors tc
+          SET comic_id = cb.id
+          FROM comic_books cb
+          WHERE tc.comic_id IS NULL
+            AND (
+              LOWER(TRIM(tc.full_title)) = LOWER(TRIM(cb.title))
+              OR LOWER(TRIM(tc.full_title)) = LOWER(TRIM(cb.title || ' #' || cb.issue_number))
+              OR LOWER(TRIM(tc.full_title)) = LOWER(TRIM(cb.title || ' ' || cb.issue_number))
+            )
+        `);
+
+        // Link comic_id in character appearances with fast indexed passes
+        await client.query(`
+          UPDATE title_character_appearances tca
+          SET comic_id = cb.id
+          FROM comic_books cb
+          WHERE LOWER(TRIM(tca.full_title)) = LOWER(TRIM(cb.full_title))
+        `);
+        await client.query(`
+          UPDATE title_character_appearances tca
+          SET comic_id = cb.id
+          FROM comic_books cb
+          WHERE tca.comic_id IS NULL
+            AND (
+              LOWER(TRIM(tca.full_title)) = LOWER(TRIM(cb.title))
+              OR LOWER(TRIM(tca.full_title)) = LOWER(TRIM(cb.title || ' #' || cb.issue_number))
+              OR LOWER(TRIM(tca.full_title)) = LOWER(TRIM(cb.title || ' ' || cb.issue_number))
+            )
+        `);
+
+        // Backfill series_name on comic_books if available from contributors or appearances
+        await client.query(`
+          UPDATE comic_books cb
+          SET series_name = tc.series_name
+          FROM title_contributors tc
+          WHERE tc.comic_id = cb.id
+            AND (cb.series_name IS NULL OR cb.series_name = '')
+            AND tc.series_name IS NOT NULL
+        `);
+        await client.query(`
+          UPDATE comic_books cb
+          SET series_name = tca.series_name
+          FROM title_character_appearances tca
+          WHERE tca.comic_id = cb.id
+            AND (cb.series_name IS NULL OR cb.series_name = '')
+            AND tca.series_name IS NOT NULL
+        `);
+
+        // Aggregate contributors and update comic_books
+        const contribsAgg = await client.query(`
+          SELECT 
+            cb.id as comic_id,
+            json_agg(json_build_object('creatorName', tc.creator_full_name, 'roleName', tc.creator_type)) as contributions
+          FROM comic_books cb
+          JOIN title_contributors tc ON tc.comic_id = cb.id
+          GROUP BY cb.id
+        `);
+
+        for (const row of contribsAgg.rows) {
+          const contribs = row.contributions || [];
+          const writerNames = contribs
+            .filter((c: any) => /writer|story|script|plot/i.test(c.roleName))
+            .map((c: any) => c.creatorName);
+          const artistNames = contribs
+            .filter((c: any) => /pencill?er|artist|art|pencils/i.test(c.roleName))
+            .map((c: any) => c.creatorName);
+
+          const writerStr = writerNames.length ? Array.from(new Set(writerNames)).join(', ') : null;
+          const artistStr = artistNames.length ? Array.from(new Set(artistNames)).join(', ') : null;
+
+          await client.query(`
+            UPDATE comic_books
+            SET 
+              creator_contributions = $1,
+              writer = COALESCE(NULLIF($2, ''), writer),
+              artist = COALESCE(NULLIF($3, ''), artist),
+              updated_at = NOW()
+            WHERE id = $4
+          `, [JSON.stringify(contribs), writerStr, artistStr, row.comic_id]);
+          comicsUpdated++;
+        }
+
+        // Aggregate character appearances and update comic_books
+        const charsAgg = await client.query(`
+          SELECT 
+            cb.id as comic_id,
+            json_agg(json_build_object('characterName', tca.character_name, 'appearanceType', tca.appearance_type)) as characters
+          FROM comic_books cb
+          JOIN title_character_appearances tca ON tca.comic_id = cb.id
+          GROUP BY cb.id
+        `);
+
+        for (const row of charsAgg.rows) {
+          await client.query(`
+            UPDATE comic_books
+            SET 
+              character_appearances = $1,
+              updated_at = NOW()
+            WHERE id = $2
+          `, [JSON.stringify(row.characters || []), row.comic_id]);
+        }
+      }
+
+      await client.query('COMMIT');
+
+      res.json({
+        success: true,
+        counts: {
+          creators: creatorsInserted,
+          creatorTypes: creatorTypesInserted,
+          contributors: contributorsInserted,
+          characterAppearances: appearancesInserted,
+          comicsUpdated,
+        },
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('Subsheets import failed:', detail);
+      res.status(500).json({ error: `Unable to import subsheets: ${detail}` });
+    } finally {
+      client.release();
+    }
+  });
+
+  // --- API ROUTE: Creators List with Stats & Breakdown ---
+  app.get('/api/creators', requireDatabase, async (_req, res) => {
+    try {
+      const result = await pool!.query(`
+        SELECT 
+          c.id,
+          c.first_name as "firstName",
+          c.last_name as "lastName",
+          c.full_name as "fullName",
+          COUNT(DISTINCT tc.full_title) as "issueCount",
+          ARRAY_AGG(DISTINCT tc.series_name) FILTER (WHERE tc.series_name IS NOT NULL) as "series",
+          COALESCE(
+            json_agg(DISTINCT jsonb_build_object('roleName', tc.creator_type)) FILTER (WHERE tc.creator_type IS NOT NULL),
+            '[]'::json
+          ) as "roles",
+          bool_or(tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%') AND 
+          bool_or(tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%') as "isMultiRole"
+        FROM creators c
+        LEFT JOIN title_contributors tc ON LOWER(TRIM(tc.creator_full_name)) = LOWER(TRIM(c.full_name))
+        GROUP BY c.id, c.first_name, c.last_name, c.full_name
+        ORDER BY "issueCount" DESC, c.full_name ASC
+      `);
+
+      res.json({ success: true, creators: result.rows });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      res.status(500).json({ error: `Failed to load creators: ${detail}` });
+    }
+  });
+
+  // --- API ROUTE: Creator Reports & Analytics ---
+  app.get('/api/reports/creators', requireDatabase, async (_req, res) => {
+    try {
+      // 1. Top Contributors by Issue Count with roles breakdown
+      const topCreators = await pool!.query(`
+        SELECT 
+          tc.creator_full_name as "creatorName",
+          COUNT(DISTINCT tc.full_title) as "issueCount",
+          ARRAY_AGG(DISTINCT tc.creator_type) as "roleList",
+          bool_or(tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%') AND 
+          bool_or(tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%') as "isMultiRole"
+        FROM title_contributors tc
+        GROUP BY tc.creator_full_name
+        ORDER BY "issueCount" DESC
+        LIMIT 50
+      `);
+
+      // 2. Cross-role creators (Pencillers who wrote, writers who drew)
+      const multiRoleCreators = await pool!.query(`
+        SELECT 
+          tc.creator_full_name as "creatorName",
+          COUNT(DISTINCT tc.full_title) as "issueCount",
+          ARRAY_AGG(DISTINCT tc.creator_type) as "roleList",
+          COUNT(DISTINCT CASE WHEN tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%' THEN tc.full_title END) as "artIssues",
+          COUNT(DISTINCT CASE WHEN tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%' THEN tc.full_title END) as "storyIssues"
+        FROM title_contributors tc
+        GROUP BY tc.creator_full_name
+        HAVING bool_or(tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%')
+           AND bool_or(tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%')
+        ORDER BY "issueCount" DESC
+        LIMIT 50
+      `);
+
+      // 3. Creator Type Role Distribution
+      const roleDistribution = await pool!.query(`
+        SELECT 
+          creator_type as "roleName",
+          COUNT(*) as "contributionsCount",
+          COUNT(DISTINCT full_title) as "issuesCount",
+          COUNT(DISTINCT creator_full_name) as "creatorsCount"
+        FROM title_contributors
+        GROUP BY creator_type
+        ORDER BY "contributionsCount" DESC
+      `);
+
+      // 4. Character appearances
+      const characterStats = await pool!.query(`
+        SELECT 
+          character_name as "characterName",
+          COUNT(*) as "totalAppearances",
+          COUNT(DISTINCT full_title) as "issuesCount",
+          COUNT(*) FILTER (WHERE appearance_type ILIKE '%main%') as "mainCount",
+          COUNT(*) FILTER (WHERE appearance_type ILIKE '%supporting%') as "supportingCount",
+          COUNT(*) FILTER (WHERE appearance_type ILIKE '%cameo%') as "cameoCount"
+        FROM title_character_appearances
+        GROUP BY character_name
+        ORDER BY "totalAppearances" DESC
+        LIMIT 50
+      `);
+
+      // 5. Overall summary counts
+      const counts = await pool!.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM creators) as "totalCreators",
+          (SELECT COUNT(*) FROM creator_types) as "totalCreatorTypes",
+          (SELECT COUNT(*) FROM title_contributors) as "totalContributions",
+          (SELECT COUNT(*) FROM title_character_appearances) as "totalAppearances",
+          (SELECT COUNT(DISTINCT comic_id) FROM title_contributors WHERE comic_id IS NOT NULL) as "comicsWithContributors",
+          (SELECT COUNT(DISTINCT comic_id) FROM title_character_appearances WHERE comic_id IS NOT NULL) as "comicsWithCharacters"
+      `);
+
+      res.json({
+        success: true,
+        topCreators: topCreators.rows,
+        multiRoleCreators: multiRoleCreators.rows,
+        roleDistribution: roleDistribution.rows,
+        characterStats: characterStats.rows,
+        summary: counts.rows[0],
+      });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      res.status(500).json({ error: `Failed to load creator reports: ${detail}` });
     }
   });
 

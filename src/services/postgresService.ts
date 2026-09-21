@@ -80,3 +80,112 @@ export async function fetchBoxComics(boxId: number): Promise<{
   const response = await request(`/api/boxes/${boxId}/comics`);
   return response.json();
 }
+
+/**
+ * Fetch multiple Google Sheet subsheets in parallel.
+ */
+export async function fetchGoogleSubsheets(payload: {
+  spreadsheetId: string;
+  sheetNames: Record<string, string>;
+  accessToken?: string;
+}): Promise<{
+  success: boolean;
+  spreadsheetId: string;
+  subsheets: Record<string, { sheetName: string; headers: string[]; rows: string[][]; rowCount: number; error?: string }>;
+}> {
+  try {
+    const response = await request('/api/google-sheets/fetch-subsheets', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return response.json();
+  } catch (err: any) {
+    // If the batch endpoint is not yet available (e.g. 404 from older server before restart),
+    // fallback gracefully to fetching each tab individually via /api/google-sheets/fetch
+    if (err.message && err.message.includes('404')) {
+      console.warn('Batch endpoint returned 404, falling back to individual tab fetching...');
+      const results: Record<string, { sheetName: string; headers: string[]; rows: string[][]; rowCount: number; error?: string }> = {};
+
+      await Promise.all(
+        Object.entries(payload.sheetNames).map(async ([key, sheetName]) => {
+          const name = String(sheetName || '').trim();
+          if (!name) return;
+          try {
+            const singleResp = await request('/api/google-sheets/fetch', {
+              method: 'POST',
+              body: JSON.stringify({
+                spreadsheetId: payload.spreadsheetId,
+                sheetName: name,
+                accessToken: payload.accessToken,
+              }),
+            });
+            const singleData = await singleResp.json();
+            results[key] = {
+              sheetName: name,
+              headers: singleData.headers || [],
+              rows: singleData.rows || [],
+              rowCount: (singleData.rows || []).length,
+            };
+          } catch (tabErr: any) {
+            results[key] = {
+              sheetName: name,
+              headers: [],
+              rows: [],
+              rowCount: 0,
+              error: tabErr.message,
+            };
+          }
+        })
+      );
+
+      return {
+        success: true,
+        spreadsheetId: payload.spreadsheetId,
+        subsheets: results,
+      };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Imports and persists subsheets data (creators, creator types, contributors, character appearances) into PostgreSQL.
+ */
+export async function importSubsheetsData(payload: {
+  creators?: Array<{ firstName?: string; lastName?: string; fullName: string }>;
+  creatorTypes?: Array<{ typeName: string }>;
+  contributors?: Array<{ seriesName?: string; fullTitle: string; creatorFullName: string; creatorType: string }>;
+  characterAppearances?: Array<{ seriesName?: string; fullTitle: string; characterName: string; appearanceType: string }>;
+  syncWithComics?: boolean;
+}): Promise<{
+  success: boolean;
+  counts: {
+    creators: number;
+    creatorTypes: number;
+    contributors: number;
+    characterAppearances: number;
+    comicsUpdated: number;
+  };
+}> {
+  const response = await request('/api/import/subsheets', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+}
+
+/**
+ * Fetches all creators with issue counts, series, and role breakdowns.
+ */
+export async function fetchCreatorsList() {
+  const response = await request('/api/creators');
+  return response.json();
+}
+
+/**
+ * Fetches analytics report on creators, multi-role creators (pencillers who write), and character appearances.
+ */
+export async function fetchCreatorReportsData() {
+  const response = await request('/api/reports/creators');
+  return response.json();
+}
