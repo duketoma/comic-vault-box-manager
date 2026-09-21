@@ -18,7 +18,7 @@ import { User } from 'firebase/auth';
 import { googleSignIn, initAuth, logout } from '../services/auth';
 import { scanDriveComicCovers, DriveFileItem, DriveCoversSyncResult } from '../services/driveService';
 import { ComicBook } from '../types';
-import { getComicCoverUrl, setDriveNoImageUrl, handleImageError, isComicAlreadyLinked, doesFileNameMatchComic } from '../utils/imageUtils';
+import { getComicCoverUrl, formatDriveImageUrl, setDriveNoImageUrl, handleImageError, isComicAlreadyLinked, doesFileNameMatchComic } from '../utils/imageUtils';
 
 interface GoogleDriveCoversModalProps {
   isOpen: boolean;
@@ -45,7 +45,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   const [syncResult, setSyncResult] = useState<DriveCoversSyncResult | null>(null);
   const [linkedCount, setLinkedCount] = useState(0);
 
-  const mkDriveViewUrl = (fileId: string) => `https://drive.google.com/uc?export=view&id=${fileId}`;
+  const mkDriveViewUrl = (fileId: string) => formatDriveImageUrl(fileId);
 
   // Compute unlinked matches: match Drive files against comics, skipping comics that are already linked
   const unlinkedMatches = useMemo(() => {
@@ -236,7 +236,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
               <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
                 <div className="flex items-center gap-2.5">
                   {user.photoURL ? (
-                    <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full border border-slate-300 dark:border-slate-600" />
+                    <img src={user.photoURL} alt="" referrerPolicy="no-referrer" className="w-6 h-6 rounded-full border border-slate-300 dark:border-slate-600" />
                   ) : (
                     <div className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center font-bold text-[10px]">
                       {user.displayName?.[0] || 'G'}
@@ -321,6 +321,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                         src={mkDriveViewUrl(syncResult.noImageFile.id)}
                         alt="NoImage.png"
                         onError={handleImageError}
+                        referrerPolicy="no-referrer"
                         className="w-10 h-14 object-cover rounded border border-slate-300 dark:border-slate-600 shadow-xs shrink-0"
                       />
                       <div className="flex-1 space-y-1">
@@ -411,6 +412,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                               src={mkDriveViewUrl(file.id)}
                               alt={file.name}
                               onError={handleImageError}
+                              referrerPolicy="no-referrer"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
                             {matchedComic ? (

@@ -638,6 +638,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                         src={getComicCoverUrl(comic.coverImage)}
                         alt=""
                         onError={handleImageError}
+                        referrerPolicy="no-referrer"
                         className="w-8 h-12 object-cover rounded shadow-xs border border-slate-200 dark:border-slate-700 shrink-0"
                       />
                       <div>

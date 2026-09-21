@@ -359,7 +359,7 @@ const comicUpsertSql = `
     }
   });
 
-  // --- API ROUTE: Proxy image for 3D visualizer WebGL textures to bypass CORS ---
+  // --- API ROUTE: Proxy image for 3D visualizer WebGL textures and image fallbacks to bypass CORS & referer blocking ---
   app.get('/api/proxy-image', async (req, res) => {
     try {
       const rawUrl = req.query.url as string;
@@ -371,18 +371,51 @@ const comicUpsertSql = `
         return res.status(400).json({ error: 'Invalid URL protocol' });
       }
 
-      const response = await fetch(rawUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        },
-      });
+      let fetchUrl = rawUrl;
+      // If it's a Google Drive URL, normalize to direct lh3 link or extract file ID
+      const driveMatch =
+        fetchUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+        fetchUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) ||
+        fetchUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+
+      if (driveMatch && driveMatch[1]) {
+        const fileId = driveMatch[1];
+        if (!fetchUrl.includes('lh3.googleusercontent.com')) {
+          fetchUrl = `https://lh3.googleusercontent.com/d/${fileId}=s800`;
+        } else if (fetchUrl.includes('=s1000')) {
+          fetchUrl = fetchUrl.replace('=s1000', '=s800');
+        }
+      }
+
+      const requestHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      };
+
+      let response = await fetch(fetchUrl, { headers: requestHeaders });
+
+      // If lh3 or primary URL returns non-200 or HTML (e.g. Google Drive warning page), try drive.google.com/uc export
+      const initialContentType = response.headers.get('content-type') || '';
+      if ((!response.ok || initialContentType.includes('text/html')) && driveMatch && driveMatch[1]) {
+        const fallbackDriveUrl = `https://drive.google.com/uc?export=view&id=${driveMatch[1]}`;
+        const fallbackRes = await fetch(fallbackDriveUrl, { headers: requestHeaders });
+        if (fallbackRes.ok) {
+          const fbContentType = fallbackRes.headers.get('content-type') || '';
+          if (fbContentType.startsWith('image/')) {
+            response = fallbackRes;
+          }
+        }
+      }
 
       if (!response.ok) {
         return res.status(response.status).json({ error: `Upstream image fetch failed with status ${response.status}` });
       }
 
       const contentType = response.headers.get('content-type') || 'image/jpeg';
+      if (contentType.includes('text/html')) {
+        return res.status(404).json({ error: 'Requested URL did not return an image' });
+      }
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Cache-Control', 'public, max-age=86400');

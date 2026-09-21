@@ -41,9 +41,11 @@ export const ComicDetailPanel: React.FC<ComicDetailPanelProps> = ({
       <div className="p-4 bg-gradient-to-b from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="aspect-[2/3] rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-md">
           <img
+            key={comic.id || coverUrl}
             src={coverUrl}
             alt={comic.title}
             onError={handleImageError}
+            referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
           />
         </div>

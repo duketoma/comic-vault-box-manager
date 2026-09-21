@@ -971,6 +971,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       src={getComicCoverUrl(comic.coverImage)}
                       onError={handleImageError}
                       alt={comic.title}
+                      referrerPolicy="no-referrer"
                       className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
                     />
                     <div className="min-w-0 flex-1 space-y-1">
@@ -1426,6 +1427,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                           src={getComicCoverUrl(iss.coverImage)}
                           alt=""
                           onError={handleImageError}
+                          referrerPolicy="no-referrer"
                           className="w-10 h-14 object-cover rounded shrink-0 border border-slate-200 dark:border-slate-700"
                         />
                         <div className="min-w-0 flex-1">
@@ -2030,6 +2032,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                                   src={getComicCoverUrl(comic.coverImage)}
                                   alt=""
                                   onError={handleImageError}
+                                  referrerPolicy="no-referrer"
                                   className="w-10 h-14 object-cover rounded shrink-0 border border-slate-100 dark:border-slate-700"
                                 />
                                 <div className="min-w-0 flex-1">

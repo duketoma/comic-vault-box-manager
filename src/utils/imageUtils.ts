@@ -20,8 +20,29 @@ export function getDriveNoImageUrl(): string {
 }
 
 export function handleImageError(e: SyntheticEvent<HTMLImageElement, Event>) {
-  e.currentTarget.onerror = null;
-  e.currentTarget.src = getDriveNoImageUrl();
+  const img = e.currentTarget;
+  const currentSrc = img.src;
+  const fallback = getDriveNoImageUrl();
+
+  // If already at fallback, already attempted proxy, or invalid/data/blob URL, fall back to default
+  if (
+    !currentSrc ||
+    currentSrc === fallback ||
+    img.dataset.proxyRetried === 'true' ||
+    currentSrc.startsWith('data:') ||
+    currentSrc.startsWith('blob:') ||
+    currentSrc.includes('/api/proxy-image')
+  ) {
+    img.onerror = null;
+    if (img.src !== fallback) {
+      img.src = fallback;
+    }
+    return;
+  }
+
+  // Attempt 1 retry via server proxy
+  img.dataset.proxyRetried = 'true';
+  img.src = `/api/proxy-image?url=${encodeURIComponent(currentSrc)}`;
 }
 
 /**
@@ -60,12 +81,18 @@ export function formatDriveImageUrl(urlOrId: string, customFallback?: string): s
   }
 
   if (clean.includes('lh3.googleusercontent.com')) {
+    if (clean.includes('=s1000')) {
+      return clean.replace('=s1000', '=s800');
+    }
+    if (!clean.includes('=s')) {
+      return `${clean}=s800`;
+    }
     return clean;
   }
 
   const fileId = extractDriveFileId(clean);
   if (fileId) {
-    return `https://lh3.googleusercontent.com/d/${fileId}=s1000`;
+    return `https://lh3.googleusercontent.com/d/${fileId}=s800`;
   }
 
   return clean;
