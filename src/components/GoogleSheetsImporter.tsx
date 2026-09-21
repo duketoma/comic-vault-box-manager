@@ -734,15 +734,15 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     <div className="space-y-6">
       
       {/* Top Banner Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 rounded-xl">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 text-lg">Google Sheets Collection & Subsheets Sync</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="font-bold text-slate-900 dark:text-slate-100 text-lg">Google Sheets Collection & Subsheets Sync</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Import and store Creators, Creator Types, Title Contributors, and Character Appearances directly into your PostgreSQL database.
               </p>
             </div>
@@ -752,7 +752,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
             <button
               type="button"
               onClick={handleLoadDemoData}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-xl border border-slate-200 flex items-center gap-2 shadow-xs transition-colors"
+              className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-amber-500" />
               <span>Load Comprehensive Demo Subsheets</span>
@@ -763,7 +763,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
         {/* Input Form for Google Sheet ID / Tab Names */}
         <form onSubmit={handleFetchAllSubsheets} className="mt-5 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
               Google Spreadsheet ID or Full URL
             </label>
             <div className="flex gap-2">
@@ -772,12 +772,12 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 value={spreadsheetId}
                 onChange={(e) => setSpreadsheetId(e.target.value)}
                 placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-slate-800 shadow-xs"
+                className="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500 shadow-xs placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 shrink-0 transition-colors"
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 shrink-0 transition-colors cursor-pointer"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                 <span>Fetch All Subsheets</span>
@@ -786,10 +786,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           </div>
 
           {/* Subsheet Tab Name Customizer */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>Subsheets in your Google Spreadsheet:</span>
               </span>
               <span className="text-[11px] text-slate-400">Match the exact tab names in your Google Sheet</span>
@@ -797,52 +797,52 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">📚 Comics</label>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">📚 Comics</label>
                 <input
                   type="text"
                   value={tabNames.comics}
                   onChange={(e) => setTabNames({ ...tabNames, comics: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">✍️ Creators</label>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">✍️ Creators</label>
                 <input
                   type="text"
                   value={tabNames.creators}
                   onChange={(e) => setTabNames({ ...tabNames, creators: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">🏷️ Creator Types</label>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">🏷️ Creator Types</label>
                 <input
                   type="text"
                   value={tabNames.creatorTypes}
                   onChange={(e) => setTabNames({ ...tabNames, creatorTypes: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">🎨 Title Contributors</label>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">🎨 Title Contributors</label>
                 <input
                   type="text"
                   value={tabNames.contributors}
                   onChange={(e) => setTabNames({ ...tabNames, contributors: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">🦸 Character Appearances</label>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">🦸 Character Appearances</label>
                 <input
                   type="text"
                   value={tabNames.characterAppearances}
                   onChange={(e) => setTabNames({ ...tabNames, characterAppearances: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
                 />
               </div>
             </div>
@@ -858,45 +858,45 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
         {/* Sync Success Banner */}
         {syncSuccess && (
-          <div className="mt-5 p-4 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-xl space-y-3">
+          <div className="mt-5 p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-100 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <div>
                   <h4 className="font-bold text-sm">Successfully Synced & Linked Subsheets into PostgreSQL!</h4>
-                  <p className="text-xs text-emerald-700">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300">
                     All creators, creator types, title contributors, and character appearances are stored and linked to your collection.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setSyncSuccess(null)}
-                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold"
+                className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 font-bold cursor-pointer"
               >
                 Dismiss
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-emerald-200/60 text-xs">
-              <div className="bg-white/80 rounded-lg p-2 border border-emerald-200">
-                <div className="text-[10px] text-emerald-700 font-semibold uppercase">Creators</div>
-                <div className="text-lg font-bold text-emerald-900">{syncSuccess.creators ?? 0}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 text-xs">
+              <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Creators</div>
+                <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.creators ?? 0}</div>
               </div>
-              <div className="bg-white/80 rounded-lg p-2 border border-emerald-200">
-                <div className="text-[10px] text-emerald-700 font-semibold uppercase">Creator Types</div>
-                <div className="text-lg font-bold text-emerald-900">{syncSuccess.creatorTypes ?? 0}</div>
+              <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Creator Types</div>
+                <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.creatorTypes ?? 0}</div>
               </div>
-              <div className="bg-white/80 rounded-lg p-2 border border-emerald-200">
-                <div className="text-[10px] text-emerald-700 font-semibold uppercase">Title Contributors</div>
-                <div className="text-lg font-bold text-emerald-900">{syncSuccess.contributors ?? 0}</div>
+              <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Title Contributors</div>
+                <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.contributors ?? 0}</div>
               </div>
-              <div className="bg-white/80 rounded-lg p-2 border border-emerald-200">
-                <div className="text-[10px] text-emerald-700 font-semibold uppercase">Character Appearances</div>
-                <div className="text-lg font-bold text-emerald-900">{syncSuccess.characterAppearances ?? 0}</div>
+              <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Character Appearances</div>
+                <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.characterAppearances ?? 0}</div>
               </div>
-              <div className="bg-white/80 rounded-lg p-2 border border-emerald-200">
-                <div className="text-[10px] text-emerald-700 font-semibold uppercase">Comics Linked</div>
-                <div className="text-lg font-bold text-emerald-900">{syncSuccess.comicsUpdated ?? 0}</div>
+              <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Comics Linked</div>
+                <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.comicsUpdated ?? 0}</div>
               </div>
             </div>
 
@@ -905,14 +905,14 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 <>
                   <button
                     onClick={() => onNavigateToTab('catalog')}
-                    className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs"
+                    className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer"
                   >
                     <span>View in Catalog</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => onNavigateToTab('stats')}
-                    className="px-3.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 text-xs font-bold rounded-lg border border-emerald-300 flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 text-emerald-900 dark:text-emerald-300 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>View Creator Reports</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -926,15 +926,15 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
       {/* Navigation Sub-Tabs & Action Bar */}
       {hasAnyDataLoaded && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2 overflow-x-auto">
               <button
                 onClick={() => setActiveSubsheet('overview')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   activeSubsheet === 'overview'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
@@ -943,10 +943,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
               <button
                 onClick={() => setActiveSubsheet('comics')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   activeSubsheet === 'comics'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>📚 Comics ({subsheets.comics.rows.length})</span>
@@ -954,10 +954,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
               <button
                 onClick={() => setActiveSubsheet('creators')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   activeSubsheet === 'creators'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>✍️ Creators ({subsheets.creators.rows.length})</span>
@@ -965,10 +965,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
               <button
                 onClick={() => setActiveSubsheet('creatorTypes')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   activeSubsheet === 'creatorTypes'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>🏷️ Creator Types ({subsheets.creatorTypes.rows.length})</span>
@@ -976,10 +976,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
               <button
                 onClick={() => setActiveSubsheet('contributors')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   activeSubsheet === 'contributors'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>🎨 Contributors ({subsheets.contributors.rows.length})</span>
@@ -987,10 +987,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
               <button
                 onClick={() => setActiveSubsheet('characterAppearances')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   activeSubsheet === 'characterAppearances'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>🦸 Characters ({subsheets.characterAppearances.rows.length})</span>
@@ -1000,7 +1000,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
             <button
               onClick={handleSyncAllToDatabase}
               disabled={isSyncingAll}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 shrink-0 transition-colors"
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 shrink-0 transition-colors cursor-pointer"
             >
               {isSyncingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               <span>Sync All Subsheets to Database</span>
@@ -1013,21 +1013,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 
                 {/* Card 1: Comics */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>📚</span> Comics Subsheet
                     </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.comics.isLoaded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.comics.isLoaded ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                       {subsheets.comics.isLoaded ? `${subsheets.comics.rows.length} rows` : 'Not loaded'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Main collection catalog with titles, issues, boxes, ratings, and values.
                   </p>
                   <button
                     onClick={() => setActiveSubsheet('comics')}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 pt-1"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 pt-1 cursor-pointer"
                   >
                     <span>View & Map Columns</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1035,21 +1035,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 {/* Card 2: Creators */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>✍️</span> Creators Subsheet
                     </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.creators.isLoaded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.creators.isLoaded ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                       {subsheets.creators.isLoaded ? `${subsheets.creators.rows.length} creators` : 'Not loaded'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     First Name, Last Name, and Full Name of comic book creators.
                   </p>
                   <button
                     onClick={() => setActiveSubsheet('creators')}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 pt-1"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 pt-1 cursor-pointer"
                   >
                     <span>View & Map Columns</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1057,21 +1057,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 {/* Card 3: Creator Types */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>🏷️</span> Creator Types Subsheet
                     </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.creatorTypes.isLoaded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.creatorTypes.isLoaded ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                       {subsheets.creatorTypes.isLoaded ? `${subsheets.creatorTypes.rows.length} types` : 'Not loaded'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Roles and types (Penciller, Inker, Editor, Writer, Cover Artist, etc.)
                   </p>
                   <button
                     onClick={() => setActiveSubsheet('creatorTypes')}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 pt-1"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 pt-1 cursor-pointer"
                   >
                     <span>View & Map Columns</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1079,21 +1079,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 {/* Card 4: Title Contributors */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>🎨</span> Title Contributors Subsheet
                     </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.contributors.isLoaded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.contributors.isLoaded ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                       {subsheets.contributors.isLoaded ? `${subsheets.contributors.rows.length} credits` : 'Not loaded'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Series Name, Full Title, Creator Full Name, and Creator Type.
                   </p>
                   <button
                     onClick={() => setActiveSubsheet('contributors')}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 pt-1"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 pt-1 cursor-pointer"
                   >
                     <span>View & Map Columns</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1101,21 +1101,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 {/* Card 5: Character Appearances */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>🦸</span> Character Appearances Subsheet
                     </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.characterAppearances.isLoaded ? `${subsheets.characterAppearances.rows.length} appearances` : 'Not loaded'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.characterAppearances.isLoaded ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                       {subsheets.characterAppearances.isLoaded ? `${subsheets.characterAppearances.rows.length} appearances` : 'Not loaded'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Series Name, Full Title, Character Name, and Appearance Type.
                   </p>
                   <button
                     onClick={() => setActiveSubsheet('characterAppearances')}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 pt-1"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 pt-1 cursor-pointer"
                   >
                     <span>View & Map Columns</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1147,21 +1147,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           {/* TAB: Creators Column Mapper & Preview */}
           {activeSubsheet === 'creators' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Map Creators Subsheet Columns</h3>
-                  <p className="text-xs text-slate-500">First Name, Last Name, and Full Name of comic book creators.</p>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Map Creators Subsheet Columns</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">First Name, Last Name, and Full Name of comic book creators.</p>
                 </div>
-                <span className="text-xs text-slate-400">{subsheets.creators.rows.length} rows loaded</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{subsheets.creators.rows.length} rows loaded</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">First Name Column</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">First Name Column</label>
                   <select
                     value={creatorsMappings.firstNameCol}
                     onChange={(e) => setCreatorsMappings({ ...creatorsMappings, firstNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / Not in sheet --</option>
                     {subsheets.creators.headers.map((h) => (
@@ -1171,11 +1171,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Last Name Column</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Last Name Column</label>
                   <select
                     value={creatorsMappings.lastNameCol}
                     onChange={(e) => setCreatorsMappings({ ...creatorsMappings, lastNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / Not in sheet --</option>
                     {subsheets.creators.headers.map((h) => (
@@ -1185,11 +1185,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Full Name Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Full Name Column *</label>
                   <select
                     value={creatorsMappings.fullNameCol}
                     onChange={(e) => setCreatorsMappings({ ...creatorsMappings, fullNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.creators.headers.map((h) => (
@@ -1200,32 +1200,32 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </div>
 
               {/* Creators Preview Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <span>Creators Preview (First 5 Rows)</span>
-                  <span className="text-[11px] font-normal text-slate-500">Destination table: <code className="text-slate-800">creators</code></span>
+                  <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Destination table: <code className="text-slate-800 dark:text-indigo-300">creators</code></span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th className="px-3 py-2">#</th>
                         <th className="px-3 py-2">First Name</th>
                         <th className="px-3 py-2">Last Name</th>
-                        <th className="px-3 py-2 font-bold text-slate-900">Full Name</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Full Name</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {subsheets.creators.rows.slice(0, 5).map((row, idx) => {
                         const fnIdx = subsheets.creators.headers.indexOf(creatorsMappings.firstNameCol);
                         const lnIdx = subsheets.creators.headers.indexOf(creatorsMappings.lastNameCol);
                         const fullIdx = subsheets.creators.headers.indexOf(creatorsMappings.fullNameCol);
                         return (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
-                            <td className="px-3 py-2 text-slate-700">{fnIdx >= 0 ? row[fnIdx] : '-'}</td>
-                            <td className="px-3 py-2 text-slate-700">{lnIdx >= 0 ? row[lnIdx] : '-'}</td>
-                            <td className="px-3 py-2 font-bold text-slate-900">{fullIdx >= 0 ? row[fullIdx] : '-'}</td>
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{fnIdx >= 0 ? row[fnIdx] : '-'}</td>
+                            <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{lnIdx >= 0 ? row[lnIdx] : '-'}</td>
+                            <td className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">{fullIdx >= 0 ? row[fullIdx] : '-'}</td>
                           </tr>
                         );
                       })}
@@ -1239,20 +1239,20 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           {/* TAB: Creator Types Column Mapper & Preview */}
           {activeSubsheet === 'creatorTypes' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Map Creator Types Subsheet Columns</h3>
-                  <p className="text-xs text-slate-500">Types and roles of Creators (Penciller, Inker, Editor, Writer, etc.)</p>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Map Creator Types Subsheet Columns</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Types and roles of Creators (Penciller, Inker, Editor, Writer, etc.)</p>
                 </div>
-                <span className="text-xs text-slate-400">{subsheets.creatorTypes.rows.length} rows loaded</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{subsheets.creatorTypes.rows.length} rows loaded</span>
               </div>
 
               <div className="max-w-md">
-                <label className="block text-xs font-bold text-slate-800 mb-1">Creator Type / Role Name Column *</label>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Creator Type / Role Name Column *</label>
                 <select
                   value={creatorTypesMappings.typeNameCol}
                   onChange={(e) => setCreatorTypesMappings({ typeNameCol: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                 >
                   <option value="">-- Select Column --</option>
                   {subsheets.creatorTypes.headers.map((h) => (
@@ -1262,17 +1262,17 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </div>
 
               {/* Creator Types Preview */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-w-lg">
-                <div className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden max-w-lg">
+                <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <span>Creator Types Preview</span>
-                  <span className="text-[11px] font-normal text-slate-500">Destination table: <code className="text-slate-800">creator_types</code></span>
+                  <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Destination table: <code className="text-slate-800 dark:text-indigo-300">creator_types</code></span>
                 </div>
                 <div className="p-3 flex flex-wrap gap-2">
                   {subsheets.creatorTypes.rows.map((row, idx) => {
                     const idxCol = subsheets.creatorTypes.headers.indexOf(creatorTypesMappings.typeNameCol);
                     const val = idxCol >= 0 ? row[idxCol] : row[0];
                     return (
-                      <span key={idx} className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold text-xs">
+                      <span key={idx} className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-300 font-semibold text-xs">
                         {val}
                       </span>
                     );
@@ -1285,21 +1285,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           {/* TAB: Title Contributors Column Mapper & Preview */}
           {activeSubsheet === 'contributors' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Map Title Contributors Subsheet Columns</h3>
-                  <p className="text-xs text-slate-500">Series Name, Full Title, Creator Full Name, and Creator Type.</p>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Map Title Contributors Subsheet Columns</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Series Name, Full Title, Creator Full Name, and Creator Type.</p>
                 </div>
-                <span className="text-xs text-slate-400">{subsheets.contributors.rows.length} rows loaded</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{subsheets.contributors.rows.length} rows loaded</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Series Name Column</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Series Name Column</label>
                   <select
                     value={contributorsMappings.seriesNameCol}
                     onChange={(e) => setContributorsMappings({ ...contributorsMappings, seriesNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.contributors.headers.map((h) => (
@@ -1309,11 +1309,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Full Title Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Full Title Column *</label>
                   <select
                     value={contributorsMappings.fullTitleCol}
                     onChange={(e) => setContributorsMappings({ ...contributorsMappings, fullTitleCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.contributors.headers.map((h) => (
@@ -1323,11 +1323,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Creator Full Name Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Creator Full Name Column *</label>
                   <select
                     value={contributorsMappings.creatorFullNameCol}
                     onChange={(e) => setContributorsMappings({ ...contributorsMappings, creatorFullNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.contributors.headers.map((h) => (
@@ -1337,11 +1337,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Creator Type Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Creator Type Column *</label>
                   <select
                     value={contributorsMappings.creatorTypeCol}
                     onChange={(e) => setContributorsMappings({ ...contributorsMappings, creatorTypeCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.contributors.headers.map((h) => (
@@ -1352,36 +1352,36 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </div>
 
               {/* Title Contributors Preview Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <span>Title Contributors Preview (First 5 Rows)</span>
-                  <span className="text-[11px] font-normal text-slate-500">Destination table: <code className="text-slate-800">title_contributors</code></span>
+                  <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Destination table: <code className="text-slate-800 dark:text-indigo-300">title_contributors</code></span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th className="px-3 py-2">#</th>
                         <th className="px-3 py-2">Series Name</th>
-                        <th className="px-3 py-2 font-bold text-slate-900">Full Title</th>
-                        <th className="px-3 py-2 font-bold text-slate-900">Creator Full Name</th>
-                        <th className="px-3 py-2 font-bold text-indigo-700">Creator Type</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Full Title</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Creator Full Name</th>
+                        <th className="px-3 py-2 font-bold text-indigo-700 dark:text-indigo-400">Creator Type</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {subsheets.contributors.rows.slice(0, 5).map((row, idx) => {
                         const sIdx = subsheets.contributors.headers.indexOf(contributorsMappings.seriesNameCol);
                         const fIdx = subsheets.contributors.headers.indexOf(contributorsMappings.fullTitleCol);
                         const cIdx = subsheets.contributors.headers.indexOf(contributorsMappings.creatorFullNameCol);
                         const tIdx = subsheets.contributors.headers.indexOf(contributorsMappings.creatorTypeCol);
                         return (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
-                            <td className="px-3 py-2 text-slate-600">{sIdx >= 0 ? row[sIdx] : '-'}</td>
-                            <td className="px-3 py-2 font-bold text-slate-900">{fIdx >= 0 ? row[fIdx] : '-'}</td>
-                            <td className="px-3 py-2 font-semibold text-slate-800">{cIdx >= 0 ? row[cIdx] : '-'}</td>
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{sIdx >= 0 ? row[sIdx] : '-'}</td>
+                            <td className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">{fIdx >= 0 ? row[fIdx] : '-'}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-200">{cIdx >= 0 ? row[cIdx] : '-'}</td>
                             <td className="px-3 py-2">
-                              <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 text-[11px]">
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 text-[11px]">
                                 {tIdx >= 0 ? row[tIdx] : '-'}
                               </span>
                             </td>
@@ -1398,21 +1398,21 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           {/* TAB: Character Appearances Column Mapper & Preview */}
           {activeSubsheet === 'characterAppearances' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Map Character Appearances Subsheet Columns</h3>
-                  <p className="text-xs text-slate-500">Series Name, Full Title, Character Name, and Appearance Type (Main, Supporting, Cameo, etc.)</p>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Map Character Appearances Subsheet Columns</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Series Name, Full Title, Character Name, and Appearance Type (Main, Supporting, Cameo, etc.)</p>
                 </div>
-                <span className="text-xs text-slate-400">{subsheets.characterAppearances.rows.length} rows loaded</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{subsheets.characterAppearances.rows.length} rows loaded</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Series Name Column</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Series Name Column</label>
                   <select
                     value={characterMappings.seriesNameCol}
                     onChange={(e) => setCharacterMappings({ ...characterMappings, seriesNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.characterAppearances.headers.map((h) => (
@@ -1422,11 +1422,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Full Title Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Full Title Column *</label>
                   <select
                     value={characterMappings.fullTitleCol}
                     onChange={(e) => setCharacterMappings({ ...characterMappings, fullTitleCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.characterAppearances.headers.map((h) => (
@@ -1436,11 +1436,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Character Name Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Character Name Column *</label>
                   <select
                     value={characterMappings.characterNameCol}
                     onChange={(e) => setCharacterMappings({ ...characterMappings, characterNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.characterAppearances.headers.map((h) => (
@@ -1450,11 +1450,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Appearance Type Column *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Appearance Type Column *</label>
                   <select
                     value={characterMappings.appearanceTypeCol}
                     onChange={(e) => setCharacterMappings({ ...characterMappings, appearanceTypeCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.characterAppearances.headers.map((h) => (
@@ -1465,36 +1465,36 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </div>
 
               {/* Character Appearances Preview Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <span>Character Appearances Preview (First 5 Rows)</span>
-                  <span className="text-[11px] font-normal text-slate-500">Destination table: <code className="text-slate-800">title_character_appearances</code></span>
+                  <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Destination table: <code className="text-slate-800 dark:text-indigo-300">title_character_appearances</code></span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th className="px-3 py-2">#</th>
                         <th className="px-3 py-2">Series Name</th>
-                        <th className="px-3 py-2 font-bold text-slate-900">Full Title</th>
-                        <th className="px-3 py-2 font-bold text-slate-900">Character Name</th>
-                        <th className="px-3 py-2 font-bold text-emerald-700">Appearance Type</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Full Title</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Character Name</th>
+                        <th className="px-3 py-2 font-bold text-emerald-700 dark:text-emerald-400">Appearance Type</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {subsheets.characterAppearances.rows.slice(0, 5).map((row, idx) => {
                         const sIdx = subsheets.characterAppearances.headers.indexOf(characterMappings.seriesNameCol);
                         const fIdx = subsheets.characterAppearances.headers.indexOf(characterMappings.fullTitleCol);
                         const cIdx = subsheets.characterAppearances.headers.indexOf(characterMappings.characterNameCol);
                         const tIdx = subsheets.characterAppearances.headers.indexOf(characterMappings.appearanceTypeCol);
                         return (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
-                            <td className="px-3 py-2 text-slate-600">{sIdx >= 0 ? row[sIdx] : '-'}</td>
-                            <td className="px-3 py-2 font-bold text-slate-900">{fIdx >= 0 ? row[fIdx] : '-'}</td>
-                            <td className="px-3 py-2 font-semibold text-slate-800">{cIdx >= 0 ? row[cIdx] : '-'}</td>
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{sIdx >= 0 ? row[sIdx] : '-'}</td>
+                            <td className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">{fIdx >= 0 ? row[fIdx] : '-'}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-200">{cIdx >= 0 ? row[cIdx] : '-'}</td>
                             <td className="px-3 py-2">
-                              <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[11px]">
+                              <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800 text-[11px]">
                                 {tIdx >= 0 ? row[tIdx] : '-'}
                               </span>
                             </td>
@@ -1511,34 +1511,34 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           {/* TAB: Comics Collection Column Mapper */}
           {activeSubsheet === 'comics' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Map Comics Collection Columns</h3>
-                  <p className="text-xs text-slate-500">Found {subsheets.comics.rows.length} comic entries in spreadsheet.</p>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Map Comics Collection Columns</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Found {subsheets.comics.rows.length} comic entries in spreadsheet.</p>
                 </div>
               </div>
 
               {/* Title Parsing Option */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-start gap-3">
+              <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex items-start gap-3">
                 <input
                   type="checkbox"
                   id="parseTitleOption"
                   checked={parseTitleOption}
                   onChange={(e) => setParseTitleOption(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-800 cursor-pointer"
+                  className="mt-0.5 rounded border-slate-300 dark:border-slate-600 text-slate-900 focus:ring-slate-800 cursor-pointer"
                 />
-                <label htmlFor="parseTitleOption" className="text-xs text-slate-700 cursor-pointer select-none">
-                  <strong className="text-slate-900 font-bold">Automatically parse Issue # from "Full Title" column if unmapped</strong>
+                <label htmlFor="parseTitleOption" className="text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  <strong className="text-slate-900 dark:text-slate-100 font-bold">Automatically parse Issue # from "Full Title" column if unmapped</strong>
                 </label>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Comic Title *</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Comic Title *</label>
                   <select
                     value={comicMappings.titleCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, titleCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1548,11 +1548,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Issue #</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Issue #</label>
                   <select
                     value={comicMappings.issueCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, issueCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1562,11 +1562,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Full Title</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Title</label>
                   <select
                     value={comicMappings.fullTitleCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, fullTitleCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / Auto-Built --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1576,11 +1576,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Series Name</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Series Name</label>
                   <select
                     value={comicMappings.seriesNameCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, seriesNameCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1590,11 +1590,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-indigo-700 mb-1">Storage Box # (Box) *</label>
+                  <label className="block text-xs font-bold text-indigo-700 dark:text-indigo-400 mb-1">Storage Box # (Box) *</label>
                   <select
                     value={comicMappings.boxCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, boxCol: e.target.value })}
-                    className="w-full bg-indigo-50/50 border border-indigo-300 rounded-lg px-2.5 py-1.5 text-xs text-indigo-950 font-bold"
+                    className="w-full bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-700 rounded-lg px-2.5 py-1.5 text-xs text-indigo-950 dark:text-indigo-200 font-bold"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1604,11 +1604,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Proposed Box #</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Proposed Box #</label>
                   <select
                     value={comicMappings.proposedBoxCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, proposedBoxCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1618,11 +1618,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Publisher</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Publisher</label>
                   <select
                     value={comicMappings.publisherCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, publisherCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Select Column --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1632,11 +1632,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Release Date</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Release Date</label>
                   <select
                     value={comicMappings.publicationDateCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, publicationDateCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1646,11 +1646,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-amber-700 mb-1">In Wish List Column</label>
+                  <label className="block text-xs font-bold text-amber-700 dark:text-amber-400 mb-1">In Wish List Column</label>
                   <select
                     value={comicMappings.wishlistCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, wishlistCol: e.target.value })}
-                    className="w-full bg-amber-50/50 border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-amber-50/50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1660,11 +1660,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-emerald-700 mb-1">Marked Read Column</label>
+                  <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1">Marked Read Column</label>
                   <select
                     value={comicMappings.statusCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, statusCol: e.target.value })}
-                    className="w-full bg-emerald-50/50 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-emerald-50/50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1674,11 +1674,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Copies Owned</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Copies Owned</label>
                   <select
                     value={comicMappings.copiesCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, copiesCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1688,11 +1688,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Media Format</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Media Format</label>
                   <select
                     value={comicMappings.formatCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, formatCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1702,11 +1702,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Price Paid</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Price Paid</label>
                   <select
                     value={comicMappings.purchasePriceCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, purchasePriceCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1716,11 +1716,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Estimated Value</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Estimated Value</label>
                   <select
                     value={comicMappings.valueCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, valueCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1730,11 +1730,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Equivalent Size / Thickness</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Equivalent Size / Thickness</label>
                   <select
                     value={comicMappings.thicknessCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, thicknessCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1744,11 +1744,11 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Cover Image Link</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cover Image Link</label>
                   <select
                     value={comicMappings.imageCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, imageCol: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
                     {subsheets.comics.headers.map((h) => (
@@ -1759,60 +1759,60 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </div>
 
               {/* Comics Preview Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <span>Comics Preview (First 5 Rows with current column mapping)</span>
-                  <span className="text-[11px] font-normal text-slate-500">Destination table: <code className="text-slate-800">comic_books</code></span>
+                  <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Destination table: <code className="text-slate-800 dark:text-indigo-300">comic_books</code></span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th className="px-3 py-2">#</th>
-                        <th className="px-3 py-2 font-bold text-slate-900">Title</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Title</th>
                         <th className="px-3 py-2">Issue #</th>
                         <th className="px-3 py-2">Full Title</th>
-                        <th className="px-3 py-2 font-bold text-indigo-700">Box #</th>
+                        <th className="px-3 py-2 font-bold text-indigo-700 dark:text-indigo-400">Box #</th>
                         <th className="px-3 py-2">Proposed Box</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2">Copies</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {subsheets.comics.rows.slice(0, 5).map((row, idx) => {
                         const comic = buildComicFromRow(row, idx, subsheets.comics.headers);
                         return (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
-                            <td className="px-3 py-2 font-bold text-slate-900">{comic.title}</td>
-                            <td className="px-3 py-2 text-slate-700">{comic.issueNumber}</td>
-                            <td className="px-3 py-2 text-slate-600">{comic.fullTitle}</td>
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{idx + 1}</td>
+                            <td className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">{comic.title}</td>
+                            <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{comic.issueNumber}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{comic.fullTitle}</td>
                             <td className="px-3 py-2 font-bold">
                               {comic.currentBoxId > 0 ? (
-                                <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[11px]">
+                                <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-[11px]">
                                   Box {comic.currentBoxId}
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500 text-[11px]">
+                                <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[11px]">
                                   Unallocated (Box 0)
                                 </span>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-slate-600">
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                               {comic.proposedBoxId > 0 ? `Box ${comic.proposedBoxId}` : '-'}
                             </td>
                             <td className="px-3 py-2">
                               <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
                                 comic.readingStatus === 'Wishlist'
-                                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                                  ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
                                   : comic.readingStatus === 'Read'
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                               }`}>
                                 {comic.readingStatus}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-slate-700">{comic.copiesOwned}</td>
+                            <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{comic.copiesOwned}</td>
                           </tr>
                         );
                       })}
@@ -1822,10 +1822,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </div>
 
               {/* Import Mode selection and Import Button */}
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-100">
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4 text-xs">
-                  <span className="font-bold text-slate-700">Collection Import Mode:</span>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Collection Import Mode:</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800 dark:text-slate-200">
                     <input
                       type="radio"
                       name="importMode"
@@ -1835,7 +1835,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                     />
                     <span>Replace collection (Recommended on fresh sync)</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-600">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-600 dark:text-slate-400">
                     <input
                       type="radio"
                       name="importMode"
@@ -1851,7 +1851,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                   type="button"
                   onClick={handleImportComicsOnly}
                   disabled={isImportingComicsOnly || isSyncingAll}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 shrink-0 transition-colors"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 shrink-0 transition-colors cursor-pointer"
                 >
                   {isImportingComicsOnly ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span>Import Comics Only ({subsheets.comics.rows.length} rows)</span>
@@ -1864,14 +1864,14 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       )}
 
       {/* Data Cleanup & Reset Card */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl shrink-0">
-            <CopyX className="w-5 h-5 text-amber-700" />
+          <div className="p-2.5 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400 rounded-xl shrink-0">
+            <CopyX className="w-5 h-5 text-amber-700 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 text-sm">Collection Data Cleanup & Duplicate Removal</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Collection Data Cleanup & Duplicate Removal</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Remove exact duplicates from double-importing, manage box allocations, or reset back to the default collection.
             </p>
           </div>
@@ -1880,7 +1880,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
         {onOpenDataManagementModal && (
           <button
             onClick={onOpenDataManagementModal}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center gap-2"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center gap-2 border border-transparent dark:border-slate-700 cursor-pointer transition-colors"
           >
             <Trash2 className="w-4 h-4 text-rose-400" />
             <span>Manage & Clean Collection Data</span>

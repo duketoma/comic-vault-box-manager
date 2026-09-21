@@ -339,14 +339,14 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-50 p-6">
+      <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
         <div className="text-center max-w-md">
-          <p className="text-red-600 font-semibold mb-2 text-lg">Failed to initialize 3D view</p>
-          <p className="text-sm text-slate-600 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 font-semibold mb-2 text-lg">Failed to initialize 3D view</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{error}</p>
           {onClose && (
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 text-white rounded-md text-sm hover:bg-slate-700"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-md text-sm cursor-pointer"
             >
               Close
             </button>
@@ -357,14 +357,14 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   }
 
   return (
-    <div className="relative w-full h-full bg-slate-100 flex flex-col select-none">
+    <div className="relative w-full h-full bg-slate-100 dark:bg-slate-950 flex flex-col select-none">
       {/* Top Controls Header */}
-      <div className="flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2.5 z-10 shadow-xs">
+      <div className="flex items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 z-10 shadow-xs">
         <div className="flex items-center gap-3 min-w-0">
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition-colors"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
               title="Close 3D View"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -372,15 +372,15 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-900 truncate text-sm sm:text-base">
+              <h2 className="font-bold text-slate-900 dark:text-slate-100 truncate text-sm sm:text-base">
                 {box.name}
               </h2>
               {boxStackRef.current?.isOverCapacity ? (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold shrink-0">
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold shrink-0">
                   Over Capacity
                 </span>
               ) : (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium shrink-0">
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium shrink-0">
                   {comics.length} / {box.maxCapacity} comics
                 </span>
               )}
@@ -392,17 +392,17 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Previous / Next Comic Buttons */}
           {comics.length > 0 && (
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 mr-1">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700 mr-1">
               <button
                 onClick={handlePrevComic}
-                className="p-1.5 hover:bg-white rounded text-slate-600 hover:text-slate-900 transition-colors"
+                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
                 title="Previous Comic in Box"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={handleNextComic}
-                className="p-1.5 hover:bg-white rounded text-slate-600 hover:text-slate-900 transition-colors"
+                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
                 title="Next Comic in Box"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -414,7 +414,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           {selectedComicId && (
             <button
               onClick={handleTogglePull}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 isComicPulled
                   ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
@@ -438,7 +438,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           {/* Reset Camera Button */}
           <button
             onClick={handleResetCamera}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-colors"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
             title="Reset 3D Camera to Default Angle"
           >
             <RotateCcw className="w-4 h-4" />
@@ -447,7 +447,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition-colors ml-1"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors ml-1 cursor-pointer"
               title="Close"
             >
               <X className="w-4 h-4" />
@@ -457,18 +457,18 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
       </div>
 
       {/* 3D Canvas Area */}
-      <div className="flex-1 relative overflow-hidden bg-slate-100">
+      <div className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-20 backdrop-blur-xs">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-slate-900/70 z-20 backdrop-blur-xs">
             <div className="text-center">
               <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-700">Loading 3D box view...</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Loading 3D box view...</p>
             </div>
           </div>
         )}
 
         {comics.length === 0 && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-xs px-4 py-2 rounded-full shadow-md z-10 text-xs font-medium text-slate-600 border border-slate-200">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs px-4 py-2 rounded-full shadow-md z-10 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
             This box is empty. Assign comics to see them in 3D!
           </div>
         )}
@@ -482,7 +482,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
         />
 
         {/* Floating Hint Overlay */}
-        <div className="absolute bottom-3 left-3 bg-white/85 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-xs border border-slate-200 text-[11px] text-slate-600 flex items-center gap-2 pointer-events-none">
+        <div className="absolute bottom-3 left-3 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-xs border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-2 pointer-events-none">
           <HelpCircle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           <span>
             <strong>Drag</strong> to rotate • <strong>Scroll</strong> to zoom • <strong>Click</strong> to select • <strong>Double-click</strong> to lift comic
@@ -491,28 +491,28 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
       </div>
 
       {/* Bottom Status / Selection Bar */}
-      <div className="bg-white border-t border-slate-200 px-4 py-2 text-xs flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-2 text-xs flex items-center justify-between">
         {selectedComicId ? (
           (() => {
             const comic = comics.find((c) => c.id === selectedComicId);
             return comic ? (
               <div className="flex items-center gap-2 truncate">
                 <span className="inline-block w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                <span className="font-bold text-slate-900 truncate">{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}</span>
-                <span className="text-slate-500">#{comic.issueNumber} ({comic.publicationYear})</span>
-                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                <span className="font-bold text-slate-900 dark:text-slate-100 truncate">{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}</span>
+                <span className="text-slate-500 dark:text-slate-400">#{comic.issueNumber} ({comic.publicationYear})</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline">
                   • {isComicPulled ? 'Currently pulled out for inspection' : 'Sitting in box'}
                 </span>
               </div>
             ) : null;
           })()
         ) : (
-          <div className="text-slate-500 text-[11px]">
+          <div className="text-slate-500 dark:text-slate-400 text-[11px]">
             Click on any comic in the box to inspect details in 3D
           </div>
         )}
 
-        <div className="text-[11px] text-slate-400 font-medium shrink-0 ml-4">
+        <div className="text-[11px] text-slate-400 dark:text-slate-500 font-medium shrink-0 ml-4">
           Orbit 3D View
         </div>
       </div>

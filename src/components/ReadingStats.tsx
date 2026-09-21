@@ -637,83 +637,83 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
         
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800 shrink-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-800 dark:text-slate-200 shrink-0">
             <BookOpen className="w-5.5 h-5.5" />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-500">Total Collection</p>
-            <h3 className="text-lg font-bold text-slate-900">{totalComics} Items</h3>
-            <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Collection</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{totalComics} Items</h3>
+            <p className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold mt-0.5">
               {totalThickness.toFixed(1)} Units
             </p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
             <CheckCircle2 className="w-5.5 h-5.5" />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-500">Read Progress</p>
-            <h3 className="text-lg font-bold text-emerald-700">{readPercentage}% Read</h3>
-            <p className="text-[10px] text-slate-500 mt-0.5">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Read Progress</p>
+            <h3 className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{readPercentage}% Read</h3>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
               {readCount} read / {unreadCount} unread
             </p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0">
             <DollarSign className="w-5.5 h-5.5" />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-500">Est. Collection Value</p>
-            <h3 className="text-lg font-bold text-slate-900">${totalValue.toFixed(2)}</h3>
-            <p className="text-[10px] text-slate-500 mt-0.5">Keys & hardcovers</p>
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Est. Collection Value</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">${totalValue.toFixed(2)}</h3>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Keys & hardcovers</p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex items-center justify-center text-purple-700 dark:text-purple-400 shrink-0">
             <Trophy className="w-5.5 h-5.5" />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-500">100% Achievements</p>
-            <h3 className="text-lg font-bold text-purple-900">{completedSeriesBadges.length} Badges</h3>
-            <p className="text-[10px] text-purple-600 font-semibold mt-0.5">Completed Series</p>
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">100% Achievements</p>
+            <h3 className="text-lg font-bold text-purple-900 dark:text-purple-300">{completedSeriesBadges.length} Badges</h3>
+            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold mt-0.5">Completed Series</p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center gap-3.5 col-span-2 lg:col-span-1">
-          <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800 shrink-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center gap-3.5 col-span-2 lg:col-span-1">
+          <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-800 dark:text-slate-200 shrink-0">
             <Boxes className="w-5.5 h-5.5" />
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-500">Storage Boxes</p>
-            <h3 className="text-lg font-bold text-slate-900">{boxes.length} Short Boxes</h3>
-            <p className="text-[10px] text-slate-500 mt-0.5">Capacity tracking</p>
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Storage Boxes</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{boxes.length} Short Boxes</h3>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Capacity tracking</p>
           </div>
         </div>
 
       </div>
 
       {/* Analytics Sub-Tab Bar */}
-      <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center justify-between gap-2 overflow-x-auto border border-slate-200">
+      <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl flex items-center justify-between gap-2 overflow-x-auto border border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-1.5 min-w-max">
           
           <button
             onClick={() => setActiveStatsTab('events')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeStatsTab === 'events'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span>Event Status Graph</span>
             {allEventsList.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'events' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'events' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
                 {allEventsList.length}
               </span>
             )}
@@ -721,36 +721,36 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
           <button
             onClick={() => setActiveStatsTab('series')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeStatsTab === 'series'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             <BarChart3 className="w-4 h-4 text-indigo-400" />
             <span>Comic Titles / Series Graph</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'series' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'series' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
               {seriesSummary.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveStatsTab('creators')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeStatsTab === 'creators'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             <Palette className="w-4 h-4 text-violet-400" />
             <span>Creators & Roles Breakdown</span>
             {creatorList.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'creators' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'creators' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
                 {creatorList.length}
               </span>
             )}
             {pencillersWhoWroteList.length > 0 && (
-              <span className="text-[9px] px-1.5 py-0.2 bg-violet-100 text-violet-800 font-bold rounded-full">
+              <span className="text-[9px] px-1.5 py-0.2 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-300 font-bold rounded-full">
                 {pencillersWhoWroteList.length} 🎨✍️
               </span>
             )}
@@ -758,10 +758,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
           <button
             onClick={() => setActiveStatsTab('achievements')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeStatsTab === 'achievements'
                 ? 'bg-gradient-to-r from-amber-600 to-purple-700 text-white shadow-sm'
-                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             <Trophy className="w-4 h-4 text-amber-300" />
@@ -775,10 +775,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
           <button
             onClick={() => setActiveStatsTab('general')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeStatsTab === 'general'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             <Boxes className="w-4 h-4 text-emerald-400" />
@@ -795,30 +795,30 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
         <div className="space-y-6">
           
           {/* Top Event Selection Control Box */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-amber-100 text-amber-800">
+                  <span className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
                     <Sparkles className="w-4 h-4" />
                   </span>
-                  <h3 className="text-base font-bold text-slate-900">Event Collection Status & Progress</h3>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Event Collection Status & Progress</h3>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Analyze reading completion rates and issue ownership across major crossover events and storylines.
                 </p>
               </div>
 
               {/* Event Dropdown Selector */}
               <div className="flex items-center gap-2 shrink-0">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                   Select Event:
                 </label>
                 <select
                   value={selectedEvent}
                   onChange={(e) => setSelectedEvent(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 shadow-xs transition-all min-w-[200px]"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 shadow-xs transition-all min-w-[200px]"
                 >
                   <option value="all">🌐 All Crossover Events ({allEventsComparisonData.length})</option>
                   <optgroup label="Events in Your Collection">
@@ -834,30 +834,30 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
             {/* Event Metrics Headline Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <span className="text-[11px] font-semibold text-slate-500 block">Total Event Issues</span>
-                <span className="text-lg font-black text-slate-900">{eventStats.total} Issues</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">{eventStats.owned} in collection</span>
+              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">Total Event Issues</span>
+                <span className="text-lg font-black text-slate-900 dark:text-slate-100">{eventStats.total} Issues</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">{eventStats.owned} in collection</span>
               </div>
 
-              <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3">
-                <span className="text-[11px] font-semibold text-emerald-800 block">Completion Rate</span>
-                <span className="text-lg font-black text-emerald-700">{eventStats.completionRate}% Read</span>
-                <div className="w-full bg-emerald-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                  <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${eventStats.completionRate}%` }}></div>
+              <div className="bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl p-3">
+                <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 block">Completion Rate</span>
+                <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">{eventStats.completionRate}% Read</span>
+                <div className="w-full bg-emerald-200 dark:bg-emerald-900/60 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                  <div className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${eventStats.completionRate}%` }}></div>
                 </div>
               </div>
 
-              <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-3">
-                <span className="text-[11px] font-semibold text-blue-800 block">Read / Unread</span>
-                <span className="text-lg font-black text-blue-900">{eventStats.read} Read</span>
-                <span className="text-[10px] text-blue-700 block mt-0.5">{eventStats.unread} unread · {eventStats.reading} reading</span>
+              <div className="bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60 rounded-xl p-3">
+                <span className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 block">Read / Unread</span>
+                <span className="text-lg font-black text-blue-900 dark:text-blue-200">{eventStats.read} Read</span>
+                <span className="text-[10px] text-blue-700 dark:text-blue-400 block mt-0.5">{eventStats.unread} unread · {eventStats.reading} reading</span>
               </div>
 
-              <div className="bg-rose-50/60 border border-rose-200/80 rounded-xl p-3">
-                <span className="text-[11px] font-semibold text-rose-800 block">Wishlist Wanted</span>
-                <span className="text-lg font-black text-rose-900">{eventStats.wishlist} Wishlist</span>
-                <span className="text-[10px] text-rose-700 block mt-0.5">${eventStats.totalValue.toFixed(2)} est value</span>
+              <div className="bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-800/60 rounded-xl p-3">
+                <span className="text-[11px] font-semibold text-rose-800 dark:text-rose-300 block">Wishlist Wanted</span>
+                <span className="text-lg font-black text-rose-900 dark:text-rose-200">{eventStats.wishlist} Wishlist</span>
+                <span className="text-[10px] text-rose-700 dark:text-rose-400 block mt-0.5">${eventStats.totalValue.toFixed(2)} est value</span>
               </div>
             </div>
           </div>
@@ -866,15 +866,15 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Event Status Distribution Donut Chart */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-emerald-600" />
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <PieChart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>
                     {selectedEvent === 'all' ? 'Status Breakdown across All Events' : `Status Breakdown for "${selectedEvent}"`}
                   </span>
                 </h4>
-                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                   {eventStats.total} Total Issues
                 </span>
               </div>
@@ -903,10 +903,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 mt-4 flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Info className="w-8 h-8 text-slate-400 mb-2" />
-                  <p className="text-xs font-bold text-slate-700">No comics tagged with event "{selectedEvent}"</p>
-                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                <div className="h-64 mt-4 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <Info className="w-8 h-8 text-slate-400 dark:text-slate-500 mb-2" />
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No comics tagged with event "{selectedEvent}"</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
                     Edit any comic in your catalog and set its "Event / Crossover" field (e.g. "{selectedEvent}") to populate this graph!
                   </p>
                 </div>
@@ -914,20 +914,20 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             </div>
 
             {/* Crossover Events Comparison Bar Chart */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-indigo-600" />
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>Crossover Event Volume Comparison</span>
                 </h4>
-                <span className="text-xs text-slate-500">Owned vs Wishlist</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Owned vs Wishlist</span>
               </div>
 
               {allEventsComparisonData.length > 0 ? (
                 <div className="h-64 mt-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={allEventsComparisonData.slice(0, 8)} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-25} textAnchor="end" />
                       <YAxis stroke="#64748b" fontSize={10} />
                       <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
@@ -939,10 +939,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 mt-4 flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Sparkles className="w-8 h-8 text-slate-400 mb-2" />
-                  <p className="text-xs font-bold text-slate-700">No Crossover Events Configured Yet</p>
-                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                <div className="h-64 mt-4 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <Sparkles className="w-8 h-8 text-slate-400 dark:text-slate-500 mb-2" />
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No Crossover Events Configured Yet</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
                     Assign event tags like "Civil War", "Secret Wars", or "Born Again" to comics to unlock event tracking!
                   </p>
                 </div>
@@ -953,47 +953,47 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
           {/* Filtered Event Comics Catalog List View */}
           {filteredEventComics.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Bookmark className="w-4 h-4 text-amber-600" />
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <Bookmark className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <span>Comics in {selectedEvent === 'all' ? 'Crossover Events' : `"${selectedEvent}"`} ({filteredEventComics.length})</span>
                 </h4>
-                <span className="text-xs text-slate-500 font-semibold">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                   {eventStats.read} of {eventStats.owned} Read ({eventStats.completionRate}%)
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
                 {filteredEventComics.map((comic) => (
-                  <div key={comic.id} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 transition-all">
+                  <div key={comic.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
                     <img
                       src={getComicCoverUrl(comic.coverImage)}
                       onError={handleImageError}
                       alt={comic.title}
-                      className="w-12 h-16 object-cover rounded-md border border-slate-300 shrink-0 shadow-xs"
+                      className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
                     />
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
                           {comic.publisher}
                         </span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                           comic.readingStatus === 'Read'
-                            ? 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border dark:border-emerald-800'
                             : comic.readingStatus === 'Reading'
-                            ? 'bg-amber-100 text-amber-800'
+                            ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border dark:border-amber-800'
                             : comic.readingStatus === 'Wishlist'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-indigo-100 text-indigo-800'
+                            ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border dark:border-rose-800'
+                            : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border dark:border-indigo-800'
                         }`}>
                           {comic.readingStatus}
                         </span>
                       </div>
-                      <h5 className="font-bold text-slate-900 text-xs truncate leading-snug">{comic.title}</h5>
-                      <p className="text-[11px] font-bold text-slate-700">Issue #{comic.issueNumber}</p>
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate leading-snug">{comic.title}</h5>
+                      <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Issue #{comic.issueNumber}</p>
                       {comic.event && (
-                        <p className="text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded inline-block truncate max-w-full">
+                        <p className="text-[10px] font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 px-1.5 py-0.5 rounded inline-block truncate max-w-full">
                           ⚡ {comic.event}
                         </p>
                       )}
@@ -1014,30 +1014,30 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
         <div className="space-y-6">
           
           {/* Top Series Controls & Summary */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-800">
+                  <span className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300">
                     <BarChart3 className="w-4 h-4" />
                   </span>
-                  <h3 className="text-base font-bold text-slate-900">Comic Titles & Series Ownership Graph</h3>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Comic Titles & Series Ownership Graph</h3>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Track how many comics in each series you own, read, or wishlisted across your entire library.
                 </p>
               </div>
 
               {/* Sort Selector for Series */}
               <div className="flex items-center gap-2 shrink-0">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                   Sort Series By:
                 </label>
                 <select
                   value={seriesSortBy}
                   onChange={(e) => setSeriesSortBy(e.target.value as any)}
-                  className="bg-slate-50 border border-slate-300 text-slate-900 font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 shadow-xs"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 shadow-xs"
                 >
                   <option value="owned">Most Owned Issues</option>
                   <option value="completion">Highest Read Completion %</option>
@@ -1050,17 +1050,17 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             {/* Top 10 Series Stacked Bar Chart */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>Top Series Breakdown (Owned vs Read vs Wishlist)</span>
                 </h4>
-                <span className="text-xs text-slate-500 font-medium">Showing top 10 series</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Showing top 10 series</span>
               </div>
 
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topSeriesChartData} margin={{ top: 10, right: 10, left: -20, bottom: 35 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                     <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-30} textAnchor="end" />
                     <YAxis stroke="#64748b" fontSize={10} />
                     <Tooltip
@@ -1077,10 +1077,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
           </div>
 
           {/* Complete Series Grid View */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Layers3 className="w-4 h-4 text-slate-700" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                <Layers3 className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                 <span>All Series & Title Collections ({seriesSummary.length} Distinct Titles)</span>
               </h4>
             </div>
@@ -1091,14 +1091,14 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   key={s.title}
                   className={`border rounded-2xl p-4 space-y-3 transition-all ${
                     s.is100Percent 
-                      ? 'bg-amber-50/40 border-amber-300/80 shadow-xs' 
-                      : 'bg-white border-slate-200 hover:border-slate-300'
+                      ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-300/80 dark:border-amber-700/60 shadow-xs' 
+                      : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{s.publisher}</span>
-                      <h5 className="font-bold text-slate-900 text-sm truncate leading-snug">{s.title}</h5>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{s.publisher}</span>
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate leading-snug">{s.title}</h5>
                     </div>
 
                     {s.is100Percent && (
@@ -1112,12 +1112,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   {/* Progress Bar */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-600">Completion Rate</span>
-                      <span className={s.is100Percent ? 'text-amber-800 font-bold' : 'text-slate-900'}>
+                      <span className="text-slate-600 dark:text-slate-400">Completion Rate</span>
+                      <span className={s.is100Percent ? 'text-amber-800 dark:text-amber-300 font-bold' : 'text-slate-900 dark:text-slate-100'}>
                         {s.completionPct}% ({s.readCount}/{s.ownedCount} read)
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
                       <div 
                         className={`h-full rounded-full transition-all duration-500 ${
                           s.is100Percent ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-emerald-500'
@@ -1128,11 +1128,11 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   </div>
 
                   {/* Issues Count Tags */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
-                    <span className="font-bold text-slate-800">
-                      {s.ownedCount} Owned {s.wishlistCount > 0 && <span className="text-rose-600 font-normal">({s.wishlistCount} wishlist)</span>}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                      {s.ownedCount} Owned {s.wishlistCount > 0 && <span className="text-rose-600 dark:text-rose-400 font-normal">({s.wishlistCount} wishlist)</span>}
                     </span>
-                    <span className="font-semibold text-slate-500">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400">
                       Est. ${s.totalValue.toFixed(2)}
                     </span>
                   </div>
@@ -1208,20 +1208,20 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
           {/* SPOTLIGHT: Pencillers Who Also Wrote & Contributed to Story */}
           {pencillersWhoWroteList.length > 0 && (
-            <div className="bg-gradient-to-br from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-300/80 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/80">
+            <div className="bg-gradient-to-br from-amber-500/10 via-purple-500/10 to-indigo-500/10 dark:from-amber-950/30 dark:via-purple-950/30 dark:to-indigo-950/30 border-2 border-amber-300/80 dark:border-amber-700/60 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/80 dark:border-amber-800/80">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-xs">
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <h4 className="font-black text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                       <span>Spotlight: Pencillers Who Also Contributed Writing & Story</span>
                       <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-black text-[10px]">
                         {pencillersWhoWroteList.length} Creators
                       </span>
                     </h4>
-                    <p className="text-xs text-slate-600 mt-0.5">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                       Creators in your collection who both drew/pencilled issues and authored scripts, plots, or story arcs.
                     </p>
                   </div>
@@ -1231,10 +1231,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   onClick={() => {
                     setOnlyPencillersWhoWrite(!onlyPencillersWhoWrite);
                   }}
-                  className={`text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-auto ${
+                  className={`text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer ${
                     onlyPencillersWhoWrite
                       ? 'bg-amber-600 text-white shadow-xs'
-                      : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-50'
+                      : 'bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700/70 text-amber-900 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   <Filter className="w-3.5 h-3.5" />
@@ -1247,35 +1247,35 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 {pencillersWhoWroteList.slice(0, 6).map((c) => (
                   <div
                     key={c.name}
-                    className="bg-white border border-amber-200 rounded-xl p-3.5 shadow-xs hover:border-amber-400 transition-all flex flex-col justify-between space-y-3"
+                    className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/80 rounded-xl p-3.5 shadow-xs hover:border-amber-400 dark:hover:border-amber-600 transition-all flex flex-col justify-between space-y-3"
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h5 className="font-bold text-slate-900 text-sm">{c.name}</h5>
-                          <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                          <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{c.name}</h5>
+                          <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded-full inline-block mt-0.5">
                             🎨 Penciller & Writer ✍️
                           </span>
                         </div>
-                        <span className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg shrink-0">
                           {c.totalIssues} Issues
                         </span>
                       </div>
 
                       {/* Roles breakdown stats */}
                       <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
-                          <span className="text-[10px] text-slate-500 block font-medium">Art Credits</span>
-                          <span className="font-black text-indigo-700">{c.artIssuesCount} issues</span>
+                        <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Art Credits</span>
+                          <span className="font-black text-indigo-700 dark:text-indigo-400">{c.artIssuesCount} issues</span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
-                          <span className="text-[10px] text-slate-500 block font-medium">Writing Credits</span>
-                          <span className="font-black text-purple-700">{c.writingIssuesCount} issues</span>
+                        <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Writing Credits</span>
+                          <span className="font-black text-purple-700 dark:text-purple-400">{c.writingIssuesCount} issues</span>
                         </div>
                       </div>
 
                       {c.dualRoleIssuesCount > 0 && (
-                        <p className="text-[10px] text-emerald-700 font-semibold mt-2 flex items-center gap-1">
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1">
                           <CheckCheck className="w-3 h-3" />
                           <span>Both Art & Story on {c.dualRoleIssuesCount} same issue{c.dualRoleIssuesCount > 1 ? 's' : ''}!</span>
                         </p>
@@ -1285,7 +1285,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       {c.topSeries.length > 0 && (
                         <div className="mt-2">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Top Series:</span>
-                          <p className="text-[11px] text-slate-700 font-medium truncate mt-0.5">
+                          <p className="text-[11px] text-slate-700 dark:text-slate-300 font-medium truncate mt-0.5">
                             {c.topSeries.slice(0, 2).map((s) => `${s.series} (${s.count})`).join(', ')}
                           </p>
                         </div>
@@ -1294,7 +1294,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
                     <button
                       onClick={() => setSelectedCreatorForIssues(selectedCreatorForIssues === c.name ? null : c.name)}
-                      className="w-full text-[11px] font-bold py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all flex items-center justify-center gap-1.5"
+                      className="w-full text-[11px] font-bold py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>{selectedCreatorForIssues === c.name ? 'Hide Issues' : 'View Contributed Issues'}</span>
                       {selectedCreatorForIssues === c.name ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -1309,16 +1309,16 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Chart 1: Creator Roles Distribution */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-violet-600" />
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                     <span>Contributor Roles Distribution</span>
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">Total issues credits by creator role type</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Total issues credits by creator role type</p>
                 </div>
-                <span className="text-xs font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-lg">
+                <span className="text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-800 px-2 py-0.5 rounded-lg">
                   {totalCreditsCount} Total Credits
                 </span>
               </div>
@@ -1331,7 +1331,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={roleDistributionData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis type="number" stroke="#64748b" fontSize={10} />
                       <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={90} />
                       <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
@@ -1343,31 +1343,31 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             </div>
 
             {/* Chart 2: Top Character Appearances */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <Users className="w-4 h-4 text-pink-600" />
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                    <Users className="w-4 h-4 text-pink-600 dark:text-pink-400" />
                     <span>Top Featured Character Appearances</span>
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">Main, supporting, and cameo appearances</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Main, supporting, and cameo appearances</p>
                 </div>
-                <span className="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 px-2 py-0.5 rounded-lg">
+                <span className="text-xs font-bold text-pink-700 dark:text-pink-300 bg-pink-50 dark:bg-pink-950/60 border border-pink-200 dark:border-pink-800 px-2 py-0.5 rounded-lg">
                   {characterRankingList.length} Characters
                 </span>
               </div>
 
               {characterRankingList.length === 0 ? (
                 <div className="h-64 flex flex-col items-center justify-center text-center p-4 text-xs text-slate-400 space-y-2">
-                  <Users className="w-8 h-8 text-slate-300" />
+                  <Users className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                   <p>No character appearance records found yet.</p>
-                  <p className="text-[11px] text-slate-500">Sync the "Title Character Appearances" tab from Google Sheets Importer to track character stats!</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Sync the "Title Character Appearances" tab from Google Sheets Importer to track character stats!</p>
                 </div>
               ) : (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={characterRankingList.slice(0, 7)} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-25} textAnchor="end" />
                       <YAxis stroke="#64748b" fontSize={10} />
                       <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
@@ -1389,22 +1389,22 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             if (!cr) return null;
 
             return (
-              <div className="bg-white border-2 border-indigo-200 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold">
                       <Palette className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-black text-slate-900 text-base flex items-center gap-2">
+                      <h4 className="font-black text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
                         <span>{cr.name}</span>
                         {cr.isPencillerWhoWrote && (
-                          <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded-full">
                             🎨 Penciller & Writer ✍️
                           </span>
                         )}
                       </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Contributed to {cr.totalIssues} issues • Roles: {Object.entries(cr.roles).map(([r, count]) => `${r} (${count})`).join(', ')}
                       </p>
                     </div>
@@ -1412,7 +1412,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
                   <button
                     onClick={() => setSelectedCreatorForIssues(null)}
-                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1420,27 +1420,27 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto pr-1">
                   {cr.issues.map((iss) => (
-                    <div key={iss.id} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-col justify-between shadow-2xs hover:border-indigo-300 transition-all">
+                    <div key={iss.id} className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 flex flex-col justify-between shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-500 transition-all">
                       <div className="flex gap-2 items-start">
                         <img
                           src={getComicCoverUrl(iss.coverImage)}
                           alt=""
                           onError={handleImageError}
-                          className="w-10 h-14 object-cover rounded shrink-0 border border-slate-200"
+                          className="w-10 h-14 object-cover rounded shrink-0 border border-slate-200 dark:border-slate-700"
                         />
                         <div className="min-w-0 flex-1">
-                          <h5 className="font-bold text-slate-900 text-[11px] truncate">{iss.title}</h5>
-                          <p className="text-[10px] font-black text-slate-700">#{iss.issueNumber}</p>
+                          <h5 className="font-bold text-slate-900 dark:text-slate-100 text-[11px] truncate">{iss.title}</h5>
+                          <p className="text-[10px] font-black text-slate-700 dark:text-slate-300">#{iss.issueNumber}</p>
                           {iss.seriesName && (
-                            <p className="text-[9px] text-slate-400 truncate">{iss.seriesName}</p>
+                            <p className="text-[9px] text-slate-400 dark:text-slate-500 truncate">{iss.seriesName}</p>
                           )}
                         </div>
                       </div>
 
-                      <div className="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                      <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
                         <div className="flex flex-wrap gap-1">
                           {iss.roles.map((r) => (
-                            <span key={r} className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">
+                            <span key={r} className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300">
                               {r}
                             </span>
                           ))}
@@ -1448,10 +1448,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                         <div className="flex items-center justify-between text-[9px] pt-1">
                           <span className={`font-bold px-1.5 py-0.2 rounded ${
                             iss.readingStatus === 'Read'
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300'
                               : iss.readingStatus === 'Reading'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-200 text-slate-700'
+                              ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                           }`}>
                             {iss.readingStatus}
                           </span>
@@ -1465,14 +1465,14 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
           })()}
 
           {/* Interactive Creators Directory Table & Search */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <h4 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-700" />
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                  <Users className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                   <span>Creators Directory & Issue Breakdown</span>
                 </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Search creators, filter by role (Writer, Penciller, Inker, Editor), and inspect individual credits.
                 </p>
               </div>
@@ -1487,12 +1487,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                     value={creatorSearchQuery}
                     onChange={(e) => setCreatorSearchQuery(e.target.value)}
                     placeholder="Search creator or series..."
-                    className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600 w-48 sm:w-56"
+                    className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600 w-48 sm:w-56 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                   {creatorSearchQuery && (
                     <button
                       onClick={() => setCreatorSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1503,7 +1503,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 <select
                   value={creatorRoleFilter}
                   onChange={(e) => setCreatorRoleFilter(e.target.value)}
-                  className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 >
                   <option value="all">All Roles ({allUniqueRoles.length})</option>
                   {allUniqueRoles.map((role) => (
@@ -1516,15 +1516,15 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 {/* Pencillers Who Wrote quick toggle */}
                 <button
                   onClick={() => setOnlyPencillersWhoWrite(!onlyPencillersWhoWrite)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
                     onlyPencillersWhoWrite
                       ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                      : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   <span>🎨✍️ Dual-Talents Only</span>
                   {pencillersWhoWroteList.length > 0 && (
-                    <span className={`text-[10px] px-1.5 rounded-full ${onlyPencillersWhoWrite ? 'bg-amber-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                    <span className={`text-[10px] px-1.5 rounded-full ${onlyPencillersWhoWrite ? 'bg-amber-700 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                       {pencillersWhoWroteList.length}
                     </span>
                   )}
@@ -1538,7 +1538,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       setCreatorRoleFilter('all');
                       setOnlyPencillersWhoWrite(false);
                     }}
-                    className="text-xs font-semibold text-rose-600 hover:underline px-1"
+                    className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline px-1 cursor-pointer"
                   >
                     Reset
                   </button>
@@ -1546,17 +1546,17 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span>Showing <strong>{filteredCreators.length}</strong> of {creatorList.length} creators</span>
               {onlyPencillersWhoWrite && (
-                <span className="text-amber-800 font-bold">Filtered to Pencillers Who Contributed to Writing/Story</span>
+                <span className="text-amber-800 dark:text-amber-300 font-bold">Filtered to Pencillers Who Contributed to Writing/Story</span>
               )}
             </div>
 
             {filteredCreators.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs space-y-2">
-                <Users className="w-8 h-8 text-slate-300 mx-auto" />
-                <p className="font-semibold text-slate-600">No creators match your current search/filter.</p>
+                <Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                <p className="font-semibold text-slate-600 dark:text-slate-300">No creators match your current search/filter.</p>
                 <p>Try clearing your search query or selecting "All Roles".</p>
               </div>
             ) : (
@@ -1564,21 +1564,21 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 {filteredCreators.slice(0, 48).map((cr) => (
                   <div
                     key={cr.name}
-                    className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3 ${
-                      cr.isPencillerWhoWrote ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-slate-300'
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3 ${
+                      cr.isPencillerWhoWrote ? 'border-amber-200 dark:border-amber-800/80 hover:border-amber-300 dark:hover:border-amber-700' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <h5 className="font-bold text-slate-900 text-sm truncate">{cr.name}</h5>
+                          <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{cr.name}</h5>
                           {cr.isPencillerWhoWrote && (
-                            <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                            <span className="text-[10px] font-extrabold text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded-full inline-block mt-0.5">
                               🎨 Writer & Penciller ✍️
                             </span>
                           )}
                         </div>
-                        <span className="text-xs font-black text-slate-800 bg-slate-100 px-2.5 py-1 rounded-xl shrink-0">
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-xl shrink-0">
                           {cr.totalIssues} {cr.totalIssues === 1 ? 'Issue' : 'Issues'}
                         </span>
                       </div>
@@ -1593,10 +1593,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                               key={role}
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                                 isWrit
-                                  ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                                  ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
                                   : isPencil
-                                  ? 'bg-indigo-50 text-indigo-800 border border-indigo-200'
-                                  : 'bg-slate-50 text-slate-700 border border-slate-200'
+                                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                               }`}
                             >
                               {role}: {count}
@@ -1607,9 +1607,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
                       {/* Top Series preview */}
                       {cr.topSeries.length > 0 && (
-                        <div className="pt-2 border-t border-slate-100">
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Series:</span>
-                          <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate mt-0.5">
                             {cr.topSeries.slice(0, 2).map((s) => `${s.series} (${s.count})`).join(', ')}
                           </p>
                         </div>
@@ -1618,7 +1618,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
                     <button
                       onClick={() => setSelectedCreatorForIssues(selectedCreatorForIssues === cr.name ? null : cr.name)}
-                      className="w-full text-xs font-bold py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 transition-all flex items-center justify-center gap-1.5 mt-auto"
+                      className="w-full text-xs font-bold py-1.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition-all flex items-center justify-center gap-1.5 mt-auto cursor-pointer"
                     >
                       <span>{selectedCreatorForIssues === cr.name ? 'Close Issues' : `Inspect ${cr.totalIssues} Issues`}</span>
                       {selectedCreatorForIssues === cr.name ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -1666,7 +1666,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
           {/* 100% Completed Badges Grid */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-900 text-base flex items-center gap-2">
+              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
                 <Crown className="w-5 h-5 text-amber-500" />
                 <span>Unlocked 100% Mastery Badges ({completedSeriesBadges.length})</span>
               </h4>
@@ -1679,36 +1679,36 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   return (
                     <div 
                       key={badge.id}
-                      className="bg-white border-2 border-amber-300/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden group space-y-4"
+                      className="bg-white dark:bg-slate-900 border-2 border-amber-300/80 dark:border-amber-700/60 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden group space-y-4"
                     >
                       {/* Top Ribbon */}
-                      <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                      <div className="flex items-center justify-between border-b border-amber-100 dark:border-amber-900/40 pb-3">
                         <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-xs">
                           🏆 {badge.badgeTier}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-500">{badge.type}</span>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{badge.type}</span>
                       </div>
 
                       {/* Main Title & Icon */}
                       <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 via-amber-200 to-amber-400 border border-amber-300 flex items-center justify-center text-amber-950 shrink-0 shadow-sm group-hover:scale-105 transition-all">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 via-amber-200 to-amber-400 dark:from-amber-950/80 dark:via-amber-900/60 dark:to-amber-700/80 border border-amber-300 dark:border-amber-700 flex items-center justify-center text-amber-950 dark:text-amber-200 shrink-0 shadow-sm group-hover:scale-105 transition-all">
                           <IconComp className="w-7 h-7" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">{badge.publisher}</span>
-                          <h5 className="font-black text-slate-900 text-base leading-snug line-clamp-2">{badge.name}</h5>
+                          <span className="text-[11px] font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider block">{badge.publisher}</span>
+                          <h5 className="font-black text-slate-900 dark:text-slate-100 text-base leading-snug line-clamp-2">{badge.name}</h5>
                         </div>
                       </div>
 
                       {/* Stats & Value Footer */}
-                      <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 flex items-center justify-between text-xs">
+                      <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-800/60 flex items-center justify-between text-xs">
                         <div>
-                          <span className="text-slate-500 text-[10px] block font-medium">Issues Read</span>
-                          <span className="font-bold text-slate-900">{badge.readCount} / {badge.issueCount} (100%)</span>
+                          <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">Issues Read</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{badge.readCount} / {badge.issueCount} (100%)</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-slate-500 text-[10px] block font-medium">Est. Value</span>
-                          <span className="font-bold text-emerald-700">${badge.totalValue.toFixed(2)}</span>
+                          <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">Est. Value</span>
+                          <span className="font-bold text-emerald-700 dark:text-emerald-400">${badge.totalValue.toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -1716,10 +1716,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 })}
               </div>
             ) : (
-              <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-3">
-                <Trophy className="w-10 h-10 text-slate-400 mx-auto" />
-                <h5 className="font-bold text-slate-800 text-sm">No 100% Completed Series Badges Yet</h5>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
+              <div className="bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-8 text-center space-y-3">
+                <Trophy className="w-10 h-10 text-slate-400 dark:text-slate-500 mx-auto" />
+                <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm">No 100% Completed Series Badges Yet</h5>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                   Mark all owned issues in a series or crossover event as <strong>"Read"</strong> to earn your first 100% Mastery Achievement Badge!
                 </p>
               </div>
@@ -1728,32 +1728,32 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
 
           {/* In-Progress Series Milestones (50% - 99%) */}
           {inProgressMilestones.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Target className="w-4 h-4 text-emerald-600" />
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>Next 100% Badges In-Progress ({inProgressMilestones.length} Series)</span>
                 </h4>
-                <span className="text-xs text-slate-500 font-medium">Almost completed!</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Almost completed!</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {inProgressMilestones.map((s) => (
-                  <div key={s.title} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                  <div key={s.title} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <h5 className="font-bold text-slate-900 text-xs truncate">{s.title}</h5>
-                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">{s.title}</h5>
+                      <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full">
                         {s.completionPct}%
                       </span>
                     </div>
 
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                       <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${s.completionPct}%` }}></div>
                     </div>
 
-                    <p className="text-[11px] text-slate-500 flex items-center justify-between font-medium">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-medium">
                       <span>{s.readCount} of {s.ownedCount} read</span>
-                      <span className="text-amber-800 font-bold">{s.ownedCount - s.readCount} left for 100% 🏆</span>
+                      <span className="text-amber-800 dark:text-amber-400 font-bold">{s.ownedCount - s.readCount} left for 100% 🏆</span>
                     </p>
                   </div>
                 ))}
@@ -1771,39 +1771,39 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Chart 1: Box Capacity Utilization Across Short Boxes */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-slate-700" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                 <span>Storage Box Capacity Utilization (Units)</span>
               </h3>
-              <span className="text-xs text-slate-500">Max ~150 per box</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Max ~150 per box</span>
             </div>
 
             <div className="h-64 mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={boxCapacityData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                   <XAxis dataKey="boxName" stroke="#64748b" fontSize={10} interval={0} angle={-30} textAnchor="end" />
                   <YAxis stroke="#64748b" fontSize={10} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }}
                   />
                   <Bar dataKey="usedUnits" name="Used Units" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="maxCapacity" name="Max Capacity" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="maxCapacity" name="Max Capacity" fill="#94a3b8" opacity={0.4} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Chart 2: Publisher Breakdown */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-slate-700" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                 <span>Publisher Distribution</span>
               </h3>
-              <span className="text-xs text-slate-500">Total Titles</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Total Titles</span>
             </div>
 
             <div className="h-64 mt-4">
@@ -1831,30 +1831,30 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
           </div>
 
           {/* Storage Box Breakdown & Contents Inspector Section */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs col-span-1 lg:col-span-2 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs col-span-1 lg:col-span-2 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-800">
+                  <span className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300">
                     <Boxes className="w-4 h-4" />
                   </span>
-                  <h3 className="text-base font-bold text-slate-900">Storage Box Breakdown & Contents Inspector</h3>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Storage Box Breakdown & Contents Inspector</h3>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Inspect the exact comic titles, publisher distribution, and reading status for individual storage boxes.
                 </p>
               </div>
 
               {/* Box Selector Dropdown */}
               <div className="flex items-center gap-2 shrink-0">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                   Select Box:
                 </label>
                 <select
                   value={selectedBoxId}
                   onChange={(e) => setSelectedBoxId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="bg-slate-50 border border-slate-300 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 shadow-xs transition-all min-w-[220px]"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 shadow-xs transition-all min-w-[220px]"
                 >
                   <option value="all">🌐 All Boxes Comparison ({boxBreakdowns.length} Boxes)</option>
                   <optgroup label="Individual Boxes">
@@ -1871,15 +1871,15 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             {selectedBoxId === 'all' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* All Boxes - Top 10 Series */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4">
-                  <h4 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3">
-                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-xl p-4">
+                  <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-2 mb-3">
+                    <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     Top Comic Titles Across All Boxes
                   </h4>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={allBoxesSeriesData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                         <XAxis type="number" stroke="#64748b" fontSize={10} />
                         <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={120} />
                         <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
@@ -1890,15 +1890,15 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 </div>
 
                 {/* All Boxes - Reading Progress per Box */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4">
-                  <h4 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-xl p-4">
+                  <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     Reading Status Breakdown by Box
                   </h4>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={boxReadingStatusComparison} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                         <XAxis dataKey="boxName" stroke="#64748b" fontSize={10} />
                         <YAxis stroke="#64748b" fontSize={10} />
                         <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
@@ -1920,37 +1920,37 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   <div className="space-y-6">
                     {/* Selected Box Summary Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-3.5">
-                        <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Comics Stored</p>
-                        <h4 className="text-xl font-bold text-indigo-950 mt-0.5">{activeBox.itemCount} Issues</h4>
-                        <p className="text-[10px] text-indigo-800/80 font-medium mt-0.5">Physical collection items</p>
+                      <div className="bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl p-3.5">
+                        <p className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">Comics Stored</p>
+                        <h4 className="text-xl font-bold text-indigo-950 dark:text-indigo-200 mt-0.5">{activeBox.itemCount} Issues</h4>
+                        <p className="text-[10px] text-indigo-800/80 dark:text-indigo-300 font-medium mt-0.5">Physical collection items</p>
                       </div>
 
-                      <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-3.5">
-                        <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Box Capacity</p>
-                        <h4 className="text-xl font-bold text-emerald-950 mt-0.5">{activeBox.usedUnits} / {activeBox.maxCapacity} Units</h4>
-                        <p className="text-[10px] text-emerald-800/80 font-semibold mt-0.5">{activeBox.percentFull}% Full</p>
+                      <div className="bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-3.5">
+                        <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Box Capacity</p>
+                        <h4 className="text-xl font-bold text-emerald-950 dark:text-emerald-200 mt-0.5">{activeBox.usedUnits} / {activeBox.maxCapacity} Units</h4>
+                        <p className="text-[10px] text-emerald-800/80 dark:text-emerald-300 font-semibold mt-0.5">{activeBox.percentFull}% Full</p>
                       </div>
 
-                      <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-3.5">
-                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Est. Box Value</p>
-                        <h4 className="text-xl font-bold text-amber-950 mt-0.5">${activeBox.totalValue.toFixed(2)}</h4>
-                        <p className="text-[10px] text-amber-800/80 font-medium mt-0.5">Key issues & hardcovers</p>
+                      <div className="bg-amber-50/50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3.5">
+                        <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Est. Box Value</p>
+                        <h4 className="text-xl font-bold text-amber-950 dark:text-amber-200 mt-0.5">${activeBox.totalValue.toFixed(2)}</h4>
+                        <p className="text-[10px] text-amber-800/80 dark:text-amber-300 font-medium mt-0.5">Key issues & hardcovers</p>
                       </div>
 
-                      <div className="bg-purple-50/50 border border-purple-200 rounded-xl p-3.5">
-                        <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Read Progress</p>
-                        <h4 className="text-xl font-bold text-purple-950 mt-0.5">{activeBox.readCount} Read / {activeBox.unreadCount} Unread</h4>
-                        <p className="text-[10px] text-purple-800/80 font-medium mt-0.5">{activeBox.itemCount > 0 ? Math.round((activeBox.readCount / activeBox.itemCount) * 100) : 0}% Read rate</p>
+                      <div className="bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 rounded-xl p-3.5">
+                        <p className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider">Read Progress</p>
+                        <h4 className="text-xl font-bold text-purple-950 dark:text-purple-200 mt-0.5">{activeBox.readCount} Read / {activeBox.unreadCount} Unread</h4>
+                        <p className="text-[10px] text-purple-800/80 dark:text-purple-300 font-medium mt-0.5">{activeBox.itemCount > 0 ? Math.round((activeBox.readCount / activeBox.itemCount) * 100) : 0}% Read rate</p>
                       </div>
                     </div>
 
                     {/* Side-by-side charts for this box */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Chart: Top Series in this Box */}
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4">
-                        <h4 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3">
-                          <BarChart3 className="w-4 h-4 text-indigo-600" />
+                      <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-xl p-4">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-2 mb-3">
+                          <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                           Top Series in Box #{activeBox.boxId}
                         </h4>
                         {activeBox.seriesData.length === 0 ? (
@@ -1959,7 +1959,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                           <div className="h-56">
                             <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={activeBox.seriesData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                                 <XAxis type="number" stroke="#64748b" fontSize={10} />
                                 <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={120} />
                                 <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
@@ -1971,9 +1971,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       </div>
 
                       {/* Chart: Publisher Distribution in this Box */}
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4">
-                        <h4 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3">
-                          <BarChart3 className="w-4 h-4 text-emerald-600" />
+                      <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-xl p-4">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-2 mb-3">
+                          <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                           Publishers in Box #{activeBox.boxId}
                         </h4>
                         {activeBox.publisherData.length === 0 ? (
@@ -2006,13 +2006,13 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                     </div>
 
                     {/* Detailed Comics List inside this Box */}
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
-                      <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                        <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                          <BookOpen className="w-4 h-4 text-slate-700" />
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
+                      <div className="bg-slate-100 dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                           Comics Inside Box #{activeBox.boxId} ({activeBox.boxComics.length} Items)
                         </h4>
-                        <span className="text-[11px] font-semibold text-slate-500">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                           {activeBox.usedUnits} Thickness Units
                         </span>
                       </div>
@@ -2024,32 +2024,32 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       ) : (
                         <div className="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto">
                           {activeBox.boxComics.map((comic) => (
-                            <div key={comic.id} className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div key={comic.id} className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow-xs hover:border-slate-400 dark:hover:border-slate-500 transition-all">
                               <div className="flex gap-2 items-start">
                                 <img
                                   src={getComicCoverUrl(comic.coverImage)}
                                   alt=""
                                   onError={handleImageError}
-                                  className="w-10 h-14 object-cover rounded shrink-0 border border-slate-100"
+                                  className="w-10 h-14 object-cover rounded shrink-0 border border-slate-100 dark:border-slate-700"
                                 />
                                 <div className="min-w-0 flex-1">
-                                  <h5 className="font-bold text-slate-900 text-[11px] truncate">{comic.title}</h5>
-                                  <p className="text-[10px] font-extrabold text-slate-700">#{comic.issueNumber}</p>
-                                  <p className="text-[9px] text-slate-400 truncate">{comic.publisher}</p>
+                                  <h5 className="font-bold text-slate-900 dark:text-slate-100 text-[11px] truncate">{comic.title}</h5>
+                                  <p className="text-[10px] font-extrabold text-slate-700 dark:text-slate-300">#{comic.issueNumber}</p>
+                                  <p className="text-[9px] text-slate-400 dark:text-slate-500 truncate">{comic.publisher}</p>
                                 </div>
                               </div>
 
-                              <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between">
+                              <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
                                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                                   comic.readingStatus === 'Read'
-                                    ? 'bg-emerald-100 text-emerald-800'
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300'
                                     : comic.readingStatus === 'Reading'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-indigo-100 text-indigo-800'
+                                    ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300'
+                                    : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300'
                                 }`}>
                                   {comic.readingStatus}
                                 </span>
-                                <span className="text-[9px] font-medium text-slate-500">
+                                <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400">
                                   {comic.sizeThickness}x unit
                                 </span>
                               </div>

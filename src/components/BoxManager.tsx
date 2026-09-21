@@ -457,42 +457,42 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     <div className="space-y-6">
       
       {/* Storage Rebalancing Header & Control Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Boxes className="w-5 h-5 text-slate-800" />
-              <h2 className="font-bold text-slate-900 text-base">
+              <Boxes className="w-5 h-5 text-slate-800 dark:text-slate-200" />
+              <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base">
                 Storage Box Manager ({boxes.length} Boxes)
               </h2>
-              <span className="text-xs font-extrabold px-2.5 py-1 bg-slate-900 text-white rounded-lg shadow-xs">
+              <span className="text-xs font-extrabold px-2.5 py-1 bg-slate-900 dark:bg-slate-800 text-white rounded-lg shadow-xs border dark:border-slate-700">
                 {activeStatsComics.length} Comics ({activeStatsComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0).toFixed(1)} units)
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
               Configure storage boxes (max 150 issue capacity per box). Drag and drop comics to relocate, or analyze physical collection space vs. wishlist acquisition capacity.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Wishlist Inclusion Segment Toggle */}
-            <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex items-center text-xs font-semibold">
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center text-xs font-semibold">
               <button
                 onClick={() => setIncludeWishlistInStats(false)}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   !includeWishlistInStats
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 In Collection Only
               </button>
               <button
                 onClick={() => setIncludeWishlistInStats(true)}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                   includeWishlistInStats
-                    ? 'bg-slate-900 text-white shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
@@ -504,7 +504,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
             {onAddBox && (
               <button
                 onClick={handleOpenAddBoxModal}
-                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95"
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Storage Box</span>
@@ -513,7 +513,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
             <button
               onClick={handleAutoBalanceProposal}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer"
               title="Calculate optimal distribution across boxes"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -524,7 +524,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
               <>
                 <button
                   onClick={handleApplyAllProposedMoves}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   <span>Apply {proposedRelocationsCount} Moves</span>
@@ -532,7 +532,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
                 <button
                   onClick={handleResetProposedMoves}
-                  className="flex items-center gap-1 py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-200 transition-colors"
+                  className="flex items-center gap-1 py-2 px-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-medium border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Discard</span>
@@ -543,15 +543,15 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
         </div>
 
         {/* Wishlist Storage Projection Summary Card */}
-        <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <PackageCheck className="w-4 h-4 text-slate-700 shrink-0" />
+              <PackageCheck className="w-4 h-4 text-slate-700 dark:text-slate-300 shrink-0" />
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800">
+                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
                   Storage & Wishlist Projection Summary
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Calculated based on max 150 equivalent issue size per short box
                 </p>
               </div>
@@ -560,7 +560,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
             {projectionMetrics.additionalBoxesNeeded > 0 && onAddBox && (
               <button
                 onClick={handleAutoAddRequiredWishlistBoxes}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add {projectionMetrics.additionalBoxesNeeded} Required Box{projectionMetrics.additionalBoxesNeeded > 1 ? 'es' : ''}</span>
@@ -569,55 +569,55 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className={`p-2.5 rounded-lg border transition-all ${!includeWishlistInStats ? 'bg-white border-slate-900 ring-2 ring-slate-900/10 shadow-xs' : 'bg-white border-slate-200 opacity-80'}`}>
+            <div className={`p-2.5 rounded-lg border transition-all ${!includeWishlistInStats ? 'bg-white dark:bg-slate-900 border-slate-900 dark:border-indigo-500 ring-2 ring-slate-900/10 dark:ring-indigo-500/20 shadow-xs' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-80'}`}>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500 font-medium block">In Collection</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">In Collection</span>
                 {!includeWishlistInStats && (
-                  <span className="text-[9px] font-extrabold bg-slate-900 text-white px-1.5 py-0.2 rounded">Active</span>
+                  <span className="text-[9px] font-extrabold bg-slate-900 dark:bg-indigo-600 text-white px-1.5 py-0.2 rounded">Active</span>
                 )}
               </div>
-              <span className="font-extrabold text-slate-900 text-sm">
-                {projectionMetrics.inColCount} <span className="text-[10px] font-normal text-slate-500">comics</span>
+              <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+                {projectionMetrics.inColCount} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">comics</span>
               </span>
-              <div className="text-[10px] text-slate-500 mt-0.5">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {projectionMetrics.inColThickness.toFixed(1)} size units
               </div>
             </div>
 
-            <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-medium block flex items-center gap-1">
+            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block flex items-center gap-1">
                 <Heart className="w-3 h-3 text-rose-500 fill-rose-500" />
                 In Wish List
               </span>
-              <span className="font-extrabold text-rose-600 text-sm">
-                {projectionMetrics.wishCount} <span className="text-[10px] font-normal text-slate-500">comics</span>
+              <span className="font-extrabold text-rose-600 dark:text-rose-400 text-sm">
+                {projectionMetrics.wishCount} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">comics</span>
               </span>
-              <div className="text-[10px] text-slate-500 mt-0.5">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {projectionMetrics.wishThickness.toFixed(1)} size units
               </div>
             </div>
 
-            <div className={`p-2.5 rounded-lg border transition-all ${includeWishlistInStats ? 'bg-white border-slate-900 ring-2 ring-slate-900/10 shadow-xs' : 'bg-white border-slate-200 opacity-80'}`}>
+            <div className={`p-2.5 rounded-lg border transition-all ${includeWishlistInStats ? 'bg-white dark:bg-slate-900 border-slate-900 dark:border-indigo-500 ring-2 ring-slate-900/10 dark:ring-indigo-500/20 shadow-xs' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-80'}`}>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500 font-medium block">Projected Total</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Projected Total</span>
                 {includeWishlistInStats && (
-                  <span className="text-[9px] font-extrabold bg-slate-900 text-white px-1.5 py-0.2 rounded">Active</span>
+                  <span className="text-[9px] font-extrabold bg-slate-900 dark:bg-indigo-600 text-white px-1.5 py-0.2 rounded">Active</span>
                 )}
               </div>
-              <span className="font-extrabold text-slate-900 text-sm">
-                {projectionMetrics.totalProjectedCount} <span className="text-[10px] font-normal text-slate-500">comics</span>
+              <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+                {projectionMetrics.totalProjectedCount} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">comics</span>
               </span>
-              <div className="text-[10px] text-slate-500 mt-0.5">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {projectionMetrics.totalProjectedThickness.toFixed(1)} size units
               </div>
             </div>
 
-            <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-medium block">Required Boxes</span>
-              <span className="font-extrabold text-slate-900 text-sm">
-                {projectionMetrics.totalBoxesRequired} <span className="text-[10px] font-normal text-slate-500">boxes</span>
+            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Required Boxes</span>
+              <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+                {projectionMetrics.totalBoxesRequired} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">boxes</span>
               </span>
-              <div className="text-[10px] text-slate-500 mt-0.5">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                 ({boxes.length} currently configured)
               </div>
             </div>
@@ -625,17 +625,17 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
           {/* Alert Callout for Box Requirement */}
           {projectionMetrics.additionalBoxesNeeded > 0 ? (
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center justify-between gap-2">
+            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span>
                   <strong>Storage Capacity Alert:</strong> Acquiring all {projectionMetrics.wishCount} wishlisted comics will require <strong>+{projectionMetrics.additionalBoxesNeeded} additional short box{projectionMetrics.additionalBoxesNeeded > 1 ? 'es' : ''}</strong> (at 150 max capacity each).
                 </span>
               </div>
             </div>
           ) : (
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-xs flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-lg text-emerald-900 dark:text-emerald-200 text-xs flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>
                 <strong>Sufficient Capacity:</strong> Your {boxes.length} configured storage box{boxes.length > 1 ? 'es' : ''} ({projectionMetrics.currentTotalCapacity} max capacity units) can fit all current and wishlisted comic acquisitions!
               </span>
@@ -645,17 +645,17 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
         {/* Rebalancing Active Banner */}
         {proposedRelocationsCount > 0 && (
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3 text-amber-900 text-xs">
+          <div className="mt-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center justify-between gap-3 text-amber-900 dark:text-amber-200 text-xs">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
               <div>
                 <strong>Rebalancing Proposal Active:</strong> You have proposed moving{' '}
-                <span className="font-bold text-amber-950">{proposedRelocationsCount} comic items</span> to optimal boxes. Review box meters below before finalizing.
+                <span className="font-bold text-amber-950 dark:text-amber-100">{proposedRelocationsCount} comic items</span> to optimal boxes. Review box meters below before finalizing.
               </div>
             </div>
             <button
               onClick={handleApplyAllProposedMoves}
-              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs shrink-0"
+              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs shrink-0 cursor-pointer"
             >
               Commit Moves
             </button>
@@ -669,11 +669,11 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
         {/* Left Column: Configured Boxes Shelf Grid */}
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-slate-700" />
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-slate-700 dark:text-slate-300" />
               <span>Configured Storage Shelf Grid ({boxes.length} Boxes)</span>
             </h3>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
               {includeWishlistInStats ? 'Showing Collection + Wishlist' : 'Showing In Collection Only'}
             </span>
           </div>
@@ -692,19 +692,19 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   onDrop={(e) => handleDropOnBox(e, box.id)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer relative flex flex-col justify-between ${
                     isSelected
-                      ? 'bg-white border-slate-900 ring-2 ring-slate-900/10 shadow-md'
-                      : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
+                      ? 'bg-white dark:bg-slate-900 border-slate-900 dark:border-indigo-500 ring-2 ring-slate-900/10 dark:ring-indigo-500/20 shadow-md'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs'
                   }`}
                 >
                   {/* Top Box Tag */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className="w-3 h-3 rounded-full shrink-0 border border-slate-300"
+                        className="w-3 h-3 rounded-full shrink-0 border border-slate-300 dark:border-slate-600"
                         style={{ backgroundColor: box.colorTag || '#3B82F6' }}
                       />
                       <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-xs flex items-center gap-1">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1">
                           <span>Box #{box.id}</span>
                           {isCurrentOverCapacity && (
                             <span title="Over Capacity!">
@@ -712,7 +712,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-slate-500 truncate">
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                           {box.name}
                         </div>
                       </div>
@@ -724,7 +724,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                           e.stopPropagation();
                           handleOpen3DViewer(box);
                         }}
-                        className="p-1 hover:bg-blue-100 rounded text-slate-400 hover:text-blue-600 transition-colors"
+                        className="p-1 hover:bg-blue-100 dark:hover:bg-blue-950/60 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                         title="View in 3D"
                       >
                         <Box className="w-3 h-3" />
@@ -734,12 +734,12 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                           e.stopPropagation();
                           handleOpenEditBoxModal(box);
                         }}
-                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700"
+                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
                         title="Edit Box Settings"
                       >
                         <Edit2 className="w-3 h-3" />
                       </button>
-                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                         {box.maxCapacity}u
                       </span>
                     </div>
@@ -748,14 +748,14 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   {/* Fill Level Meter */}
                   <div className="mt-3 space-y-1.5">
                     <div className="flex justify-between text-[10px] font-medium">
-                      <span className="text-slate-500">Current Used:</span>
-                      <span className={isCurrentOverCapacity ? 'text-rose-600 font-bold' : 'text-slate-800'}>
+                      <span className="text-slate-500 dark:text-slate-400">Current Used:</span>
+                      <span className={isCurrentOverCapacity ? 'text-rose-600 font-bold' : 'text-slate-800 dark:text-slate-200'}>
                         {currentUsedThickness.toFixed(1)} / {box.maxCapacity} ({currentPercent.toFixed(0)}%)
                       </span>
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                    <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
                       <div
                         className={`h-full transition-all duration-300 ${
                           isCurrentOverCapacity
@@ -770,11 +770,11 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
                     {/* Proposed Fill Level if altered */}
                     {hasProposal && (
-                      <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                        <span className="text-slate-700 font-semibold flex items-center gap-1">
+                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1">
                           <ArrowRight className="w-3 h-3" /> Proposed:
                         </span>
-                        <span className={isProposedOverCapacity ? 'text-rose-600 font-bold' : 'text-slate-900 font-bold'}>
+                        <span className={isProposedOverCapacity ? 'text-rose-600 font-bold' : 'text-slate-900 dark:text-slate-100 font-bold'}>
                           {proposedUsedThickness.toFixed(1)} u ({proposedPercent.toFixed(0)}%)
                         </span>
                       </div>
@@ -782,9 +782,9 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   </div>
 
                   {/* Footer Stats */}
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500">
                     <span>{stat.currentCount} items inside</span>
-                    <span className="text-slate-500 italic truncate max-w-[110px]">
+                    <span className="text-slate-500 dark:text-slate-400 italic truncate max-w-[110px]">
                       {box.location}
                     </span>
                   </div>
@@ -796,21 +796,21 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
         {/* Right Column: Active Box Inspector & Items List */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm sticky top-20">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm sticky top-20">
             
             {/* Inspector Box Header */}
-            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className="w-4 h-12 rounded-md shrink-0 border border-slate-200 shadow-xs"
+                  className="w-4 h-12 rounded-md shrink-0 border border-slate-200 dark:border-slate-700 shadow-xs"
                   style={{ backgroundColor: selectedBoxStat.box.colorTag || '#F59E0B' }}
                 />
                 <div className="min-w-0">
-                  <h3 className="font-extrabold text-slate-900 text-base truncate">
+                  <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base truncate">
                     {selectedBoxStat.box.id === 0 ? 'Box 0: Unallocated Staging Queue' : `Box #${selectedBoxStat.box.id}: ${selectedBoxStat.box.name}`}
                   </h3>
-                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                     <span className="truncate">{selectedBoxStat.box.location}</span>
                   </p>
                 </div>
@@ -820,7 +820,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => handleOpenEditBoxModal(selectedBoxStat.box)}
-                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs border border-slate-200 flex items-center gap-1"
+                    className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
                     title="Edit Box Settings"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -829,7 +829,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   {onDeleteBox && boxes.length > 1 && (
                     <button
                       onClick={() => handleDeleteCurrentBox(selectedBoxStat.box.id)}
-                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs border border-rose-200"
+                      className="p-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs border border-rose-200 dark:border-rose-800 cursor-pointer"
                       title="Delete Storage Box"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -840,16 +840,16 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
             </div>
 
             {/* Capacity Meter Card */}
-            <div className="my-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <div className="my-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
               <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-700">
+                <span className="text-slate-700 dark:text-slate-300">
                   {selectedBoxStat.box.id === 0 ? 'Staging Volume' : 'Box Fill Capacity'}
                 </span>
-                <span className={selectedBoxStat.isCurrentOverCapacity ? 'text-rose-600' : 'text-slate-900'}>
+                <span className={selectedBoxStat.isCurrentOverCapacity ? 'text-rose-600' : 'text-slate-900 dark:text-slate-100'}>
                   {selectedBoxStat.currentUsedThickness.toFixed(1)} {selectedBoxStat.box.id === 0 ? 'units unallocated' : `/ ${selectedBoxStat.box.maxCapacity} units (${selectedBoxStat.currentPercent.toFixed(1)}%)`}
                 </span>
               </div>
-              <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-slate-200">
+              <div className="w-full h-3 bg-white dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
                 <div
                   className={`h-full ${
                     selectedBoxStat.box.id === 0
@@ -874,16 +874,16 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
             {/* Bulk Allocate Controls for Box 0 */}
             {selectedBoxStat.box.id === 0 && selectedBoxStat.currentComics.length > 0 && (
-              <div className="my-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                <div className="text-xs font-bold text-amber-950 flex items-center justify-between">
+              <div className="my-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                <div className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center justify-between">
                   <span>Bulk Allocate Box 0 Items</span>
-                  <span className="text-[10px] text-amber-800 font-normal">{selectedBoxStat.currentComics.length} items waiting</span>
+                  <span className="text-[10px] text-amber-800 dark:text-amber-300 font-normal">{selectedBoxStat.currentComics.length} items waiting</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <select
                     value={targetBulkBoxId}
                     onChange={(e) => setTargetBulkBoxId(Number(e.target.value))}
-                    className="flex-1 bg-white border border-amber-300 text-xs text-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                    className="flex-1 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs text-slate-800 dark:text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
                   >
                     {sortedBoxes.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -893,7 +893,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   </select>
                   <button
                     onClick={handleBulkMoveBoxZeroToTarget}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0 cursor-pointer"
                   >
                     Allocate All
                   </button>
@@ -904,15 +904,15 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
             {/* List of Comics Inside Active Box */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h4 className="font-bold text-slate-800 text-xs">
+                <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">
                   Comics inside Box #{selectedBoxStat.box.id} ({selectedBoxStat.currentComics.length})
                 </h4>
-                <span className="text-[10px] text-slate-400">Drag item to switch box</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">Drag item to switch box</span>
               </div>
 
               <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
                 {selectedBoxStat.currentComics.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
+                  <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
                     Box #{selectedBoxStat.box.id} is currently empty. Drag comics here to store them.
                   </div>
                 ) : (
@@ -921,37 +921,37 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                       key={comic.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, comic.id)}
-                      className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 hover:border-slate-400 cursor-grab active:cursor-grabbing transition-all group"
+                      className="p-2.5 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-xl flex items-center justify-between gap-3 hover:border-slate-400 dark:hover:border-slate-600 cursor-grab active:cursor-grabbing transition-all group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <GripVertical className="w-4 h-4 text-slate-400 group-hover:text-slate-800 shrink-0" />
+                        <GripVertical className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200 shrink-0" />
                         <img
                           src={getComicCoverUrl(comic.coverImage)}
                           alt=""
                           onError={handleImageError}
-                          className="w-9 h-12 object-cover rounded shadow-xs border border-slate-200 shrink-0"
+                          className="w-9 h-12 object-cover rounded shadow-xs border border-slate-200 dark:border-slate-700 shrink-0"
                         />
                         <div className="min-w-0">
                           <h5
                             onClick={() => onSelectComic(comic)}
-                            className="font-bold text-slate-800 text-xs truncate hover:text-slate-900 cursor-pointer flex items-center gap-1.5"
+                            className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate hover:text-slate-900 dark:hover:text-white cursor-pointer flex items-center gap-1.5"
                           >
                             <span>{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'} #{comic.issueNumber}</span>
                             {comic.readingStatus === 'Wishlist' && (
-                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-rose-100 text-rose-700 rounded border border-rose-200">
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 rounded border border-rose-200 dark:border-rose-800">
                                 Wishlist
                               </span>
                             )}
                           </h5>
-                          <p className="text-[10px] text-slate-500 truncate">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                             {comic.format} • {comic.publisher}
                           </p>
                           <div className="flex items-center gap-2 mt-1 text-[10px]">
-                            <span className="text-slate-800 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                            <span className="text-slate-800 dark:text-slate-200 font-bold bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                               {comic.sizeThickness.toFixed(1)}x Size
                             </span>
                             {comic.proposedBoxId && comic.proposedBoxId !== comic.currentBoxId && (
-                              <span className="text-slate-900 font-bold bg-slate-200 px-1.5 py-0.5 rounded border border-slate-300">
+                              <span className="text-slate-900 dark:text-slate-100 font-bold bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600">
                                 Proposed → Box {comic.proposedBoxId}
                               </span>
                             )}
@@ -969,7 +969,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                           );
                           onUpdateComics(updated);
                         }}
-                        className="bg-white border border-slate-200 text-slate-800 text-[10px] font-semibold rounded px-1.5 py-1 focus:outline-none shrink-0"
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-semibold rounded px-1.5 py-1 focus:outline-none shrink-0"
                       >
                         <option value={0}>Box 0 (Unallocated)</option>
                         {sortedBoxes.map((b) => (
@@ -992,25 +992,25 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
       {/* Storage Box Configuration / Edit Modal */}
       {isBoxModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
             <button
               onClick={() => setIsBoxModalOpen(false)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1"
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2 mb-1">
-              <Boxes className="w-5 h-5 text-slate-800" />
+            <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2 mb-1">
+              <Boxes className="w-5 h-5 text-slate-800 dark:text-slate-200" />
               <span>{editingBox ? `Edit Box #${editingBox.id}` : 'Add New Storage Box'}</span>
             </h3>
-            <p className="text-xs text-slate-500 mb-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
               Configure box capacity (max 150 equivalent issue size units per short box).
             </p>
 
             <form onSubmit={handleSaveBoxModal} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Box Name / Title:
                 </label>
                 <input
@@ -1019,12 +1019,12 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   value={modalBoxName}
                   onChange={(e) => setModalBoxName(e.target.value)}
                   placeholder="e.g. Box 16 - Modern Marvel & Star Wars"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-800"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Storage Location:
                 </label>
                 <input
@@ -1033,16 +1033,16 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   value={modalBoxLocation}
                   onChange={(e) => setModalBoxLocation(e.target.value)}
                   placeholder="e.g. Closet - Shelf 4"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-800"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-bold text-slate-700">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                     Max Capacity (Max 150 Units):
                   </label>
-                  <span className="text-[11px] text-slate-500 font-semibold">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
                     1.0 = 1 Single Issue
                   </span>
                 </div>
@@ -1053,12 +1053,12 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   required
                   value={modalBoxCapacity}
                   onChange={(e) => setModalBoxCapacity(Math.min(150, Number(e.target.value)))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-800 font-bold"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Box Color Tag:
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1067,8 +1067,8 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                       key={color}
                       type="button"
                       onClick={() => setModalBoxColor(color)}
-                      className={`w-6 h-6 rounded-full border transition-all ${
-                        modalBoxColor === color ? 'ring-2 ring-slate-900 ring-offset-2 scale-110' : 'hover:scale-105'
+                      className={`w-6 h-6 rounded-full border transition-all cursor-pointer ${
+                        modalBoxColor === color ? 'ring-2 ring-slate-900 dark:ring-white ring-offset-2 scale-110' : 'hover:scale-105'
                       }`}
                       style={{ backgroundColor: color }}
                     />
@@ -1077,7 +1077,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Notes (Optional):
                 </label>
                 <textarea
@@ -1085,21 +1085,21 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   value={modalBoxNotes}
                   onChange={(e) => setModalBoxNotes(e.target.value)}
                   placeholder="e.g. Stored key issues and oversize hardcovers"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-800"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsBoxModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs shadow-xs"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer"
                 >
                   {editingBox ? 'Save Changes' : 'Create Box'}
                 </button>

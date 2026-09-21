@@ -36,7 +36,8 @@ export function initializeScene(canvas: HTMLCanvasElement): SceneContext {
 
   // Scene setup
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf1f5f9); // Light slate neutral background
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  scene.background = new THREE.Color(isDark ? 0x0f172a : 0xf1f5f9); // Slate-900 in dark mode, Slate-100 in light mode
 
   // Camera setup
   const camera = new THREE.PerspectiveCamera(

@@ -33,14 +33,14 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-      <div className="bg-white w-11/12 h-5/6 rounded-lg shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-11/12 h-5/6 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header with close button */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 rounded-t-lg">
+        <div className="flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4">
           <h1 className="text-2xl font-bold">3D Box Visualizer</h1>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-slate-700 rounded transition-colors"
+            className="p-1 hover:bg-slate-700 rounded transition-colors cursor-pointer"
           >
             <X className="w-6 h-6" />
           </button>
@@ -59,7 +59,7 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
           </div>
 
           {/* Right: Comic Detail Panel (takes 1/3 width) */}
-          <div className="w-1/3 border-l border-slate-200 bg-white overflow-y-auto">
+          <div className="w-1/3 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto">
             {selectedComic ? (
               <ComicDetailPanel
                 comic={selectedComic}
@@ -73,7 +73,7 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
                 compact={true}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-center text-slate-500 p-4">
+              <div className="flex items-center justify-center h-full text-center text-slate-500 dark:text-slate-400 p-4">
                 <div>
                   <p className="text-sm">Select a comic to view details</p>
                 </div>

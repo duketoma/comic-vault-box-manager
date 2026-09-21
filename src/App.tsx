@@ -20,6 +20,25 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'stats' | 'sheets' | 'database'>('catalog');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Dark Mode State with LocalStorage Persistence and system preference fallback
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('comic_vault_theme');
+    if (saved) return saved === 'dark';
+    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('comic_vault_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('comic_vault_theme', 'light');
+    }
+  }, [darkMode]);
+
+  const handleToggleDarkMode = () => setDarkMode((prev) => !prev);
+
   // Local Storage Persistent State
   const [boxes, setBoxes] = useState<StorageBox[]>(() => {
     const saved = localStorage.getItem('comic_vault_boxes');
@@ -290,7 +309,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased selection:bg-slate-900 selection:text-white">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-slate-900 dark:selection:bg-indigo-600 selection:text-white transition-colors duration-150">
       
       {/* Navigation Header */}
       <Navbar
@@ -298,6 +317,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        darkMode={darkMode}
+        onToggleDarkMode={handleToggleDarkMode}
         onOpenAddModal={() => {
           setInitialScanMode(false);
           setIsAddModalOpen(true);
@@ -313,9 +334,9 @@ export default function App() {
       />
 
       {databaseError && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900 flex items-center justify-between gap-3 shadow-xs">
+        <div className="bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-900/60 px-4 py-2 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2 max-w-5xl">
-            <span className="font-bold shrink-0 bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[11px]">
+            <span className="font-bold shrink-0 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded text-[11px]">
               PostgreSQL connection issue
             </span>
             <span>
@@ -409,12 +430,12 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="bg-[#FFFFFF] border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500 dark:text-slate-400 transition-colors">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
-            <strong className="text-slate-800">Comic Archive Pro</strong> • 15 Storage Box & Reading Manager
+            <strong className="text-slate-800 dark:text-slate-200">Comic Archive Pro</strong> • 15 Storage Box & Reading Manager
           </div>
-          <div className="text-slate-400">
+          <div className="text-slate-400 dark:text-slate-500">
             Powered by Google AI Studio Gemini API & Google Drive Integration
           </div>
         </div>
