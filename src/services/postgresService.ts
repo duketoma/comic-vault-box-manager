@@ -1,10 +1,11 @@
-import { ComicBook, StorageBox } from '../types';
+import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { compressBase64Image } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 
-interface CollectionResponse {
+export interface CollectionResponse {
   comics: ComicBook[];
   boxes: StorageBox[];
+  seriesTotals?: SeriesIssueTotal[];
 }
 
 async function request(path: string, options?: RequestInit) {
@@ -31,7 +32,11 @@ async function prepareComic(comic: ComicBook): Promise<ComicBook> {
 export async function loadCollection(): Promise<CollectionResponse> {
   const response = await request('/api/collection');
   const collection = await response.json() as CollectionResponse;
-  return { comics: collection.comics, boxes: sortBoxes(collection.boxes) };
+  return {
+    comics: collection.comics,
+    boxes: sortBoxes(collection.boxes),
+    seriesTotals: collection.seriesTotals || [],
+  };
 }
 
 export async function saveComic(comic: ComicBook) {
@@ -149,13 +154,14 @@ export async function fetchGoogleSubsheets(payload: {
 }
 
 /**
- * Imports and persists subsheets data (creators, creator types, contributors, character appearances) into PostgreSQL.
+ * Imports and persists subsheets data (creators, creator types, contributors, character appearances, series totals) into PostgreSQL.
  */
 export async function importSubsheetsData(payload: {
   creators?: Array<{ firstName?: string; lastName?: string; fullName: string }>;
   creatorTypes?: Array<{ typeName: string }>;
   contributors?: Array<{ seriesName?: string; fullTitle: string; creatorFullName: string; creatorType: string }>;
   characterAppearances?: Array<{ seriesName?: string; fullTitle: string; characterName: string; appearanceType: string }>;
+  seriesTotals?: Array<{ publisher: string; seriesName: string; volume?: string; issueCount: number }>;
   syncWithComics?: boolean;
 }): Promise<{
   success: boolean;
@@ -164,12 +170,32 @@ export async function importSubsheetsData(payload: {
     creatorTypes: number;
     contributors: number;
     characterAppearances: number;
+    seriesTotals?: number;
     comicsUpdated: number;
   };
 }> {
   const response = await request('/api/import/subsheets', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+  return response.json();
+}
+
+/**
+ * Fetches all series issue totals (total published issue counts).
+ */
+export async function fetchSeriesTotals(): Promise<SeriesIssueTotal[]> {
+  const response = await request('/api/series-totals');
+  return response.json();
+}
+
+/**
+ * Batch saves or updates series issue totals in PostgreSQL.
+ */
+export async function saveSeriesTotals(seriesTotals: SeriesIssueTotal[]): Promise<{ success: boolean; count: number }> {
+  const response = await request('/api/series-totals', {
+    method: 'POST',
+    body: JSON.stringify({ seriesTotals }),
   });
   return response.json();
 }

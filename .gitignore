@@ -8,3 +8,5 @@ coverage/
 !.env.example
 firebase-applet-config.json
 Troubleshooting/
+test-results/
+playwright-report/

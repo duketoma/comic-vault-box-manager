@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { ComicBook, StorageBox } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { sortBoxes } from '../utils/boxUtils';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { 
@@ -46,19 +46,37 @@ import {
   Feather,
   Flame,
   Search,
-  X
+  X,
+  Copy,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 
 interface ReadingStatsProps {
   comics: ComicBook[];
   boxes: StorageBox[];
+  seriesTotals?: SeriesIssueTotal[];
+  onViewSeriesInCatalog?: (seriesName: string) => void;
+  initialSubTab?: 'events' | 'series' | 'creators' | 'achievements' | 'general';
 }
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
-export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => {
+export const ReadingStats: React.FC<ReadingStatsProps> = ({ 
+  comics, 
+  boxes, 
+  seriesTotals = [], 
+  onViewSeriesInCatalog,
+  initialSubTab = 'events' 
+}) => {
   // Navigation & Sub-Tab State
-  const [activeStatsTab, setActiveStatsTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
+  const [activeStatsTab, setActiveStatsTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>(initialSubTab);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveStatsTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   
   // Box Inspector State
   const [selectedBoxId, setSelectedBoxId] = useState<number | 'all'>('all');
@@ -67,7 +85,11 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
   const [selectedEvent, setSelectedEvent] = useState<string>('all');
   
   // Series Filter & Sort State
-  const [seriesSortBy, setSeriesSortBy] = useState<'owned' | 'completion' | 'value' | 'alphabetical'>('owned');
+  const [seriesSortBy, setSeriesSortBy] = useState<'owned' | 'collection' | 'remaining' | 'read_completion' | 'value' | 'alphabetical'>('owned');
+  const [seriesRunFilter, setSeriesRunFilter] = useState<'all' | 'complete' | 'near' | 'in_progress'>('all');
+  const [seriesSearchQuery, setSeriesSearchQuery] = useState<string>('');
+  const [expandedSeriesName, setExpandedSeriesName] = useState<string | null>(null);
+  const [copiedSeriesMissing, setCopiedSeriesMissing] = useState<string | null>(null);
 
   // Creator & Contributor State
   const [creatorSearchQuery, setCreatorSearchQuery] = useState<string>('');
@@ -179,103 +201,261 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
   // -------------------------------------------------------------
   // 2. COMIC SERIES / TITLE COLLECTION GRAPH & DATA
   // -------------------------------------------------------------
+  const totalsMap = useMemo(() => {
+    const map = new Map<string, number>();
+    (seriesTotals || []).forEach((st) => {
+      if (st.seriesName) {
+        map.set(st.seriesName.trim().toLowerCase(), st.issueCount);
+      }
+    });
+    return map;
+  }, [seriesTotals]);
+
   const seriesSummary = useMemo(() => {
-    const map: Record<string, {
+    interface SeriesEntry {
       title: string;
+      seriesName: string;
       publisher: string;
+      volume?: string;
+      totalIssues: number;
+      hasKnownTotal: boolean;
       ownedCount: number;
       readCount: number;
       unreadCount: number;
       readingCount: number;
       wishlistCount: number;
       totalValue: number;
+      collectionPct: number;
+      remainingIssues: number;
+      isRunComplete: boolean;
+      readPct: number;
+      is100PercentRead: boolean;
       comics: ComicBook[];
-    }> = {};
+      ownedIssueNumbers: number[];
+      wishlistIssueNumbers: number[];
+      missingIssueNumbers: number[];
+    }
+
+    const map: Record<string, SeriesEntry> = {};
 
     comics.forEach((c) => {
-      const t = c.title.trim();
-      if (!map[t]) {
-        map[t] = {
+      const sName = c.seriesName?.trim();
+      const t = c.title?.trim() || 'Untitled Comic';
+      const seriesKey = sName || t;
+
+      if (!map[seriesKey]) {
+        let totalCount = 0;
+        let hasKnown = false;
+
+        if (sName && totalsMap.has(sName.toLowerCase())) {
+          totalCount = totalsMap.get(sName.toLowerCase())!;
+          hasKnown = true;
+        } else if (totalsMap.has(t.toLowerCase())) {
+          totalCount = totalsMap.get(t.toLowerCase())!;
+          hasKnown = true;
+        }
+
+        map[seriesKey] = {
           title: t,
+          seriesName: seriesKey,
           publisher: c.publisher || 'Unknown',
+          volume: c.volume,
+          totalIssues: totalCount,
+          hasKnownTotal: hasKnown,
           ownedCount: 0,
           readCount: 0,
           unreadCount: 0,
           readingCount: 0,
           wishlistCount: 0,
           totalValue: 0,
-          comics: []
+          collectionPct: 0,
+          remainingIssues: 0,
+          isRunComplete: false,
+          readPct: 0,
+          is100PercentRead: false,
+          comics: [],
+          ownedIssueNumbers: [],
+          wishlistIssueNumbers: [],
+          missingIssueNumbers: [],
         };
       }
 
-      map[t].comics.push(c);
+      map[seriesKey].comics.push(c);
 
       if (c.readingStatus === 'Wishlist') {
-        map[t].wishlistCount += 1;
+        map[seriesKey].wishlistCount += 1;
       } else {
-        map[t].ownedCount += 1;
-        map[t].totalValue += (c.estimatedValue || 0);
+        map[seriesKey].ownedCount += 1;
+        map[seriesKey].totalValue += (c.estimatedValue || 0);
         if (c.readingStatus === 'Read') {
-          map[t].readCount += 1;
+          map[seriesKey].readCount += 1;
         } else if (c.readingStatus === 'Reading') {
-          map[t].readingCount += 1;
+          map[seriesKey].readingCount += 1;
         } else {
-          map[t].unreadCount += 1;
+          map[seriesKey].unreadCount += 1;
         }
       }
     });
 
     let list = Object.values(map).map((s) => {
-      const completionPct = s.ownedCount > 0 ? Math.round((s.readCount / s.ownedCount) * 100) : 0;
-      const is100Percent = s.ownedCount > 0 && s.readCount === s.ownedCount;
-      return { ...s, completionPct, is100Percent };
+      const effectiveTotal = s.hasKnownTotal ? s.totalIssues : Math.max(s.ownedCount, s.ownedCount + s.wishlistCount);
+      const collectionPct = effectiveTotal > 0 ? Math.min(100, Math.round((s.ownedCount / effectiveTotal) * 100)) : 0;
+      const remainingIssues = Math.max(0, effectiveTotal - s.ownedCount);
+      const isRunComplete = s.hasKnownTotal && s.ownedCount >= s.totalIssues && s.totalIssues > 0;
+      const readPct = s.ownedCount > 0 ? Math.round((s.readCount / s.ownedCount) * 100) : 0;
+      const is100PercentRead = s.ownedCount > 0 && s.readCount === s.ownedCount;
+
+      const ownedNums: number[] = [];
+      const wishlistNums: number[] = [];
+      s.comics.forEach(c => {
+        const num = parseInt(c.issueNumber, 10);
+        if (!isNaN(num)) {
+          if (c.readingStatus === 'Wishlist') {
+            if (!wishlistNums.includes(num)) wishlistNums.push(num);
+          } else {
+            if (!ownedNums.includes(num)) ownedNums.push(num);
+          }
+        }
+      });
+      ownedNums.sort((a, b) => a - b);
+      wishlistNums.sort((a, b) => a - b);
+      const ownedSet = new Set(ownedNums);
+      const missingIssues: number[] = [];
+      for (let i = 1; i <= Math.min(effectiveTotal, 300); i++) {
+        if (!ownedSet.has(i)) {
+          missingIssues.push(i);
+        }
+      }
+
+      return {
+        ...s,
+        totalIssues: effectiveTotal,
+        collectionPct,
+        remainingIssues,
+        isRunComplete,
+        readPct,
+        is100PercentRead,
+        ownedIssueNumbers: ownedNums,
+        wishlistIssueNumbers: wishlistNums,
+        missingIssueNumbers: missingIssues,
+      };
     });
 
     if (seriesSortBy === 'owned') {
       list.sort((a, b) => b.ownedCount - a.ownedCount);
-    } else if (seriesSortBy === 'completion') {
-      list.sort((a, b) => b.completionPct - a.completionPct || b.ownedCount - a.ownedCount);
+    } else if (seriesSortBy === 'collection') {
+      list.sort((a, b) => b.collectionPct - a.collectionPct || b.ownedCount - a.ownedCount);
+    } else if (seriesSortBy === 'remaining') {
+      list.sort((a, b) => {
+        const aHasRemaining = !a.isRunComplete && a.collectionPct < 100 && a.remainingIssues > 0;
+        const bHasRemaining = !b.isRunComplete && b.collectionPct < 100 && b.remainingIssues > 0;
+        if (aHasRemaining && !bHasRemaining) return -1;
+        if (!aHasRemaining && bHasRemaining) return 1;
+        return a.remainingIssues - b.remainingIssues || b.collectionPct - a.collectionPct;
+      });
+    } else if (seriesSortBy === 'read_completion') {
+      list.sort((a, b) => b.readPct - a.readPct || b.ownedCount - a.ownedCount);
     } else if (seriesSortBy === 'value') {
       list.sort((a, b) => b.totalValue - a.totalValue);
     } else if (seriesSortBy === 'alphabetical') {
-      list.sort((a, b) => a.title.localeCompare(b.title));
+      list.sort((a, b) => a.seriesName.localeCompare(b.seriesName));
     }
 
     return list;
-  }, [comics, seriesSortBy]);
+  }, [comics, totalsMap, seriesSortBy]);
 
-  // Top 10 Series for Bar Chart
+  // Filtered series list based on run filter and search
+  const filteredSeries = useMemo(() => {
+    let result = seriesSummary;
+    if (seriesRunFilter === 'complete') {
+      result = result.filter((s) => s.isRunComplete || s.collectionPct === 100);
+    } else if (seriesRunFilter === 'near') {
+      result = result.filter((s) => !s.isRunComplete && s.collectionPct >= 75);
+    } else if (seriesRunFilter === 'in_progress') {
+      result = result.filter((s) => !s.isRunComplete && s.collectionPct < 75);
+    }
+    if (seriesSearchQuery.trim()) {
+      const q = seriesSearchQuery.toLowerCase();
+      result = result.filter((s) =>
+        s.seriesName.toLowerCase().includes(q) ||
+        s.title.toLowerCase().includes(q) ||
+        s.publisher.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [seriesSummary, seriesRunFilter, seriesSearchQuery]);
+
+  // Aggregate Series Overview Metrics
+  const seriesOverviewStats = useMemo(() => {
+    const totalRuns = seriesSummary.length;
+    const completedRuns = seriesSummary.filter((s) => s.isRunComplete || s.collectionPct === 100).length;
+    const nearCompleteRuns = seriesSummary.filter((s) => !s.isRunComplete && s.collectionPct >= 75).length;
+    const totalPublishedIssues = seriesSummary.reduce((acc, s) => acc + s.totalIssues, 0);
+    const totalOwnedInSeries = seriesSummary.reduce((acc, s) => acc + s.ownedCount, 0);
+    const overallRunCollectionPct = totalPublishedIssues > 0 ? Math.round((totalOwnedInSeries / totalPublishedIssues) * 100) : 0;
+    return {
+      totalRuns,
+      completedRuns,
+      nearCompleteRuns,
+      totalPublishedIssues,
+      totalOwnedInSeries,
+      overallRunCollectionPct,
+    };
+  }, [seriesSummary]);
+
+  // Top 10 Series for Bar Chart (Showing Owned vs Total Published Issues)
   const topSeriesChartData = useMemo(() => {
-    return seriesSummary.slice(0, 10).map((s) => ({
-      name: s.title.length > 18 ? `${s.title.slice(0, 16)}...` : s.title,
-      fullName: s.title,
+    let source = seriesSummary;
+    if (seriesSortBy === 'remaining') {
+      source = source.filter((s) => !s.isRunComplete && s.collectionPct < 100 && s.remainingIssues > 0);
+    }
+    return source.slice(0, 10).map((s) => ({
+      name: s.seriesName.length > 20 ? `${s.seriesName.slice(0, 18)}...` : s.seriesName,
+      fullName: s.seriesName,
       Owned: s.ownedCount,
+      TotalIssues: s.totalIssues,
+      Remaining: s.remainingIssues,
       Read: s.readCount,
       Wishlist: s.wishlistCount,
-      Completion: `${s.completionPct}%`
+      Collection: `${s.collectionPct}%`,
     }));
-  }, [seriesSummary]);
+  }, [seriesSummary, seriesSortBy]);
 
   // -------------------------------------------------------------
   // 3. 100% COMPLETION ACHIEVEMENTS & BADGES
   // -------------------------------------------------------------
   const completedSeriesBadges = useMemo(() => {
-    // Collect all 100% completed series
-    const seriesBadges = seriesSummary
-      .filter((s) => s.ownedCount > 0 && s.is100Percent)
+    // 1. Collect all Full Series Run Completed badges (100% Collected)
+    const runCompleteBadges = seriesSummary
+      .filter((s) => s.isRunComplete || (s.totalIssues > 0 && s.ownedCount >= s.totalIssues))
       .map((s) => ({
-        id: `series-${s.title}`,
-        name: s.title,
-        type: 'Series' as const,
+        id: `run-${s.seriesName}`,
+        name: s.seriesName,
+        type: 'Full Run Complete' as const,
+        publisher: s.publisher,
+        issueCount: s.ownedCount,
+        readCount: s.readCount,
+        totalValue: s.totalValue,
+        badgeTier: s.totalIssues >= 25 ? 'Platinum Run Master' : s.totalIssues >= 5 ? 'Gold Complete Run' : 'Complete Series Run',
+        icon: Crown,
+      }));
+
+    // 2. Collect 100% Read series (where readCount === ownedCount)
+    const seriesReadBadges = seriesSummary
+      .filter((s) => s.ownedCount > 0 && s.is100PercentRead && !s.isRunComplete)
+      .map((s) => ({
+        id: `series-read-${s.seriesName}`,
+        name: s.seriesName,
+        type: 'Series (100% Read)' as const,
         publisher: s.publisher,
         issueCount: s.ownedCount,
         readCount: s.readCount,
         totalValue: s.totalValue,
         badgeTier: s.ownedCount >= 5 ? 'Gold Mastery' : s.ownedCount >= 2 ? 'Silver Perfection' : 'Key Masterpiece',
-        icon: s.ownedCount >= 5 ? Crown : Trophy
+        icon: Trophy,
       }));
 
-    // Collect 100% completed events
+    // 3. Collect 100% completed events
     const eventMap: Record<string, { name: string; owned: number; read: number; wishlist: number; value: number }> = {};
     comics.forEach((c) => {
       if (c.event && c.event.trim()) {
@@ -302,17 +482,17 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
         readCount: e.read,
         totalValue: e.value,
         badgeTier: 'Diamond Event Champion',
-        icon: Sparkles
+        icon: Sparkles,
       }));
 
-    return [...eventBadges, ...seriesBadges];
+    return [...runCompleteBadges, ...seriesReadBadges, ...eventBadges];
   }, [seriesSummary, comics]);
 
-  // In-Progress Series Milestones (50% - 99%)
+  // In-Progress Series Milestones (50% - 99% collected)
   const inProgressMilestones = useMemo(() => {
     return seriesSummary
-      .filter((s) => s.ownedCount > 0 && s.completionPct >= 30 && s.completionPct < 100)
-      .sort((a, b) => b.completionPct - a.completionPct);
+      .filter((s) => s.ownedCount > 0 && s.collectionPct >= 40 && s.collectionPct < 100)
+      .sort((a, b) => b.collectionPct - a.collectionPct);
   }, [seriesSummary]);
 
   // -------------------------------------------------------------
@@ -1009,11 +1189,61 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
       )}
 
       {/* ========================================================================= */}
-      {/* SECTION 2: COMIC TITLES / SERIES COLLECTION GRAPH */}
+      {/* SECTION 2: COMIC TITLES / SERIES COLLECTION GRAPH & RUN TRACKER */}
       {/* ========================================================================= */}
       {activeStatsTab === 'series' && (
         <div className="space-y-6">
           
+          {/* Series Overview KPI Banner */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+              <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-1">
+                <Layers3 className="w-4 h-4" />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Series Runs</span>
+              </div>
+              <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{seriesOverviewStats.totalRuns}</div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Distinct comic series</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-1">
+                <Crown className="w-4 h-4 text-amber-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Full Runs Owned</span>
+              </div>
+              <div className="text-2xl font-black text-amber-800 dark:text-amber-300">
+                {seriesOverviewStats.completedRuns}
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-1.5">
+                  ({seriesOverviewStats.totalRuns > 0 ? Math.round((seriesOverviewStats.completedRuns / seriesOverviewStats.totalRuns) * 100) : 0}%)
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">100% complete runs</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-1">
+                <Target className="w-4 h-4 text-emerald-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Run Collection Rate</span>
+              </div>
+              <div className="text-2xl font-black text-emerald-800 dark:text-emerald-300">
+                {seriesOverviewStats.overallRunCollectionPct}%
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                {seriesOverviewStats.totalOwnedInSeries} of {seriesOverviewStats.totalPublishedIssues} published issues
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+              <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400 mb-1">
+                <Sparkles className="w-4 h-4 text-violet-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Near Complete (≥75%)</span>
+              </div>
+              <div className="text-2xl font-black text-violet-800 dark:text-violet-300">
+                {seriesOverviewStats.nearCompleteRuns}
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Close to full run</p>
+            </div>
+          </div>
+
           {/* Top Series Controls & Summary */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -1022,10 +1252,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   <span className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300">
                     <BarChart3 className="w-4 h-4" />
                   </span>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Comic Titles & Series Ownership Graph</h3>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Series Collection & Run Progress</h3>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Track how many comics in each series you own, read, or wishlisted across your entire library.
+                  Track how close you are to completing every series run in your collection, with verified issue counts from SeriesIssueTotal.
                 </p>
               </div>
 
@@ -1040,8 +1270,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                   onChange={(e) => setSeriesSortBy(e.target.value as any)}
                   className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 shadow-xs"
                 >
+                  <option value="collection">Collection Progress % (Run Completion)</option>
+                  <option value="remaining">Closest to Completion (Fewest Remaining)</option>
                   <option value="owned">Most Owned Issues</option>
-                  <option value="completion">Highest Read Completion %</option>
+                  <option value="read_completion">Highest Read Completion %</option>
                   <option value="value">Highest Total Value ($)</option>
                   <option value="alphabetical">Alphabetical (A-Z)</option>
                 </select>
@@ -1053,27 +1285,104 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider flex items-center gap-2">
                   <TrendingUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                  <span>Top Series Breakdown (Owned vs Read vs Wishlist)</span>
+                  <span>Top Series Run Breakdown (Owned vs Total Published Issues)</span>
                 </h4>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Showing top 10 series</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  {seriesSortBy === 'remaining' ? 'Showing top 10 series with issues remaining' : 'Showing top 10 series'}
+                </span>
               </div>
 
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topSeriesChartData} margin={{ top: 10, right: 10, left: -20, bottom: 35 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
-                    <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-30} textAnchor="end" />
-                    <YAxis stroke="#64748b" fontSize={10} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }}
-                    />
-                    <Bar dataKey="Read" fill="#10B981" name="Read Issues" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Owned" fill="#6366F1" name="Owned (Unread)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Wishlist" fill="#F43F5E" name="Wishlist Issues" radius={[4, 4, 0, 0]} />
-                    <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: '11px' }} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {topSeriesChartData.length === 0 ? (
+                <div className="h-48 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <Crown className="w-8 h-8 text-amber-500 mb-2" />
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">All series runs are 100% complete!</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">No series currently have remaining issues to collect.</p>
+                </div>
+              ) : (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topSeriesChartData} margin={{ top: 10, right: 10, left: -20, bottom: 45 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
+                      <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-30} textAnchor="end" />
+                      <YAxis stroke="#64748b" fontSize={10} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }}
+                      />
+                      <Bar dataKey="Owned" fill="#10B981" name="Owned Issues" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Remaining" fill="#CBD5E1" name="Remaining to Complete Run" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Wishlist" fill="#F43F5E" name="Wishlist Issues" radius={[4, 4, 0, 0]} />
+                      <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: '11px' }} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filter & Search Bar for Series */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                onClick={() => setSeriesRunFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  seriesRunFilter === 'all'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                All Series ({seriesSummary.length})
+              </button>
+              <button
+                onClick={() => setSeriesRunFilter('complete')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  seriesRunFilter === 'complete'
+                    ? 'bg-amber-500 text-amber-950 shadow-xs'
+                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100'
+                }`}
+              >
+                <Crown className="w-3.5 h-3.5" />
+                <span>Complete Runs ({seriesOverviewStats.completedRuns})</span>
+              </button>
+              <button
+                onClick={() => setSeriesRunFilter('near')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  seriesRunFilter === 'near'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-100'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Near Complete ≥75% ({seriesOverviewStats.nearCompleteRuns})</span>
+              </button>
+              <button
+                onClick={() => setSeriesRunFilter('in_progress')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  seriesRunFilter === 'in_progress'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                In Progress &lt;75% ({seriesSummary.length - seriesOverviewStats.completedRuns - seriesOverviewStats.nearCompleteRuns})
+              </button>
+            </div>
+
+            <div className="relative min-w-[220px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search series or publisher..."
+                value={seriesSearchQuery}
+                onChange={(e) => setSeriesSearchQuery(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {seriesSearchQuery && (
+                <button
+                  onClick={() => setSeriesSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1082,53 +1391,87 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                 <Layers3 className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-                <span>All Series & Title Collections ({seriesSummary.length} Distinct Titles)</span>
+                <span>All Series & Title Runs ({filteredSeries.length} Shown)</span>
               </h4>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {seriesSummary.map((s) => (
+              {filteredSeries.map((s) => (
                 <div 
-                  key={s.title}
+                  key={s.seriesName}
                   className={`border rounded-2xl p-4 space-y-3 transition-all ${
-                    s.is100Percent 
-                      ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-300/80 dark:border-amber-700/60 shadow-xs' 
+                    s.isRunComplete 
+                      ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/60 shadow-xs' 
+                      : s.collectionPct >= 75
+                      ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 shadow-xs'
                       : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{s.publisher}</span>
-                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate leading-snug">{s.title}</h5>
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate leading-snug" title={s.seriesName}>
+                        {s.seriesName}
+                      </h5>
                     </div>
 
-                    {s.is100Percent && (
+                    {s.isRunComplete ? (
                       <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-black text-[10px] flex items-center gap-1 shrink-0 shadow-xs">
-                        <Trophy className="w-3 h-3 text-amber-950" />
-                        <span>100% READ</span>
+                        <Crown className="w-3 h-3 text-amber-950" />
+                        <span>FULL RUN</span>
                       </span>
-                    )}
+                    ) : s.collectionPct >= 75 ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-extrabold text-[10px] shrink-0 border border-emerald-300 dark:border-emerald-700">
+                        {s.collectionPct}% COLLECTED
+                      </span>
+                    ) : null}
                   </div>
 
-                  {/* Progress Bar */}
-                  <div className="space-y-1">
+                  {/* Primary Collection Progress Bar (How close to collecting all titles) */}
+                  <div className="space-y-1.5 pt-1">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-600 dark:text-slate-400">Completion Rate</span>
-                      <span className={s.is100Percent ? 'text-amber-800 dark:text-amber-300 font-bold' : 'text-slate-900 dark:text-slate-100'}>
-                        {s.completionPct}% ({s.readCount}/{s.ownedCount} read)
+                      <span className="text-slate-700 dark:text-slate-300 font-bold flex items-center gap-1">
+                        <Target className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Run Progress</span>
+                      </span>
+                      <span className={s.isRunComplete ? 'text-amber-800 dark:text-amber-300 font-bold' : 'text-slate-900 dark:text-slate-100 font-bold'}>
+                        {s.ownedCount} / {s.totalIssues} ({s.collectionPct}%)
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
                       <div 
                         className={`h-full rounded-full transition-all duration-500 ${
-                          s.is100Percent ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-emerald-500'
+                          s.isRunComplete
+                            ? 'bg-gradient-to-r from-amber-400 to-amber-600'
+                            : s.collectionPct >= 75
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                            : 'bg-indigo-600 dark:bg-indigo-500'
                         }`}
-                        style={{ width: `${s.completionPct}%` }}
+                        style={{ width: `${s.collectionPct}%` }}
                       ></div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      {s.isRunComplete ? (
+                        <span className="text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Full run complete! ({s.totalIssues} issues)</span>
+                        </span>
+                      ) : (
+                        <span>
+                          <strong>{s.remainingIssues}</strong> {s.remainingIssues === 1 ? 'issue' : 'issues'} needed to complete run
+                        </span>
+                      )}
+
+                      {/* Read Progress Sub-indicator */}
+                      <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                        {s.readCount}/{s.ownedCount} read ({s.readPct}%)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Issues Count Tags */}
+                  {/* Issues Count & Valuation Tags */}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
                     <span className="font-bold text-slate-800 dark:text-slate-200">
                       {s.ownedCount} Owned {s.wishlistCount > 0 && <span className="text-rose-600 dark:text-rose-400 font-normal">({s.wishlistCount} wishlist)</span>}
@@ -1137,6 +1480,100 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       Est. ${s.totalValue.toFixed(2)}
                     </span>
                   </div>
+
+                  {/* Action Bar & Expandable Run Breakdown */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                    {onViewSeriesInCatalog && (
+                      <button
+                        type="button"
+                        onClick={() => onViewSeriesInCatalog(s.seriesName)}
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                        title="Filter Collection Catalog to this series"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>View in Catalog</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSeriesName(expandedSeriesName === s.seriesName ? null : s.seriesName)}
+                      className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer ml-auto"
+                    >
+                      <span>{expandedSeriesName === s.seriesName ? 'Hide Issues' : 'Issue Matrix'}</span>
+                      {expandedSeriesName === s.seriesName ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  </div>
+
+                  {/* Expanded Issue Matrix & Missing Checklist */}
+                  {expandedSeriesName === s.seriesName && (
+                    <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        <span>Path to 100% Run:</span>
+                        {s.missingIssueNumbers.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = `${s.seriesName} - Missing Issues (${s.missingIssueNumbers.length}): #${s.missingIssueNumbers.join(', #')}`;
+                              navigator.clipboard.writeText(text);
+                              setCopiedSeriesMissing(s.seriesName);
+                              setTimeout(() => setCopiedSeriesMissing(null), 2000);
+                            }}
+                            className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedSeriesMissing === s.seriesName ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
+                            <span>{copiedSeriesMissing === s.seriesName ? 'Copied!' : 'Copy Missing'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {s.totalIssues <= 60 ? (
+                        <div className="flex flex-wrap gap-1 p-2 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto">
+                          {Array.from({ length: s.totalIssues }, (_, idx) => idx + 1).map((num) => {
+                            const isOwned = s.ownedIssueNumbers.includes(num);
+                            const isWishlist = s.wishlistIssueNumbers.includes(num);
+                            return (
+                              <div
+                                key={num}
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-0.5 ${
+                                  isOwned
+                                    ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-700 shadow-xs'
+                                    : isWishlist
+                                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300'
+                                    : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-dashed border-slate-300 dark:border-slate-700'
+                                }`}
+                                title={isOwned ? `Issue #${num}: Owned` : isWishlist ? `Issue #${num}: Wishlist` : `Issue #${num}: Missing`}
+                              >
+                                {isOwned && <CheckCircle2 className="w-2 h-2" />}
+                                <span>#{num}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-2 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-[11px] space-y-1">
+                          <p className="text-slate-600 dark:text-slate-300">
+                            <strong>{s.ownedCount}</strong> of <strong>{s.totalIssues}</strong> owned ({s.collectionPct}%).
+                            {s.remainingIssues > 0 ? (
+                              <span className="text-amber-800 dark:text-amber-400 font-bold ml-1">
+                                {s.remainingIssues} needed for 100%.
+                              </span>
+                            ) : (
+                              <span className="text-emerald-700 dark:text-emerald-400 font-bold ml-1">
+                                Complete run! 🏆
+                              </span>
+                            )}
+                          </p>
+                          {s.missingIssueNumbers.length > 0 && (
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                              Missing: {s.missingIssueNumbers.slice(0, 20).map(n => `#${n}`).join(', ')}
+                              {s.missingIssueNumbers.length > 20 && ` ...and ${s.missingIssueNumbers.length - 20} more`}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1705,12 +2142,33 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                       {/* Stats & Value Footer */}
                       <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-800/60 flex items-center justify-between text-xs">
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">Issues Read</span>
-                          <span className="font-bold text-slate-900 dark:text-slate-100">{badge.readCount} / {badge.issueCount} (100%)</span>
+                          <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">
+                            {badge.type === 'Full Run Complete' ? 'Run Completion' : 'Issues Read'}
+                          </span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            {badge.type === 'Full Run Complete'
+                              ? `${badge.issueCount} / ${badge.issueCount} (100% Owned)`
+                              : `${badge.readCount} / ${badge.issueCount} (100%)`}
+                          </span>
+                          {badge.type === 'Full Run Complete' && (
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-normal mt-0.5">
+                              {badge.readCount} of {badge.issueCount} read
+                            </span>
+                          )}
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col items-end">
                           <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">Est. Value</span>
                           <span className="font-bold text-emerald-700 dark:text-emerald-400">${badge.totalValue.toFixed(2)}</span>
+                          {onViewSeriesInCatalog && (
+                            <button
+                              type="button"
+                              onClick={() => onViewSeriesInCatalog(badge.name)}
+                              className="mt-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <span>View Run</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1722,7 +2180,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
                 <Trophy className="w-10 h-10 text-slate-400 dark:text-slate-500 mx-auto" />
                 <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm">No 100% Completed Series Badges Yet</h5>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                  Mark all owned issues in a series or crossover event as <strong>"Read"</strong> to earn your first 100% Mastery Achievement Badge!
+                  Collect all published issues in a series to earn your first 100% Full Run Mastery Achievement Badge!
                 </p>
               </div>
             )}
@@ -1734,29 +2192,38 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({ comics, boxes }) => 
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                   <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Next 100% Badges In-Progress ({inProgressMilestones.length} Series)</span>
+                  <span>Next 100% Run Badges In-Progress ({inProgressMilestones.length} Series)</span>
                 </h4>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Almost completed!</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {inProgressMilestones.map((s) => (
-                  <div key={s.title} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 space-y-2">
+                  <div key={s.seriesName || s.title} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">{s.title}</h5>
-                      <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full">
-                        {s.completionPct}%
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">{s.seriesName || s.title}</h5>
+                      <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-950/70 px-2 py-0.5 rounded-full">
+                        {s.collectionPct}%
                       </span>
                     </div>
 
                     <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${s.completionPct}%` }}></div>
+                      <div className="bg-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${s.collectionPct}%` }}></div>
                     </div>
 
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-medium">
-                      <span>{s.readCount} of {s.ownedCount} read</span>
-                      <span className="text-amber-800 dark:text-amber-400 font-bold">{s.ownedCount - s.readCount} left for 100% 🏆</span>
-                    </p>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      <span>{s.ownedCount} of {s.totalIssues} owned (<strong className="text-amber-800 dark:text-amber-400">{s.remainingIssues} left</strong>)</span>
+                      {onViewSeriesInCatalog && (
+                        <button
+                          type="button"
+                          onClick={() => onViewSeriesInCatalog(s.seriesName || s.title)}
+                          className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 cursor-pointer shrink-0"
+                        >
+                          <span>Track</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

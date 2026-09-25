@@ -71,12 +71,38 @@ export interface TitleCharacterAppearanceRecord {
   comicId?: string;
 }
 
+export interface SeriesIssueTotal {
+  id?: number;
+  publisher: string;
+  seriesName: string;
+  volume?: string;
+  issueCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SeriesCollectionProgress {
+  seriesName: string;
+  publisher: string;
+  volume?: string;
+  totalIssues: number;
+  ownedCount: number;
+  readCount: number;
+  unreadCount: number;
+  wishlistCount: number;
+  collectionPct: number;
+  remainingIssues: number;
+  isRunComplete: boolean;
+  totalValue: number;
+}
+
 export interface ComicBook {
   id: string;
   title: string;
   issueNumber: string;
   volume?: string;
   seriesName?: string; // name of comic series including Volume and years (e.g. "The Amazing Spider-Man (1963 - 1998)")
+  seriesTotalIssues?: number; // Total published issues in this series (from series_issue_totals)
   fullTitle?: string; // name of title including issue number (e.g. "The Amazing Spider-Man #300")
   event?: string; // Cross-title crossover event (e.g., "Civil War", "Secret Wars")
   copiesOwned?: number; // Physical copies owned (default 1)

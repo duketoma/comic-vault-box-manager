@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ComicBook, StorageBox } from '../types';
+import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
 import { 
   Database, 
   Download, 
@@ -17,9 +17,10 @@ import {
 interface DatabasePlannerProps {
   comics: ComicBook[];
   boxes: StorageBox[];
+  seriesTotals?: SeriesIssueTotal[];
 }
 
-export const DatabasePlanner: React.FC<DatabasePlannerProps> = ({ comics, boxes }) => {
+export const DatabasePlanner: React.FC<DatabasePlannerProps> = ({ comics, boxes, seriesTotals = [] }) => {
   const [selectedDialect, setSelectedDialect] = useState<'sqlite' | 'postgres'>('sqlite');
   const [generatedSql, setGeneratedSql] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -38,6 +39,7 @@ export const DatabasePlanner: React.FC<DatabasePlannerProps> = ({ comics, boxes 
         body: JSON.stringify({
           comics,
           boxes,
+          seriesTotals,
           dialect,
         }),
       });
@@ -150,7 +152,21 @@ CREATE TABLE IF NOT EXISTS comic_creator_contributions (
 )
 ''')
 
-print("Comic Vault Database Schema created successfully in comic_vault.db with Creators & Creator Types!")
+# 6. Series Issue Totals Table (Series Run Completion Tracker)
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS series_issue_totals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    publisher TEXT,
+    series_name TEXT NOT NULL,
+    volume TEXT,
+    issue_count INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (series_name, volume)
+)
+''')
+
+print("Comic Vault Database Schema created successfully in comic_vault.db with Creators, Characters & Series Totals!")
 conn.commit()
 conn.close()
 `;

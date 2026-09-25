@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ComicBook, StorageBox } from '../types';
+import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, getMonthIndex, MONTH_NAMES } from '../utils/dateUtils';
@@ -16,7 +16,15 @@ import {
   X,
   CheckCircle,
   Clock,
-  Bookmark
+  Bookmark,
+  Trophy,
+  Target,
+  Sparkles,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface CollectionCatalogProps {
@@ -25,6 +33,9 @@ interface CollectionCatalogProps {
   searchQuery: string;
   onSelectComic: (comic: ComicBook) => void;
   onQuickStatusChange: (comicId: string, status: ComicBook['readingStatus']) => void;
+  seriesTotals?: SeriesIssueTotal[];
+  selectedSeries?: string;
+  onSelectSeries?: (series: string) => void;
 }
 
 export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
@@ -33,8 +44,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   searchQuery,
   onSelectComic,
   onQuickStatusChange,
+  seriesTotals = [],
+  selectedSeries: controlledSelectedSeries,
+  onSelectSeries: onSelectSeriesProp,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [internalSelectedSeries, setInternalSelectedSeries] = useState<string>('all');
+  const selectedSeries = controlledSelectedSeries !== undefined ? controlledSelectedSeries : internalSelectedSeries;
+  const setSelectedSeries = (val: string) => {
+    setInternalSelectedSeries(val);
+    if (onSelectSeriesProp) onSelectSeriesProp(val);
+  };
+  const [selectedRunProgress, setSelectedRunProgress] = useState<'all' | 'complete' | 'near' | 'in_progress'>('all');
+  const [showRunMatrix, setShowRunMatrix] = useState<boolean>(true);
+  const [copiedMissing, setCopiedMissing] = useState<boolean>(false);
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
   const [selectedPublisher, setSelectedPublisher] = useState<string>('all');
   const [selectedAuthor, setSelectedAuthor] = useState<string>('all');
@@ -50,6 +73,126 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Extract unique filter options
+  const seriesList = useMemo(() => {
+    const set = new Set<string>();
+    comics.forEach(c => {
+      const s = (c.seriesName || c.title || '').trim();
+      if (s) set.add(s);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [comics]);
+
+  const seriesTotalsMap = useMemo(() => {
+    const map = new Map<string, SeriesIssueTotal>();
+    if (seriesTotals) {
+      seriesTotals.forEach(st => {
+        if (st.seriesName) {
+          map.set(st.seriesName.toLowerCase().trim(), st);
+        }
+      });
+    }
+    return map;
+  }, [seriesTotals]);
+
+  const seriesStatsMap = useMemo(() => {
+    interface SeriesStat {
+      seriesName: string;
+      owned: number;
+      wishlist: number;
+      totalIssues: number;
+      pct: number;
+      isComplete: boolean;
+      remaining: number;
+      ownedIssueNumbers: number[];
+      wishlistIssueNumbers: number[];
+      missingIssueNumbers: number[];
+      publisher?: string;
+      volume?: string;
+    }
+
+    const map = new Map<string, SeriesStat>();
+
+    comics.forEach(c => {
+      const sKey = (c.seriesName || c.title || '').trim().toLowerCase();
+      if (!sKey) return;
+      let stat = map.get(sKey);
+      if (!stat) {
+        stat = {
+          seriesName: c.seriesName || c.title || '',
+          owned: 0,
+          wishlist: 0,
+          totalIssues: 0,
+          pct: 0,
+          isComplete: false,
+          remaining: 0,
+          ownedIssueNumbers: [],
+          wishlistIssueNumbers: [],
+          missingIssueNumbers: [],
+          publisher: c.publisher,
+          volume: c.volume,
+        };
+        map.set(sKey, stat);
+      }
+
+      const num = parseInt(c.issueNumber, 10);
+      if (c.readingStatus === 'Wishlist') {
+        stat.wishlist += 1;
+        if (!isNaN(num) && !stat.wishlistIssueNumbers.includes(num)) {
+          stat.wishlistIssueNumbers.push(num);
+        }
+      } else {
+        stat.owned += 1;
+        if (!isNaN(num) && !stat.ownedIssueNumbers.includes(num)) {
+          stat.ownedIssueNumbers.push(num);
+        }
+      }
+    });
+
+    map.forEach((stat, key) => {
+      const totalInfo = seriesTotalsMap.get(key);
+      const totalCount = totalInfo?.issueCount || 0;
+      stat.totalIssues = totalCount;
+      if (totalInfo?.publisher) stat.publisher = totalInfo.publisher;
+      if (totalInfo?.volume) stat.volume = totalInfo.volume;
+
+      if (totalCount > 0) {
+        stat.pct = Math.round((stat.owned / totalCount) * 100);
+        stat.isComplete = stat.owned >= totalCount;
+        stat.remaining = Math.max(0, totalCount - stat.owned);
+
+        stat.ownedIssueNumbers.sort((a, b) => a - b);
+        stat.wishlistIssueNumbers.sort((a, b) => a - b);
+        const ownedSet = new Set(stat.ownedIssueNumbers);
+        const missing: number[] = [];
+        for (let i = 1; i <= Math.min(totalCount, 300); i++) {
+          if (!ownedSet.has(i)) {
+            missing.push(i);
+          }
+        }
+        stat.missingIssueNumbers = missing;
+      } else {
+        stat.pct = 0;
+        stat.isComplete = false;
+        stat.remaining = 0;
+      }
+    });
+
+    return map;
+  }, [comics, seriesTotalsMap]);
+
+  const seriesRunCounts = useMemo(() => {
+    let complete = 0;
+    let near = 0;
+    let inProgress = 0;
+    seriesStatsMap.forEach(s => {
+      if (s.totalIssues > 0) {
+        if (s.isComplete) complete++;
+        else if (s.pct >= 75) near++;
+        else inProgress++;
+      }
+    });
+    return { complete, near, inProgress };
+  }, [seriesStatsMap]);
   const genres = useMemo(() => {
     const set = new Set<string>();
     comics.forEach(c => c.genre && set.add(c.genre));
@@ -119,6 +262,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         }
       }
 
+      if (selectedSeries !== 'all') {
+        const cSeries = (c.seriesName || c.title || '').trim().toLowerCase();
+        if (cSeries !== selectedSeries.toLowerCase()) return false;
+      }
+
+      if (selectedRunProgress !== 'all') {
+        const sKey = (c.seriesName || c.title || '').trim().toLowerCase();
+        const stat = seriesStatsMap.get(sKey);
+        if (!stat || stat.totalIssues === 0) return false;
+        if (selectedRunProgress === 'complete' && !stat.isComplete) return false;
+        if (selectedRunProgress === 'near' && (stat.isComplete || stat.pct < 75)) return false;
+        if (selectedRunProgress === 'in_progress' && (stat.isComplete || stat.pct >= 75)) return false;
+      }
+
       if (selectedGenre !== 'all' && c.genre !== selectedGenre) return false;
       if (selectedPublisher !== 'all' && c.publisher !== selectedPublisher) return false;
       if (selectedAuthor !== 'all' && c.writer !== selectedAuthor && c.artist !== selectedAuthor && !c.creatorContributions?.some(cc => cc.creatorName === selectedAuthor)) return false;
@@ -174,16 +331,10 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   }, [
     comics,
     searchQuery,
+    selectedSeries,
+    selectedRunProgress,
     selectedGenre,
     selectedPublisher,
-    selectedAuthor,
-    selectedBoxId,
-    selectedStatus,
-    selectedFormat,
-    selectedEvent,
-    startDate,
-    endDate,
-    yearRange,
     selectedAuthor,
     selectedCharacter,
     selectedBoxId,
@@ -195,9 +346,12 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     yearRange,
     sortBy,
     sortOrder,
+    seriesStatsMap,
   ]);
 
   const resetFilters = () => {
+    setSelectedSeries('all');
+    setSelectedRunProgress('all');
     setSelectedGenre('all');
     setSelectedPublisher('all');
     setSelectedAuthor('all');
@@ -211,7 +365,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     setYearRange([1930, 2026]);
   };
 
-  const hasActiveFilters = selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || startDate !== '' || endDate !== '';
+  const hasActiveFilters = selectedSeries !== 'all' || selectedRunProgress !== 'all' || selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || startDate !== '' || endDate !== '';
 
   return (
     <div className="space-y-6">
@@ -261,9 +415,91 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
           </div>
         </div>
 
+        {/* Series Run Completion Filter Bar (Tracking towards 100%) */}
+        <div className="pt-3 pb-2 flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 mr-1">
+              <Target className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Series Completion:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedRunProgress('all')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedRunProgress === 'all'
+                  ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              All Runs
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedRunProgress('complete')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedRunProgress === 'complete'
+                  ? 'bg-amber-500 text-amber-950 shadow-xs ring-2 ring-amber-300'
+                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60 hover:bg-amber-100'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>100% Full Runs ({seriesRunCounts.complete})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedRunProgress('near')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedRunProgress === 'near'
+                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 hover:bg-emerald-100'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Near 100% (≥75%) ({seriesRunCounts.near})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedRunProgress('in_progress')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedRunProgress === 'in_progress'
+                  ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-300'
+                  : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+              }`}
+            >
+              <span>In-Progress (&lt;75%) ({seriesRunCounts.inProgress})</span>
+            </button>
+          </div>
+
+          {selectedRunProgress !== 'all' && (
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              Showing comics in <strong className="text-slate-900 dark:text-slate-100">{selectedRunProgress === 'complete' ? '100% completed runs' : selectedRunProgress === 'near' ? 'runs ≥75%' : 'in-progress runs'}</strong>
+            </span>
+          )}
+        </div>
+
         {/* Filter Controls Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 pt-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-3 pt-3">
           
+          {/* Series Run */}
+          <div>
+            <label className="block text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 mb-1">Series Run</label>
+            <select
+              value={selectedSeries}
+              onChange={(e) => setSelectedSeries(e.target.value)}
+              className="w-full bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-md px-2 py-1.5 text-xs text-indigo-950 dark:text-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            >
+              <option value="all">All Series ({seriesList.length})</option>
+              {seriesList.map(s => {
+                const stat = seriesStatsMap.get(s.toLowerCase());
+                return (
+                  <option key={s} value={s}>
+                    {s} {stat?.totalIssues ? `[${stat.owned}/${stat.totalIssues} • ${stat.pct}%${stat.isComplete ? ' 🏆' : ''}]` : `(${stat?.owned || 0} owned)`}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           {/* Genre */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Genre</label>
@@ -419,6 +655,219 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
 
         </div>
       </div>
+
+      {/* Series Run Tracker Banner when a series is selected */}
+      {selectedSeries !== 'all' && (() => {
+        const sKey = selectedSeries.toLowerCase().trim();
+        const stat = seriesStatsMap.get(sKey);
+        const totalInfo = seriesTotalsMap.get(sKey);
+        const publishedCount = stat?.totalIssues || totalInfo?.issueCount;
+        const ownedCount = stat?.owned ?? comics.filter(c => (c.seriesName || c.title || '').trim().toLowerCase() === sKey && c.readingStatus !== 'Wishlist').length;
+        const wishlistCount = stat?.wishlist ?? comics.filter(c => (c.seriesName || c.title || '').trim().toLowerCase() === sKey && c.readingStatus === 'Wishlist').length;
+        const pct = publishedCount ? Math.min(100, Math.round((ownedCount / publishedCount) * 100)) : null;
+        const remaining = publishedCount ? Math.max(0, publishedCount - ownedCount) : null;
+        const isComplete = publishedCount ? ownedCount >= publishedCount : false;
+
+        const ownedNums = stat?.ownedIssueNumbers || [];
+        const wishlistNums = stat?.wishlistIssueNumbers || [];
+        const missingNums = stat?.missingIssueNumbers || [];
+
+        return (
+          <div className="bg-white dark:bg-slate-900 border-2 border-indigo-500/30 dark:border-indigo-500/40 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                    Series Run Tracker
+                  </span>
+                  {isComplete ? (
+                    <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-xs">
+                      <Trophy className="w-3.5 h-3.5 text-amber-500" /> Full Run Complete (100%)!
+                    </span>
+                  ) : pct !== null && pct >= 75 ? (
+                    <span className="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 shadow-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-500" /> Near Complete ({pct}%)
+                    </span>
+                  ) : null}
+                  {(totalInfo?.publisher || stat?.publisher) && (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      • {totalInfo?.publisher || stat?.publisher}
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                  {selectedSeries}
+                  {(totalInfo?.volume || stat?.volume) && (
+                    <span className="text-sm font-normal text-slate-500 dark:text-slate-400 ml-2">
+                      ({totalInfo?.volume || stat?.volume})
+                    </span>
+                  )}
+                </h3>
+
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                  {publishedCount ? (
+                    <>
+                      You own <strong className="text-indigo-600 dark:text-indigo-400">{ownedCount}</strong> of{' '}
+                      <strong>{publishedCount}</strong> published issues (<strong>{pct}%</strong>)
+                      {wishlistCount > 0 && <> • <strong>{wishlistCount}</strong> on wishlist</>}
+                      {remaining !== null && remaining > 0 ? (
+                        <> • <span className="font-semibold text-amber-600 dark:text-amber-400">{remaining} {remaining === 1 ? 'issue' : 'issues'} needed</span> to complete full run</>
+                      ) : (
+                        <> • <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Congratulations, run is 100% complete!</span></>
+                      )}
+                    </>
+                  ) : (
+                    <>Showing all {comics.filter(c => (c.seriesName || c.title || '').trim().toLowerCase() === sKey).length} comics in this series</>
+                  )}
+                </p>
+              </div>
+
+              {publishedCount ? (
+                <div className="w-full md:w-80 shrink-0 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-1.5">
+                  <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span className="flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-indigo-500" />
+                      Run Progress towards 100%
+                    </span>
+                    <span className={isComplete ? 'text-amber-600 dark:text-amber-400 font-black' : 'text-indigo-600 dark:text-indigo-400 font-black'}>
+                      {pct}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-500 ${
+                        isComplete 
+                          ? 'bg-gradient-to-r from-amber-400 to-amber-500' 
+                          : pct >= 75
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                          : 'bg-gradient-to-r from-indigo-500 to-indigo-600'
+                      }`}
+                      style={{ width: `${Math.min(100, pct || 0)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>{ownedCount} Owned</span>
+                    <span>{remaining && remaining > 0 ? `${remaining} Missing` : 'All Collected!'}</span>
+                    <span>{publishedCount} Total</span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Interactive Issue Checklist & Missing Issues Matrix */}
+            {publishedCount && publishedCount > 0 && (
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                      Issue Run Matrix & Path to 100%
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      ({ownedNums.length} owned, {missingNums.length} missing{wishlistNums.length > 0 ? `, ${wishlistNums.length} wishlist` : ''})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {missingNums.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = `${selectedSeries} - Missing Issues to complete run (${missingNums.length}): #${missingNums.join(', #')}`;
+                          navigator.clipboard.writeText(text);
+                          setCopiedMissing(true);
+                          setTimeout(() => setCopiedMissing(false), 2000);
+                        }}
+                        className="text-[11px] font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Copy list of missing issues to clipboard"
+                      >
+                        {copiedMissing ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700 dark:text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Missing Issues</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowRunMatrix(!showRunMatrix)}
+                      className="text-[11px] font-bold px-2 py-1 rounded text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showRunMatrix ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      <span>{showRunMatrix ? 'Hide Run Matrix' : 'Show Run Matrix'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {showRunMatrix && (
+                  <div className="mt-2">
+                    {publishedCount <= 60 ? (
+                      <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/60 max-h-48 overflow-y-auto">
+                        {Array.from({ length: publishedCount }, (_, idx) => idx + 1).map((num) => {
+                          const isOwned = ownedNums.includes(num);
+                          const isWishlist = wishlistNums.includes(num);
+                          return (
+                            <div
+                              key={num}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-md border flex items-center gap-1 transition-all ${
+                                isOwned
+                                  ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-700 shadow-xs'
+                                  : isWishlist
+                                  ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                                  : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-dashed border-slate-300 dark:border-slate-700'
+                              }`}
+                              title={isOwned ? `Issue #${num}: Owned` : isWishlist ? `Issue #${num}: On Wishlist` : `Issue #${num}: Missing from collection`}
+                            >
+                              {isOwned && <CheckCircle2 className="w-2.5 h-2.5" />}
+                              <span>#{num}</span>
+                              {!isOwned && !isWishlist && <span className="text-[9px] opacity-75 font-normal">Need</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                          <span>
+                            <strong>{ownedNums.length}</strong> of <strong>{publishedCount}</strong> issues owned.
+                          </span>
+                          {missingNums.length > 0 ? (
+                            <span className="text-amber-800 dark:text-amber-400 font-bold">
+                              {missingNums.length} {missingNums.length === 1 ? 'issue' : 'issues'} remaining for 100% completion
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                              Full run collected! 🏆
+                            </span>
+                          )}
+                        </div>
+
+                        {missingNums.length > 0 && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300 mr-1">Missing issues preview:</span>
+                            <span>
+                              {missingNums.slice(0, 30).map(n => `#${n}`).join(', ')}
+                              {missingNums.length > 30 && ` ...and ${missingNums.length - 30} more`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Catalog Display */}
       {filteredComics.length === 0 ? (
@@ -589,6 +1038,49 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                         ))}
                       </div>
                     )}
+
+                    {/* Series Run Indicator Pill & Mini Progress Bar */}
+                    {(() => {
+                      const sKey = (comic.seriesName || comic.title || '').trim().toLowerCase();
+                      const stat = seriesStatsMap.get(sKey);
+                      if (!stat || !stat.totalIssues) return null;
+                      const { owned, totalIssues, pct, isComplete } = stat;
+
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSeries(comic.seriesName || comic.title || 'all');
+                            }}
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
+                              isComplete
+                                ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100'
+                                : pct >= 75
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100'
+                                : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                            }`}
+                            title={`Series Run: ${owned} of ${totalIssues} issues owned (${pct}%). Click to filter catalog to this series.`}
+                          >
+                            <span>{isComplete ? '🏆 100% Full Run' : `Run: ${owned}/${totalIssues} (${pct}%)`}</span>
+                          </button>
+                          
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-200/60 dark:border-slate-700/60">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                isComplete
+                                  ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                                  : pct >= 75
+                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                                  : 'bg-indigo-500 dark:bg-indigo-400'
+                              }`}
+                              style={{ width: `${Math.min(100, pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Footer details */}
@@ -645,8 +1137,33 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                         <div className="font-bold text-slate-800 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white">
                           {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'} <span className="text-slate-900 dark:text-slate-200 font-extrabold">#{comic.issueNumber}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
-                          {comic.genre}
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">
+                          <span>{comic.genre}</span>
+                          {(() => {
+                            const sKey = (comic.seriesName || comic.title || '').trim().toLowerCase();
+                            const stat = seriesStatsMap.get(sKey);
+                            if (!stat || !stat.totalIssues) return null;
+                            const { owned, totalIssues, pct, isComplete } = stat;
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSeries(comic.seriesName || comic.title || 'all');
+                                }}
+                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded border transition-colors cursor-pointer ${
+                                  isComplete
+                                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300'
+                                    : pct >= 75
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300'
+                                    : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 hover:bg-indigo-100'
+                                }`}
+                                title={`Click to filter catalog by series: ${owned}/${totalIssues} owned (${pct}%)`}
+                              >
+                                {isComplete ? '🏆 100% Run' : `Run ${owned}/${totalIssues} (${pct}%)`}
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </td>

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { google } from 'googleapis';
@@ -71,6 +72,50 @@ function rowToComic(row: Record<string, unknown>) {
   return comic;
 }
 
+function parseCSV(text: string): string[][] {
+  const lines: string[][] = [];
+  let currentRow: string[] = [];
+  let currentVal = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentVal += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      currentRow.push(currentVal.trim());
+      currentVal = '';
+    } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentVal.trim());
+      if (currentRow.some((cell) => cell.length > 0)) {
+        lines.push(currentRow);
+      }
+      currentRow = [];
+      currentVal = '';
+    } else {
+      currentVal += char;
+    }
+  }
+  if (currentVal || currentRow.length > 0) {
+    currentRow.push(currentVal.trim());
+    if (currentRow.some((cell) => cell.length > 0)) {
+      lines.push(currentRow);
+    }
+  }
+
+  return lines;
+}
+
 async function initDatabase(db: Pool) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS creators (
@@ -136,6 +181,20 @@ async function initDatabase(db: Pool) {
     WHERE full_title IS NULL;
 
     CREATE INDEX IF NOT EXISTS idx_comic_books_full_title ON comic_books (full_title);
+
+    CREATE TABLE IF NOT EXISTS series_issue_totals (
+      id SERIAL PRIMARY KEY,
+      publisher TEXT NOT NULL,
+      series_name TEXT NOT NULL,
+      volume TEXT NOT NULL DEFAULT '',
+      issue_count INTEGER NOT NULL DEFAULT 0 CHECK (issue_count >= 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_series_issue_totals UNIQUE (series_name, volume)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_series_issue_totals_series_name ON series_issue_totals (series_name);
+    CREATE INDEX IF NOT EXISTS idx_series_issue_totals_publisher ON series_issue_totals (publisher);
   `);
 
   // Auto-repair any comics where title is missing or empty
@@ -173,6 +232,44 @@ async function initDatabase(db: Pool) {
   } catch (repairErr) {
     console.warn('Auto-repair empty titles warning:', repairErr);
   }
+
+  // Auto-seed series_issue_totals from CSV if table is empty
+  try {
+    const totalsCountRes = await db.query('SELECT COUNT(*) FROM series_issue_totals');
+    if (parseInt(totalsCountRes.rows[0].count, 10) === 0) {
+      const seriesCsvPath = path.resolve('db/migrations/Comic Book Collection - SeriesIssueTotal.csv');
+      if (fs.existsSync(seriesCsvPath)) {
+        console.log('Seeding series_issue_totals from CSV...');
+        const csvText = await fs.promises.readFile(seriesCsvPath, 'utf8');
+        const parsedLines = parseCSV(csvText);
+        if (parsedLines.length > 1) {
+          const headers = parsedLines[0].map((h: string) => h.trim());
+          const pIdx = headers.indexOf('Publisher Name');
+          const sIdx = headers.indexOf('Series Name');
+          const vIdx = headers.indexOf('Volume');
+          const cIdx = headers.indexOf('Issue Count');
+          for (const r of parsedLines.slice(1)) {
+            const publisher = pIdx >= 0 ? r[pIdx] : 'Unknown Publisher';
+            const seriesName = sIdx >= 0 ? r[sIdx] : '';
+            const volume = vIdx >= 0 ? r[vIdx] : '';
+            const issueCount = cIdx >= 0 ? parseInt(r[cIdx], 10) || 0 : 0;
+            if (!seriesName) continue;
+            await db.query(`
+              INSERT INTO series_issue_totals (publisher, series_name, volume, issue_count, updated_at)
+              VALUES ($1, $2, $3, $4, NOW())
+              ON CONFLICT (series_name, volume) DO UPDATE SET
+                publisher = EXCLUDED.publisher,
+                issue_count = EXCLUDED.issue_count,
+                updated_at = NOW()
+            `, [publisher, seriesName, volume, issueCount]);
+          }
+          console.log('Seeded series_issue_totals from CSV successfully.');
+        }
+      }
+    }
+  } catch (seedErr) {
+    console.warn('Auto-seed series_issue_totals warning:', seedErr);
+  }
 }
 
 async function startServer() {
@@ -209,9 +306,10 @@ const comicUpsertSql = `
 
   app.get('/api/collection', requireDatabase, async (_req, res) => {
     try {
-      const [comics, boxes] = await Promise.all([
+      const [comics, boxes, seriesTotals] = await Promise.all([
         pool!.query('SELECT * FROM comic_books ORDER BY created_at DESC, title ASC'),
         pool!.query('SELECT id, name, location, max_capacity, color_tag, notes FROM storage_boxes WHERE id > 0 ORDER BY id'),
+        pool!.query('SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC'),
       ]);
       res.json({
         comics: comics.rows.map(rowToComic),
@@ -219,6 +317,7 @@ const comicUpsertSql = `
           id: box.id, name: box.name, location: box.location, maxCapacity: Number(box.max_capacity),
           colorTag: box.color_tag, notes: box.notes ?? undefined,
         })),
+        seriesTotals: seriesTotals.rows,
       });
     } catch (error) {
       const detail = databaseErrorMessage(error);
@@ -356,6 +455,58 @@ const comicUpsertSql = `
       const detail = databaseErrorMessage(error);
       console.error('PostgreSQL box comics fetch failed:', detail);
       res.status(500).json({ error: `Unable to fetch comics for box: ${detail}` });
+    }
+  });
+
+  // --- API ROUTE: Get all series issue totals ---
+  app.get('/api/series-totals', requireDatabase, async (_req, res) => {
+    try {
+      const result = await pool!.query(
+        'SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC'
+      );
+      res.json(result.rows);
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL series totals fetch failed:', detail);
+      res.status(500).json({ error: `Unable to load series totals: ${detail}` });
+    }
+  });
+
+  // --- API ROUTE: Upsert series issue totals batch ---
+  app.post('/api/series-totals', requireDatabase, async (req, res) => {
+    const client = await pool!.connect();
+    try {
+      const { seriesTotals = [] } = req.body;
+      if (!Array.isArray(seriesTotals)) {
+        return res.status(400).json({ error: 'seriesTotals must be an array.' });
+      }
+      await client.query('BEGIN');
+      let upserted = 0;
+      for (const item of seriesTotals) {
+        const publisher = String(item.publisher || 'Unknown Publisher').trim();
+        const seriesName = String(item.seriesName || '').trim();
+        const volume = String(item.volume ?? '').trim();
+        const issueCount = Math.max(0, parseInt(item.issueCount, 10) || 0);
+        if (!seriesName) continue;
+        await client.query(`
+          INSERT INTO series_issue_totals (publisher, series_name, volume, issue_count, updated_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          ON CONFLICT (series_name, volume) DO UPDATE SET
+            publisher = EXCLUDED.publisher,
+            issue_count = EXCLUDED.issue_count,
+            updated_at = NOW()
+        `, [publisher, seriesName, volume, issueCount]);
+        upserted++;
+      }
+      await client.query('COMMIT');
+      res.json({ success: true, count: upserted });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL series totals save failed:', detail);
+      res.status(500).json({ error: `Unable to save series totals: ${detail}` });
+    } finally {
+      client.release();
     }
   });
 
@@ -501,51 +652,6 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
     }
   });
 
-  // Helper CSV parser for public Google Sheets export
-  function parseCSV(text: string): string[][] {
-    const lines: string[][] = [];
-    let currentRow: string[] = [];
-    let currentVal = '';
-    let insideQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      const nextChar = text[i + 1];
-
-      if (char === '"') {
-        if (insideQuotes && nextChar === '"') {
-          currentVal += '"';
-          i++;
-        } else {
-          insideQuotes = !insideQuotes;
-        }
-      } else if (char === ',' && !insideQuotes) {
-        currentRow.push(currentVal.trim());
-        currentVal = '';
-      } else if ((char === '\r' || char === '\n') && !insideQuotes) {
-        if (char === '\r' && nextChar === '\n') {
-          i++;
-        }
-        currentRow.push(currentVal.trim());
-        if (currentRow.some(cell => cell.length > 0)) {
-          lines.push(currentRow);
-        }
-        currentRow = [];
-        currentVal = '';
-      } else {
-        currentVal += char;
-      }
-    }
-    if (currentVal || currentRow.length > 0) {
-      currentRow.push(currentVal.trim());
-      if (currentRow.some(cell => cell.length > 0)) {
-        lines.push(currentRow);
-      }
-    }
-
-    return lines;
-  }
-
   // Helper to fetch Google Sheet data by tab name using OAuth or public CSV export
   async function fetchSheetData(spreadsheetId: string, sheetName: string, accessToken?: string): Promise<{ headers: string[]; rows: string[][] }> {
     let cleanId = spreadsheetId.trim();
@@ -687,6 +793,7 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
         creatorTypes = [],
         contributors = [],
         characterAppearances = [],
+        seriesTotals = [],
         syncWithComics = true,
       } = req.body;
 
@@ -696,6 +803,7 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
       let creatorTypesInserted = 0;
       let contributorsInserted = 0;
       let appearancesInserted = 0;
+      let seriesTotalsInserted = 0;
       let comicsUpdated = 0;
 
       // 1. Creators import: (First Name, Last Name, Full Name)
@@ -789,6 +897,28 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
             VALUES ($1, $2, $3, $4, NOW())
           `, [seriesName, fullTitle, characterName, appearanceType]);
           appearancesInserted++;
+        }
+      }
+
+      // 4.5 Series Issue Totals import (Publisher Name, Series Name, Volume, Issue Count)
+      if (Array.isArray(seriesTotals) && seriesTotals.length > 0) {
+        for (const st of seriesTotals) {
+          const publisher = String(st.publisher || 'Unknown Publisher').trim();
+          const seriesName = String(st.seriesName || '').trim();
+          const volume = String(st.volume ?? '').trim();
+          const issueCount = Math.max(0, parseInt(st.issueCount, 10) || 0);
+
+          if (!seriesName) continue;
+
+          await client.query(`
+            INSERT INTO series_issue_totals (publisher, series_name, volume, issue_count, updated_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (series_name, volume) DO UPDATE SET
+              publisher = EXCLUDED.publisher,
+              issue_count = EXCLUDED.issue_count,
+              updated_at = NOW()
+          `, [publisher, seriesName, volume, issueCount]);
+          seriesTotalsInserted++;
         }
       }
 
@@ -925,6 +1055,7 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
           creatorTypes: creatorTypesInserted,
           contributors: contributorsInserted,
           characterAppearances: appearancesInserted,
+          seriesTotals: seriesTotalsInserted,
           comicsUpdated,
         },
       });
@@ -1123,6 +1254,17 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
         sql += `  creator_type_id INTEGER REFERENCES creator_types(id),\n`;
         sql += `  role_name TEXT NOT NULL\n`;
         sql += `);\n\n`;
+
+        sql += `CREATE TABLE IF NOT EXISTS series_issue_totals (\n`;
+        sql += `  id INTEGER PRIMARY KEY AUTOINCREMENT,\n`;
+        sql += `  publisher TEXT NOT NULL,\n`;
+        sql += `  series_name TEXT NOT NULL,\n`;
+        sql += `  volume TEXT NOT NULL DEFAULT '',\n`;
+        sql += `  issue_count INTEGER NOT NULL DEFAULT 0,\n`;
+        sql += `  created_at TEXT DEFAULT CURRENT_TIMESTAMP,\n`;
+        sql += `  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,\n`;
+        sql += `  UNIQUE(series_name, volume)\n`;
+        sql += `);\n\n`;
       } else {
         // PostgreSQL DDL
         sql += `CREATE TABLE IF NOT EXISTS storage_boxes (\n`;
@@ -1185,6 +1327,17 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
         sql += `  creator_name VARCHAR(255) NOT NULL,\n`;
         sql += `  creator_type_id INT REFERENCES creator_types(id),\n`;
         sql += `  role_name VARCHAR(100) NOT NULL\n`;
+        sql += `);\n\n`;
+
+        sql += `CREATE TABLE IF NOT EXISTS series_issue_totals (\n`;
+        sql += `  id SERIAL PRIMARY KEY,\n`;
+        sql += `  publisher VARCHAR(255) NOT NULL,\n`;
+        sql += `  series_name VARCHAR(500) NOT NULL,\n`;
+        sql += `  volume VARCHAR(100) NOT NULL DEFAULT '',\n`;
+        sql += `  issue_count INT NOT NULL DEFAULT 0,\n`;
+        sql += `  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n`;
+        sql += `  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,\n`;
+        sql += `  CONSTRAINT uq_series_issue_totals UNIQUE (series_name, volume)\n`;
         sql += `);\n\n`;
       }
 

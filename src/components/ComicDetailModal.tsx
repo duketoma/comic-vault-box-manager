@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ComicBook, StorageBox, CREATOR_ROLES, CreatorContribution, CharacterAppearance } from '../types';
+import React, { useState, useMemo } from 'react';
+import { ComicBook, SeriesIssueTotal, StorageBox, CREATOR_ROLES, CreatorContribution, CharacterAppearance } from '../types';
 import { getComicCoverUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
@@ -22,7 +22,9 @@ import {
   Cloud,
   ExternalLink,
   Info,
-  ShieldAlert
+  ShieldAlert,
+  Target,
+  Crown
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -31,6 +33,9 @@ interface ComicDetailModalProps {
   boxes: StorageBox[];
   onUpdateComic: (updated: ComicBook) => void;
   onDeleteComic: (comicId: string) => void;
+  seriesTotals?: SeriesIssueTotal[];
+  allComics?: ComicBook[];
+  onViewSeriesInCatalog?: (seriesName: string) => void;
 }
 
 export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
@@ -39,6 +44,9 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   boxes,
   onUpdateComic,
   onDeleteComic,
+  seriesTotals = [],
+  allComics = [],
+  onViewSeriesInCatalog,
 }) => {
   if (!comic) return null;
 
@@ -75,6 +83,45 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [newCharType, setNewCharType] = useState('Main');
 
   const currentBox = boxes.find((b) => b.id === comic.currentBoxId);
+
+  const seriesInfo = useMemo(() => {
+    if (!comic) return null;
+    const seriesKey = comic.seriesName?.trim() || comic.title?.trim();
+    if (!seriesKey) return null;
+
+    let totalPublished = 0;
+    const match = (seriesTotals || []).find((st) =>
+      st.seriesName.toLowerCase() === seriesKey.toLowerCase() ||
+      (comic.title && st.seriesName.toLowerCase() === comic.title.trim().toLowerCase())
+    );
+    if (match) totalPublished = match.issueCount;
+
+    const ownedInSeries = (allComics || []).filter((c) => {
+      const cSeries = c.seriesName?.trim() || c.title?.trim();
+      return cSeries && cSeries.toLowerCase() === seriesKey.toLowerCase() && c.readingStatus !== 'Wishlist';
+    }).length;
+
+    const wishlistInSeries = (allComics || []).filter((c) => {
+      const cSeries = c.seriesName?.trim() || c.title?.trim();
+      return cSeries && cSeries.toLowerCase() === seriesKey.toLowerCase() && c.readingStatus === 'Wishlist';
+    }).length;
+
+    const effectiveTotal = totalPublished > 0 ? totalPublished : Math.max(ownedInSeries, ownedInSeries + wishlistInSeries);
+    const pct = effectiveTotal > 0 ? Math.min(100, Math.round((ownedInSeries / effectiveTotal) * 100)) : 0;
+    const remaining = Math.max(0, effectiveTotal - ownedInSeries);
+    const isComplete = totalPublished > 0 && ownedInSeries >= totalPublished;
+
+    return {
+      seriesName: seriesKey,
+      totalPublished: effectiveTotal,
+      hasVerifiedTotal: totalPublished > 0,
+      ownedInSeries,
+      wishlistInSeries,
+      pct,
+      remaining,
+      isComplete,
+    };
+  }, [comic, seriesTotals, allComics]);
 
   const handleAddContribution = () => {
     if (!newCreatorName.trim()) return;
@@ -177,6 +224,71 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
             {comic.volume && !comic.seriesName && (
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{comic.volume}</p>
+            )}
+
+            {/* Series Run Collection Progress Widget */}
+            {seriesInfo && seriesInfo.totalPublished > 0 && (
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1.5 text-left">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Series Run Progress</span>
+                  </span>
+                  <span className="font-extrabold text-slate-900 dark:text-slate-100">
+                    {seriesInfo.ownedInSeries} / {seriesInfo.totalPublished} issues ({seriesInfo.pct}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      seriesInfo.isComplete
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-600'
+                        : seriesInfo.pct >= 75
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                        : 'bg-indigo-600'
+                    }`}
+                    style={{ width: `${seriesInfo.pct}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    {seriesInfo.isComplete ? (
+                      <span className="text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1">
+                        <Crown className="w-3 h-3 text-amber-500" />
+                        <span>Full series run collected!</span>
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>{seriesInfo.remaining}</strong> {seriesInfo.remaining === 1 ? 'issue' : 'issues'} needed to complete run
+                      </span>
+                    )}
+                  </span>
+                  {seriesInfo.wishlistInSeries > 0 && (
+                    <span className="text-rose-600 dark:text-rose-400 font-medium">
+                      ({seriesInfo.wishlistInSeries} in wishlist)
+                    </span>
+                  )}
+                </div>
+
+                {onViewSeriesInCatalog && (
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onViewSeriesInCatalog(seriesInfo.seriesName);
+                      }}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>View all {seriesInfo.ownedInSeries} issues in Series Run</span>
+                    </button>
+                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                      {seriesInfo.pct}% to 100%
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-700 dark:text-slate-300">

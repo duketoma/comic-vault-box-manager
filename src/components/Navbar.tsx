@@ -11,7 +11,8 @@ import {
   Cloud,
   Trash2,
   Sun,
-  Moon
+  Moon,
+  Trophy
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -27,6 +28,9 @@ interface NavbarProps {
   onOpenDataManagementModal?: () => void;
   totalComicsCount: number;
   totalThicknessUnits: number;
+  fullRunsCount?: number;
+  totalRunsCount?: number;
+  onNavigateToStats?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,6 +46,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDataManagementModal,
   totalComicsCount,
   totalThicknessUnits,
+  fullRunsCount,
+  totalRunsCount,
+  onNavigateToStats,
 }) => {
   return (
     <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 sticky top-0 z-40 shadow-xs transition-colors">
@@ -220,6 +227,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div>
               Issue Equivalents: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalThicknessUnits.toFixed(1)} units</span>
             </div>
+            {fullRunsCount !== undefined && totalRunsCount !== undefined && (
+              <>
+                <div className="text-slate-300 dark:text-slate-700">•</div>
+                <button
+                  type="button"
+                  onClick={onNavigateToStats}
+                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-bold text-xs transition-colors cursor-pointer"
+                  title="Click to view Series Run Completion tracking in Stats"
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Runs: <strong>{fullRunsCount}</strong> of <strong>{totalRunsCount}</strong> 100% ({totalRunsCount > 0 ? Math.round((fullRunsCount / totalRunsCount) * 100) : 0}%)</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 

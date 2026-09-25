@@ -18,4 +18,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  webServer: {
+    command: 'node dist/server.cjs',
+    port: 3000,
+    reuseExistingServer: true,
+    timeout: 30_000,
+  },
 });

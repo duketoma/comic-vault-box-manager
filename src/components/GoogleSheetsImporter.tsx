@@ -38,7 +38,7 @@ interface GoogleSheetsImporterProps {
   comicsCount?: number;
 }
 
-type SubsheetKey = 'comics' | 'creators' | 'creatorTypes' | 'contributors' | 'characterAppearances';
+type SubsheetKey = 'comics' | 'creators' | 'creatorTypes' | 'contributors' | 'characterAppearances' | 'seriesTotals';
 
 interface SubsheetData {
   sheetName: string;
@@ -70,6 +70,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     creatorTypes: 'Creator Types',
     contributors: 'Title Contributors',
     characterAppearances: 'Title Character Appearances',
+    seriesTotals: 'Series Issue Total',
   });
 
   // Loaded data for each subsheet
@@ -79,6 +80,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     creatorTypes: { sheetName: 'Creator Types', headers: [], rows: [], isLoaded: false },
     contributors: { sheetName: 'Title Contributors', headers: [], rows: [], isLoaded: false },
     characterAppearances: { sheetName: 'Title Character Appearances', headers: [], rows: [], isLoaded: false },
+    seriesTotals: { sheetName: 'Series Issue Total', headers: [], rows: [], isLoaded: false },
   });
 
   // Comics Column Mapping State
@@ -135,6 +137,14 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     appearanceTypeCol: '',
   });
 
+  // Series Issue Totals Column Mapping
+  const [seriesTotalsMappings, setSeriesTotalsMappings] = useState({
+    publisherCol: '',
+    seriesNameCol: '',
+    volumeCol: '',
+    issueCountCol: '',
+  });
+
   const [parseTitleOption, setParseTitleOption] = useState<boolean>(true);
   const [importMode, setImportMode] = useState<'append' | 'replace'>('replace');
 
@@ -144,6 +154,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     creatorTypes?: number;
     contributors?: number;
     characterAppearances?: number;
+    seriesTotals?: number;
     comicsUpdated?: number;
     comicsImported?: number;
   } | null>(null);
@@ -250,6 +261,17 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
         characterNameCol: cCol,
         appearanceTypeCol: aCol,
       });
+    } else if (key === 'seriesTotals') {
+      const pubCol = findHeader(hList, ['Publisher Name', 'Publisher']);
+      const sCol = findHeader(hList, ['Series Name', 'Comic Series', 'Series']);
+      const vCol = findHeader(hList, ['Volume', 'Vol']);
+      const countCol = findHeader(hList, ['Issue Count', 'Total Issues', 'Total Issue Count', 'Issues']);
+      setSeriesTotalsMappings({
+        publisherCol: pubCol,
+        seriesNameCol: sCol,
+        volumeCol: vCol,
+        issueCountCol: countCol,
+      });
     }
   };
 
@@ -266,6 +288,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     subsheets.creatorTypes.headers,
     subsheets.contributors.headers,
     subsheets.characterAppearances.headers,
+    subsheets.seriesTotals.headers,
   ]);
 
   // Load Demo Multi-Tab Data (Todd McFarlane, Jim Lee, Chris Claremont, Michelinie, etc.)
@@ -374,12 +397,23 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       ['Batman (1940 - 2011)', 'Batman #423', 'James Gordon', 'Supporting'],
     ];
 
+    // 6. Series Issue Totals
+    const seriesTotalsHeaders = ['Publisher Name', 'Series Name', 'Volume', 'Issue Count'];
+    const seriesTotalsRows = [
+      ['Marvel Comics', 'The Amazing Spider-Man (1963 - 1998)', '1', '441'],
+      ['Marvel Comics', 'Spider-Man (1990 - 1998)', '1', '98'],
+      ['Image Comics', 'Spawn (1992 - Present)', '1', '350'],
+      ['Marvel Comics', 'Uncanny X-Men (1963 - 2011)', '1', '544'],
+      ['DC Comics', 'Batman (1940 - 2011)', '1', '713'],
+    ];
+
     const updated: Record<SubsheetKey, SubsheetData> = {
       comics: { sheetName: 'Comics', headers: comicHeaders, rows: comicRows, isLoaded: true },
       creators: { sheetName: 'Creators', headers: creatorHeaders, rows: creatorRows, isLoaded: true },
       creatorTypes: { sheetName: 'Creator Types', headers: creatorTypeHeaders, rows: creatorTypeRows, isLoaded: true },
       contributors: { sheetName: 'Title Contributors', headers: contributorHeaders, rows: contributorRows, isLoaded: true },
       characterAppearances: { sheetName: 'Title Character Appearances', headers: appearanceHeaders, rows: appearanceRows, isLoaded: true },
+      seriesTotals: { sheetName: 'Series Issue Total', headers: seriesTotalsHeaders, rows: seriesTotalsRows, isLoaded: true },
     };
 
     setSubsheets(updated);
@@ -388,6 +422,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     autoMapSubsheetColumns('creatorTypes', creatorTypeHeaders);
     autoMapSubsheetColumns('contributors', contributorHeaders);
     autoMapSubsheetColumns('characterAppearances', appearanceHeaders);
+    autoMapSubsheetColumns('seriesTotals', seriesTotalsHeaders);
     setActiveSubsheet('overview');
   };
 
@@ -685,7 +720,27 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
         };
       }).filter(a => a.fullTitle && a.characterName);
 
-      // 5. If comics tab has data, import comics first and wait for Postgres commit
+      // 5. Prepare series totals
+      const seriesTotalsList = subsheets.seriesTotals.rows.map((row) => {
+        const pIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.publisherCol);
+        const sIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.seriesNameCol);
+        const vIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.volumeCol);
+        const cIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.issueCountCol);
+
+        const seriesName = sIdx >= 0 ? String(row[sIdx] || '').trim() : '';
+        const publisher = pIdx >= 0 ? String(row[pIdx] || '').trim() : undefined;
+        const volume = vIdx >= 0 ? String(row[vIdx] || '').trim() : undefined;
+        const issueCount = cIdx >= 0 ? parseInt(String(row[cIdx]).replace(/[^0-9]/g, ''), 10) || 0 : 0;
+
+        return {
+          publisher,
+          seriesName,
+          volume,
+          issueCount,
+        };
+      }).filter(st => st.seriesName && st.issueCount > 0);
+
+      // 6. If comics tab has data, import comics first and wait for Postgres commit
       let comicsImportedCount = 0;
       if (subsheets.comics.isLoaded && subsheets.comics.rows.length > 0 && comicMappings.titleCol) {
         const headers = subsheets.comics.headers;
@@ -696,12 +751,13 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
         comicsImportedCount = newComics.length;
       }
 
-      // 6. Send subsheets data to backend PostgreSQL endpoint (which links with comic_books in PostgreSQL!)
+      // 7. Send subsheets data to backend PostgreSQL endpoint (which links with comic_books in PostgreSQL!)
       const result = await importSubsheetsData({
         creators: creatorsList,
         creatorTypes: typesList,
         contributors: contributorsList,
         characterAppearances: charactersList,
+        seriesTotals: seriesTotalsList,
         syncWithComics: true,
       });
 
@@ -716,6 +772,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
           creatorTypes: result.counts.creatorTypes,
           contributors: result.counts.contributors,
           characterAppearances: result.counts.characterAppearances,
+          seriesTotals: result.counts.seriesTotals,
           comicsUpdated: result.counts.comicsUpdated,
           comicsImported: comicsImportedCount,
         });
@@ -795,7 +852,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               <span className="text-[11px] text-slate-400">Match the exact tab names in your Google Sheet</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">📚 Comics</label>
                 <input
@@ -845,6 +902,16 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
                 />
               </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">📊 Series Issue Totals</label>
+                <input
+                  type="text"
+                  value={tabNames.seriesTotals}
+                  onChange={(e) => setTabNames({ ...tabNames, seriesTotals: e.target.value })}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium"
+                />
+              </div>
             </div>
           </div>
 
@@ -865,7 +932,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 <div>
                   <h4 className="font-bold text-sm">Successfully Synced & Linked Subsheets into PostgreSQL!</h4>
                   <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                    All creators, creator types, title contributors, and character appearances are stored and linked to your collection.
+                    All creators, creator types, title contributors, character appearances, and series issue totals are stored and linked to your collection.
                   </p>
                 </div>
               </div>
@@ -877,7 +944,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 text-xs">
               <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
                 <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Creators</div>
                 <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.creators ?? 0}</div>
@@ -893,6 +960,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
               <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
                 <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Character Appearances</div>
                 <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.characterAppearances ?? 0}</div>
+              </div>
+              <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Series Totals</div>
+                <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{syncSuccess.seriesTotals ?? 0}</div>
               </div>
               <div className="bg-white/80 dark:bg-slate-900/80 rounded-lg p-2 border border-emerald-200 dark:border-emerald-800">
                 <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Comics Linked</div>
@@ -994,6 +1065,17 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 }`}
               >
                 <span>🦸 Characters ({subsheets.characterAppearances.rows.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSubsheet('seriesTotals')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  activeSubsheet === 'seriesTotals'
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span>📊 Series Totals ({subsheets.seriesTotals.rows.length})</span>
               </button>
             </div>
 
@@ -1122,6 +1204,28 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                   </button>
                 </div>
 
+                {/* Card 6: Series Issue Totals */}
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span>📊</span> Series Issue Totals
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subsheets.seriesTotals.isLoaded ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                      {subsheets.seriesTotals.isLoaded ? `${subsheets.seriesTotals.rows.length} series` : 'Not loaded'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Publisher Name, Series Name, Volume, and total published Issue Count for Run Completion tracking.
+                  </p>
+                  <button
+                    onClick={() => setActiveSubsheet('seriesTotals')}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 pt-1 cursor-pointer"
+                  >
+                    <span>View & Map Columns</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
               </div>
 
               {/* Central Sync Callout */}
@@ -1129,7 +1233,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                 <div>
                   <h4 className="font-bold text-sm">Ready to save all subsheets into your PostgreSQL database?</h4>
                   <p className="text-xs text-slate-300 mt-0.5">
-                    This writes to <code className="text-amber-300">creators</code>, <code className="text-amber-300">creator_types</code>, <code className="text-amber-300">title_contributors</code>, and <code className="text-amber-300">title_character_appearances</code>, and links every comic to its creators & characters!
+                    This writes to <code className="text-amber-300">creators</code>, <code className="text-amber-300">creator_types</code>, <code className="text-amber-300">title_contributors</code>, <code className="text-amber-300">title_character_appearances</code>, and <code className="text-amber-300">series_issue_totals</code>, and links every comic to its creators, characters, and run statistics!
                   </p>
                 </div>
                 <button
@@ -1496,6 +1600,119 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                             <td className="px-3 py-2">
                               <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800 text-[11px]">
                                 {tIdx >= 0 ? row[tIdx] : '-'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Series Issue Totals Column Mapper & Preview */}
+          {activeSubsheet === 'seriesTotals' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Map Series Issue Totals Subsheet Columns</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Used for tracking Series Run Completion (% of total published issues owned)</p>
+                </div>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{subsheets.seriesTotals.rows.length} rows loaded</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Publisher Name Column</label>
+                  <select
+                    value={seriesTotalsMappings.publisherCol}
+                    onChange={(e) => setSeriesTotalsMappings({ ...seriesTotalsMappings, publisherCol: e.target.value })}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="">-- Optional / None --</option>
+                    {subsheets.seriesTotals.headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Series Name Column *</label>
+                  <select
+                    value={seriesTotalsMappings.seriesNameCol}
+                    onChange={(e) => setSeriesTotalsMappings({ ...seriesTotalsMappings, seriesNameCol: e.target.value })}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
+                  >
+                    <option value="">-- Select Column --</option>
+                    {subsheets.seriesTotals.headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Volume Column</label>
+                  <select
+                    value={seriesTotalsMappings.volumeCol}
+                    onChange={(e) => setSeriesTotalsMappings({ ...seriesTotalsMappings, volumeCol: e.target.value })}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="">-- Optional / None --</option>
+                    {subsheets.seriesTotals.headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 mb-1">Issue Count Column *</label>
+                  <select
+                    value={seriesTotalsMappings.issueCountCol}
+                    onChange={(e) => setSeriesTotalsMappings({ ...seriesTotalsMappings, issueCountCol: e.target.value })}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold"
+                  >
+                    <option value="">-- Select Column --</option>
+                    {subsheets.seriesTotals.headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Series Issue Totals Preview Table */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <span>Series Issue Totals Preview (First 5 Rows)</span>
+                  <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Destination table: <code className="text-slate-800 dark:text-indigo-300">series_issue_totals</code></span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="px-3 py-2">#</th>
+                        <th className="px-3 py-2">Publisher</th>
+                        <th className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">Series Name</th>
+                        <th className="px-3 py-2">Volume</th>
+                        <th className="px-3 py-2 font-bold text-indigo-700 dark:text-indigo-400">Total Issue Count</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {subsheets.seriesTotals.rows.slice(0, 5).map((row, idx) => {
+                        const pIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.publisherCol);
+                        const sIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.seriesNameCol);
+                        const vIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.volumeCol);
+                        const cIdx = subsheets.seriesTotals.headers.indexOf(seriesTotalsMappings.issueCountCol);
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{pIdx >= 0 ? row[pIdx] : '-'}</td>
+                            <td className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">{sIdx >= 0 ? row[sIdx] : '-'}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{vIdx >= 0 ? row[vIdx] : '-'}</td>
+                            <td className="px-3 py-2">
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 text-[11px]">
+                                {cIdx >= 0 ? `${row[cIdx]} issues` : '-'}
                               </span>
                             </td>
                           </tr>

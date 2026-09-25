@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ComicBook, StorageBox } from './types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ComicBook, StorageBox, SeriesIssueTotal } from './types';
 import { DEFAULT_BOXES, INITIAL_COMICS } from './data/initialData';
 import { Navbar } from './components/Navbar';
 import { CollectionCatalog } from './components/CollectionCatalog';
@@ -18,6 +18,7 @@ import { sortBoxes } from './utils/boxUtils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'stats' | 'sheets' | 'database'>('catalog');
+  const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Dark Mode State with LocalStorage Persistence and system preference fallback
@@ -54,13 +55,24 @@ export default function App() {
       .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
   });
 
+  const [seriesTotals, setSeriesTotals] = useState<SeriesIssueTotal[]>(() => {
+    const saved = localStorage.getItem('comic_vault_series_totals');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [initialScanMode, setInitialScanMode] = useState<boolean>(false);
   const [selectedComic, setSelectedComic] = useState<ComicBook | null>(null);
+  const [selectedSeriesFilter, setSelectedSeriesFilter] = useState<string>('all');
   const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState<boolean>(false);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
+
+  const handleViewSeriesInCatalog = (seriesName: string) => {
+    setSelectedSeriesFilter(seriesName);
+    setActiveTab('catalog');
+  };
 
   // Helper to run DB promises and clear the error on success
   function dbCall<T>(p: Promise<T>) {
@@ -87,11 +99,20 @@ export default function App() {
   }, [comics]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('comic_vault_series_totals', JSON.stringify(seriesTotals));
+    } catch (err) {
+      console.warn('LocalStorage save failed for series totals:', err);
+    }
+  }, [seriesTotals]);
+
+  useEffect(() => {
     let active = true;
     loadCollection()
-      .then(({ comics: storedComics, boxes: storedBoxes }) => {
+      .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals }) => {
         if (!active) return;
         if (storedBoxes.length > 0) setBoxes(storedBoxes);
+        if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
         if (storedComics.length > 0) {
           setComics(storedComics
             .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
@@ -239,8 +260,9 @@ export default function App() {
 
   const handleRefreshCollection = async () => {
     try {
-      const { comics: storedComics, boxes: storedBoxes } = await loadCollection();
+      const { comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals } = await loadCollection();
       if (storedBoxes.length > 0) setBoxes(storedBoxes);
+      if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
       if (storedComics.length > 0) {
         setComics(storedComics
           .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
@@ -308,6 +330,35 @@ export default function App() {
     });
   };
 
+  const seriesOverviewSummary = useMemo(() => {
+    const totalsMap = new Map<string, number>();
+    (seriesTotals || []).forEach((st) => {
+      if (st.seriesName) totalsMap.set(st.seriesName.toLowerCase().trim(), st.issueCount);
+    });
+    const seriesOwnedMap = new Map<string, number>();
+    comics.forEach((c) => {
+      if (c.readingStatus !== 'Wishlist') {
+        const key = (c.seriesName || c.title || '').trim().toLowerCase();
+        if (key) seriesOwnedMap.set(key, (seriesOwnedMap.get(key) || 0) + 1);
+      }
+    });
+
+    let completeRuns = 0;
+    let totalKnownRuns = 0;
+    seriesOwnedMap.forEach((owned, sName) => {
+      const total = totalsMap.get(sName);
+      if (total && total > 0) {
+        totalKnownRuns++;
+        if (owned >= total) completeRuns++;
+      }
+    });
+
+    return {
+      completeRuns,
+      totalKnownRuns: totalKnownRuns || (seriesTotals ? seriesTotals.length : 0),
+    };
+  }, [comics, seriesTotals]);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-slate-900 dark:selection:bg-indigo-600 selection:text-white transition-colors duration-150">
       
@@ -331,6 +382,12 @@ export default function App() {
         onOpenDataManagementModal={() => setIsDataModalOpen(true)}
         totalComicsCount={totalComicsCount}
         totalThicknessUnits={totalThicknessUnits}
+        fullRunsCount={seriesOverviewSummary.completeRuns}
+        totalRunsCount={seriesOverviewSummary.totalKnownRuns}
+        onNavigateToStats={() => {
+          setStatsSubTab('series');
+          setActiveTab('stats');
+        }}
       />
 
       {databaseError && (
@@ -356,6 +413,9 @@ export default function App() {
             searchQuery={searchQuery}
             onSelectComic={setSelectedComic}
             onQuickStatusChange={handleQuickStatusChange}
+            seriesTotals={seriesTotals}
+            selectedSeries={selectedSeriesFilter}
+            onSelectSeries={setSelectedSeriesFilter}
           />
         )}
 
@@ -373,7 +433,13 @@ export default function App() {
         )}
 
         {activeTab === 'stats' && (
-          <ReadingStats comics={comics} boxes={boxes} />
+          <ReadingStats
+            comics={comics}
+            boxes={boxes}
+            seriesTotals={seriesTotals}
+            onViewSeriesInCatalog={handleViewSeriesInCatalog}
+            initialSubTab={statsSubTab}
+          />
         )}
 
         {activeTab === 'sheets' && (
@@ -388,7 +454,7 @@ export default function App() {
         )}
 
         {activeTab === 'database' && (
-          <DatabasePlanner comics={comics} boxes={boxes} />
+          <DatabasePlanner comics={comics} boxes={boxes} seriesTotals={seriesTotals} />
         )}
 
       </main>
@@ -410,6 +476,9 @@ export default function App() {
         boxes={boxes}
         onUpdateComic={handleUpdateComic}
         onDeleteComic={handleDeleteComic}
+        seriesTotals={seriesTotals}
+        allComics={comics}
+        onViewSeriesInCatalog={handleViewSeriesInCatalog}
       />
 
       <GoogleDriveCoversModal
