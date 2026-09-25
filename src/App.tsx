@@ -7,6 +7,7 @@ import { BoxManager } from './components/BoxManager';
 import { ReadingStats } from './components/ReadingStats';
 import { GoogleSheetsImporter } from './components/GoogleSheetsImporter';
 import { DatabasePlanner } from './components/DatabasePlanner';
+import { WishlistShoppingList } from './components/WishlistShoppingList';
 import { AddAndScanModal } from './components/AddAndScanModal';
 import { ComicDetailModal } from './components/ComicDetailModal';
 import { GoogleDriveCoversModal } from './components/GoogleDriveCoversModal';
@@ -17,7 +18,7 @@ import {
 import { sortBoxes } from './utils/boxUtils';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'stats' | 'sheets' | 'database'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -186,6 +187,35 @@ export default function App() {
       if (target) dbCall(saveComic(target));
       return updated;
     });
+  };
+
+  const handlePurchaseWishlistComics = async (comicIds: string[], targetBoxId?: number) => {
+    let updatedComicsToPersist: ComicBook[] = [];
+    setComics((prev) => {
+      const updated = prev.map((c) => {
+        if (comicIds.includes(c.id)) {
+          const updatedComic: ComicBook = {
+            ...c,
+            readingStatus: 'Unread' as const,
+            copiesOwned: c.copiesOwned && c.copiesOwned > 0 ? c.copiesOwned : 1,
+            currentBoxId: targetBoxId !== undefined ? targetBoxId : (c.currentBoxId || 1),
+          };
+          updatedComicsToPersist.push(updatedComic);
+          return updatedComic;
+        }
+        return c;
+      });
+      return updated;
+    });
+
+    if (updatedComicsToPersist.length > 0) {
+      try {
+        await Promise.all(updatedComicsToPersist.map((c) => saveComic(c)));
+      } catch (err: any) {
+        console.error('Failed to persist purchased comics:', err);
+        setDatabaseError(err.message || 'Failed to update purchased comics in database');
+      }
+    }
   };
 
   const handleUpdateBoxCapacity = (boxId: number, newCapacity: number) => {
@@ -384,6 +414,7 @@ export default function App() {
         totalThicknessUnits={totalThicknessUnits}
         fullRunsCount={seriesOverviewSummary.completeRuns}
         totalRunsCount={seriesOverviewSummary.totalKnownRuns}
+        wishlistCount={wishlistCount}
         onNavigateToStats={() => {
           setStatsSubTab('series');
           setActiveTab('stats');
@@ -416,6 +447,16 @@ export default function App() {
             seriesTotals={seriesTotals}
             selectedSeries={selectedSeriesFilter}
             onSelectSeries={setSelectedSeriesFilter}
+          />
+        )}
+
+        {activeTab === 'shopping' && (
+          <WishlistShoppingList
+            comics={comics}
+            boxes={boxes}
+            seriesTotals={seriesTotals}
+            onSelectComic={setSelectedComic}
+            onPurchaseComics={handlePurchaseWishlistComics}
           />
         )}
 

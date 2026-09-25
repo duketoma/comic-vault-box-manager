@@ -12,12 +12,13 @@ import {
   Trash2,
   Sun,
   Moon,
-  Trophy
+  Trophy,
+  ShoppingCart
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database';
-  setActiveTab: (tab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database') => void;
+  activeTab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping';
+  setActiveTab: (tab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   darkMode: boolean;
@@ -30,6 +31,7 @@ interface NavbarProps {
   totalThicknessUnits: number;
   fullRunsCount?: number;
   totalRunsCount?: number;
+  wishlistCount?: number;
   onNavigateToStats?: () => void;
 }
 
@@ -48,6 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalThicknessUnits,
   fullRunsCount,
   totalRunsCount,
+  wishlistCount,
   onNavigateToStats,
 }) => {
   return (
@@ -167,6 +170,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BookOpen className="w-4 h-4" />
               <span>Catalog View</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('shopping')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'shopping'
+                  ? 'bg-rose-700 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-rose-600 dark:hover:text-rose-400'
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4 text-rose-500" />
+              <span>Wishlist Hunter</span>
+              {wishlistCount !== undefined && wishlistCount > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    activeTab === 'shopping'
+                      ? 'bg-white text-rose-700'
+                      : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                  }`}
+                >
+                  {wishlistCount}
+                </span>
+              )}
             </button>
 
             <button
