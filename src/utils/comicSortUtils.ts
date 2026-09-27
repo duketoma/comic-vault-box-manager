@@ -55,8 +55,8 @@ export function parseIssueNumber(val?: string | number): ParsedIssueNumber {
     };
   }
 
-  // Label prefix like 'Annual 1', 'TPB 2', 'Vol. 1', 'Special #3', 'Giant-Size #1'
-  const labelMatch = str.match(/^([a-zA-Z\s.-]+?)\s*#?\s*(\d+(?:\.\d+)?)(.*)$/);
+  // Label prefix like 'Annual 1', 'TPB 2', 'Vol. 1', 'Special #3', 'Giant-Size #1', 'Flashback #-1'
+  const labelMatch = str.match(/^([a-zA-Z\s.-]+?)\s*#?\s*(-?\d+(?:\.\d+)?)(.*)$/);
   if (labelMatch && isNaN(Number(str))) {
     return {
       prefix: labelMatch[1].trim().toLowerCase(),
@@ -69,8 +69,8 @@ export function parseIssueNumber(val?: string | number): ParsedIssueNumber {
     };
   }
 
-  // Standard issue starting with number, with optional decimal and suffix
-  const standardMatch = str.match(/^(\d+(?:\.\d+)?)(.*)$/);
+  // Standard issue starting with number (including negative numbers like -1), with optional decimal and suffix
+  const standardMatch = str.match(/^(-?\d+(?:\.\d+)?)(.*)$/);
   if (standardMatch) {
     return {
       prefix: '',

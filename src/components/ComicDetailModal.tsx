@@ -52,6 +52,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   if (!comic) return null;
 
   const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(comic.title || '');
+  const [issueNumber, setIssueNumber] = useState(comic.issueNumber || '1');
   const [readingStatus, setReadingStatus] = useState(comic.readingStatus);
   const [userRating, setUserRating] = useState(comic.userRating || 0);
   const [boxId, setBoxId] = useState(comic.currentBoxId);
@@ -64,6 +66,23 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [publicationMonth, setPublicationMonth] = useState<string>(comic.publicationMonth || '');
   const initialCopies = comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1);
   const [copiesOwned, setCopiesOwned] = useState(initialCopies);
+
+  // Sync state when selected comic changes
+  useEffect(() => {
+    setTitle(comic.title || '');
+    setIssueNumber(comic.issueNumber || '1');
+    setReadingStatus(comic.readingStatus);
+    setUserRating(comic.userRating || 0);
+    setBoxId(comic.currentBoxId);
+    setNotes(comic.notes || '');
+    setThickness(comic.sizeThickness);
+    setCoverImage(comic.coverImage || '');
+    setVolume(comic.volume || '');
+    setEvent(comic.event || '');
+    setPublicationYear(comic.publicationYear);
+    setPublicationMonth(comic.publicationMonth || '');
+    setCopiesOwned(comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1));
+  }, [comic]);
 
   // Creator Contributions State
   const [contributions, setContributions] = useState<CreatorContribution[]>(
@@ -193,8 +212,15 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     const writerContrib = contributions.find((c) => c.roleName.toLowerCase() === 'writer');
     const artistContrib = contributions.find((c) => ['penciler', 'artist'].includes(c.roleName.toLowerCase()));
 
+    const cleanTitle = title.trim() || comic.title;
+    const cleanIssue = issueNumber.trim() || comic.issueNumber;
+    const cleanFullTitle = `${cleanTitle} #${cleanIssue}`;
+
     onUpdateComic({
       ...comic,
+      title: cleanTitle,
+      issueNumber: cleanIssue,
+      fullTitle: cleanFullTitle,
       readingStatus,
       userRating: userRating || undefined,
       currentBoxId: Number(boxId),
@@ -228,8 +254,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
         <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shrink-0 z-10">
           <div className="min-w-0 pr-2">
             <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm truncate flex items-center gap-1.5">
-              <span>{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}</span>
-              <span className="text-slate-500 dark:text-slate-400 font-bold">#{comic.issueNumber}</span>
+              <span>{isEditing ? (title || 'Untitled Comic') : (comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic')}</span>
+              <span className="text-slate-500 dark:text-slate-400 font-bold">#{isEditing ? issueNumber : comic.issueNumber}</span>
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
               {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
@@ -492,9 +518,33 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
             </div>
 
-            {/* Extended Edit Controls: Volume, Event, Year, Month, Copies Owned */}
+            {/* Extended Edit Controls: Title, Issue #, Volume, Event, Year, Month, Copies Owned */}
             {isEditing && (
               <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Comic Title</label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. X-Factor"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Issue #</label>
+                    <input
+                      type="text"
+                      value={issueNumber}
+                      onChange={(e) => setIssueNumber(e.target.value)}
+                      placeholder="e.g. 1, -1, 300, 1A"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-bold"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Volume</label>

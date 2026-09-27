@@ -238,6 +238,30 @@ async function initDatabase(db: Pool) {
     console.warn('Auto-repair empty titles warning:', repairErr);
   }
 
+  // Auto-repair any comics where full_title specifies a negative issue (e.g. #-1), but issue_number is '1' or not negative
+  try {
+    const negativeIssuesResult = await db.query(
+      "SELECT id, title, full_title, issue_number FROM comic_books WHERE full_title ~* '#\\s*-[0-9]' AND (issue_number = '1' OR issue_number NOT LIKE '-%')"
+    );
+    if (negativeIssuesResult.rows.length > 0) {
+      console.log(`Found ${negativeIssuesResult.rows.length} comic(s) with negative issue in full_title. Auto-repairing issue_number...`);
+      for (const row of negativeIssuesResult.rows) {
+        const fullTitle = row.full_title as string;
+        const match = fullTitle.match(/#\s*(-\d+[a-zA-Z0-9.-]*)/i);
+        if (match) {
+          const correctIssue = match[1];
+          await db.query(
+            "UPDATE comic_books SET issue_number = $1, updated_at = NOW() WHERE id = $2",
+            [correctIssue, row.id]
+          );
+        }
+      }
+      console.log(`Successfully repaired ${negativeIssuesResult.rows.length} comic issue number(s).`);
+    }
+  } catch (negErr) {
+    console.warn('Auto-repair negative issue numbers warning:', negErr);
+  }
+
   // Auto-seed series_issue_totals from CSV if table is empty
   try {
     const totalsCountRes = await db.query('SELECT COUNT(*) FROM series_issue_totals');

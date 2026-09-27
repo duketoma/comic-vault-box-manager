@@ -44,8 +44,8 @@ export function parseTitleAndIssue(rawTitle: string, existingIssue?: string): Pa
     }
   }
 
-  // 3. Try matching explicit '#' issue indicator: e.g. "Spider-Man #300", "Batman #1A", "X-Men # 266"
-  const hashMatch = title.match(/^(.*?)\s*#\s*([0-9]+[a-zA-Z0-9.-]*|[a-zA-Z0-9.-]+)(.*)$/i);
+  // 3. Try matching explicit '#' issue indicator: e.g. "Spider-Man #300", "Batman #1A", "X-Men # 266", "X-Factor #-1"
+  const hashMatch = title.match(/^(.*?)\s*#\s*(-?[0-9]+[a-zA-Z0-9.-]*|[a-zA-Z0-9.-]+)(.*)$/i);
   if (hashMatch) {
     const prefix = hashMatch[1].trim();
     const parsedIssue = hashMatch[2].trim();
@@ -61,8 +61,8 @@ export function parseTitleAndIssue(rawTitle: string, existingIssue?: string): Pa
     };
   }
 
-  // 4. Try matching trailing issue number at the end of the title: e.g. "Spider-Man 300" or "Spawn 50"
-  const trailingNumMatch = title.match(/^(.*?)\s+(\d+[a-zA-Z]?)$/i);
+  // 4. Try matching trailing issue number at the end of the title: e.g. "Spider-Man 300", "Spawn 50", "X-Factor -1"
+  const trailingNumMatch = title.match(/^(.*?)\s+(-?\d+[a-zA-Z]?)$/i);
   if (trailingNumMatch) {
     const prefix = trailingNumMatch[1].trim();
     const parsedIssue = trailingNumMatch[2].trim();

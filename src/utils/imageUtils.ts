@@ -186,20 +186,22 @@ function buildIssueRegex(issueStr: string): RegExp | null {
   const clean = String(issueStr || '').replace(/^#/, '').trim();
   if (!clean) return null;
 
-  const numMatch = clean.match(/^(\d+)(.*)$/);
+  const numMatch = clean.match(/^(-?\d+)(.*)$/);
   if (numMatch) {
-    const digits = numMatch[1];
+    const isNegative = numMatch[1].startsWith('-');
+    const digits = isNegative ? numMatch[1].slice(1) : numMatch[1];
     const suffix = numMatch[2].trim();
+    const signPrefix = isNegative ? '-\\s*' : '';
     if (!suffix) {
       if (digits === '0') {
-        return /(?<![0-9a-zA-Z])#?0+(?![0-9a-zA-Z])/i;
+        return new RegExp(`(?<![0-9a-zA-Z])#?${signPrefix}0+(?![0-9a-zA-Z])`, 'i');
       }
       const val = parseInt(digits, 10);
-      return new RegExp(`(?<![0-9a-zA-Z])#?0*${val}(?![0-9a-zA-Z])`, 'i');
+      return new RegExp(`(?<![0-9a-zA-Z])#?${signPrefix}0*${val}(?![0-9a-zA-Z])`, 'i');
     } else {
       const escapedSuffix = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const val = parseInt(digits, 10);
-      return new RegExp(`(?<![0-9a-zA-Z])#?0*${val}[\\s\\-_.]*${escapedSuffix}(?![0-9a-zA-Z])`, 'i');
+      return new RegExp(`(?<![0-9a-zA-Z])#?${signPrefix}0*${val}[\\s\\-_.]*${escapedSuffix}(?![0-9a-zA-Z])`, 'i');
     }
   }
 

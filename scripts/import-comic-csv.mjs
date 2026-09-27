@@ -74,13 +74,19 @@ function toComic(row, index) {
   const box = integerOr(row.Box, 0);
   const proposedBox = integerOr(row['Proposed Box']);
   const releaseDate = cleaned(row['Release Date']);
-  const title = cleaned(row.Title) || cleaned(row['Series Name']) || cleaned(row['Full Title']) || 'Untitled Comic';
-  const issueNumber = cleaned(row['Issue Number']) || 'Unknown';
+  const rawFullTitle = cleaned(row['Full Title']);
+  let title = cleaned(row.Title) || cleaned(row['Series Name']) || rawFullTitle || 'Untitled Comic';
+  let issueNumber = cleaned(row['Issue Number']) || 'Unknown';
+  const negativeMatch = (rawFullTitle || title).match(/#\s*(-\d+[a-zA-Z0-9.-]*)/i) ||
+                        (rawFullTitle || title).match(/\s+(-\d+[a-zA-Z]?)(?:\s|$|\()/i);
+  if (negativeMatch && (!issueNumber || issueNumber === 'Unknown' || issueNumber === '1' || issueNumber === '0')) {
+    issueNumber = negativeMatch[1];
+  }
   const publisher = cleaned(row['Publisher Name']) || 'Unknown Publisher';
-  const idSeed = [index, publisher, title, issueNumber, releaseDate, row['Full Title']].join('|');
+  const idSeed = [index, publisher, title, issueNumber, releaseDate, rawFullTitle].join('|');
 
   const seriesName = cleaned(row['Series Name']) || undefined;
-  const fullTitle = cleaned(row['Full Title']) || (issueNumber && issueNumber !== 'Unknown' ? `${title} #${issueNumber}` : title);
+  const fullTitle = rawFullTitle || (issueNumber && issueNumber !== 'Unknown' ? `${title} #${issueNumber}` : title);
 
   return {
     id: `csv-${createHash('sha256').update(idSeed).digest('hex').slice(0, 24)}`,

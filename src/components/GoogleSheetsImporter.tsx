@@ -526,9 +526,16 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     const rawPrice = priceIdx >= 0 ? parseFloat(String(row[priceIdx])) : undefined;
 
     let titleVal = rawTitle;
-    let issueVal = rawIssue;
+    let issueVal = rawIssue.replace(/^#\s*/, '').trim();
     let volumeVal = rawVolume || undefined;
     let eventVal = rawEvent || undefined;
+
+    // Check if full title or raw title explicitly specifies a negative issue (e.g. "X-Factor #-1", "Excalibur #-1")
+    const fullTitleNegativeMatch = (rawFullTitle || rawTitle).match(/#\s*(-\d+[a-zA-Z0-9.-]*)/i) ||
+                                  (rawFullTitle || rawTitle).match(/\s+(-\d+[a-zA-Z]?)(?:\s|$|\()/i);
+    if (fullTitleNegativeMatch && (!issueVal || issueVal === '1' || issueVal === '0')) {
+      issueVal = fullTitleNegativeMatch[1];
+    }
 
     const rawDateCell = pubDateIdx >= 0 && row[pubDateIdx] ? row[pubDateIdx] : (yearIdx >= 0 ? row[yearIdx] : undefined);
     const parsedDate = parseYearAndMonth(rawDateCell, rawTitle || rawFullTitle || rawSeries);
@@ -538,7 +545,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     // If titleVal is empty or parsing is requested, resolve title and issue from title, full title, or series
     const sourceForParsing = rawTitle || rawFullTitle || rawSeries;
     if (sourceForParsing && (parseTitleOption || !titleVal || !issueVal || issueIdx < 0 || comicMappings.issueCol === comicMappings.titleCol)) {
-      const parsed = parseTitleAndIssue(sourceForParsing, rawIssue);
+      const parsed = parseTitleAndIssue(sourceForParsing, issueVal);
       if (parsed.cleanTitle && (!titleVal || parseTitleOption)) {
         titleVal = parsed.cleanTitle;
       }
