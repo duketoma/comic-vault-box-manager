@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ComicBook, SeriesIssueTotal, StorageBox, CREATOR_ROLES, CreatorContribution, CharacterAppearance } from '../types';
 import { getComicCoverUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
@@ -24,7 +24,8 @@ import {
   Info,
   ShieldAlert,
   Target,
-  Crown
+  Crown,
+  Search
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -81,6 +82,30 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [characters, setCharacters] = useState<CharacterAppearance[]>(comic.characterAppearances || []);
   const [newCharName, setNewCharName] = useState('');
   const [newCharType, setNewCharType] = useState('Main');
+  const [charSearch, setCharSearch] = useState('');
+  const [expandAllCharacters, setExpandAllCharacters] = useState(false);
+  const [expandAllCreators, setExpandAllCreators] = useState(false);
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const filteredCharacters = useMemo(() => {
+    if (!charSearch.trim()) return characters;
+    const q = charSearch.toLowerCase().trim();
+    return characters.filter(
+      (c) =>
+        c.characterName.toLowerCase().includes(q) ||
+        (c.appearanceType || '').toLowerCase().includes(q)
+    );
+  }, [characters, charSearch]);
 
   const currentBox = boxes.find((b) => b.id === comic.currentBoxId);
 
@@ -155,8 +180,12 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setNewCharName('');
   };
 
-  const handleRemoveCharacter = (index: number) => {
-    setCharacters(characters.filter((_, i) => i !== index));
+  const handleRemoveCharacter = (target: CharacterAppearance | number) => {
+    if (typeof target === 'number') {
+      setCharacters(characters.filter((_, i) => i !== target));
+    } else {
+      setCharacters(characters.filter((c) => c !== target));
+    }
   };
 
   const handleSaveQuickEdits = () => {
@@ -187,32 +216,73 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden my-8">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex justify-center p-2 sm:p-4 overflow-y-auto"
+    >
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden my-auto">
         
-        {/* Top Image & Hero Overlay */}
-        <div className="relative bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-          <img
-            src={getComicCoverUrl(coverImage || comic.coverImage)}
-            alt={comic.title}
-            onError={handleImageError}
-            referrerPolicy="no-referrer"
-            className="w-40 h-60 object-cover rounded-xl shadow-md border border-slate-200 dark:border-slate-700 shrink-0"
-          />
+        {/* Sticky Top Header Bar */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shrink-0 z-10">
+          <div className="min-w-0 pr-2">
+            <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm truncate flex items-center gap-1.5">
+              <span>{comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}</span>
+              <span className="text-slate-500 dark:text-slate-400 font-bold">#{comic.issueNumber}</span>
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isEditing && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveQuickEdits}
+                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save</span>
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              title="Close (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
 
-          <div className="flex-1 space-y-2 text-center sm:text-left">
-            <div className="flex items-center justify-between gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-bold">
-                {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
-              </span>
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
+          {/* Top Image & Hero Overlay */}
+          <div className="relative bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start">
+            <img
+              src={getComicCoverUrl(coverImage || comic.coverImage)}
+              alt={comic.title}
+              onError={handleImageError}
+              referrerPolicy="no-referrer"
+              className="w-36 h-54 sm:w-40 sm:h-60 object-cover rounded-xl shadow-md border border-slate-200 dark:border-slate-700 shrink-0"
+            />
 
-              <button
-                onClick={onClose}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <div className="flex-1 space-y-2 text-center sm:text-left min-w-0 w-full">
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-bold">
+                  {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
+                </span>
+              </div>
 
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-tight">
               {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'} <span className="text-slate-600 dark:text-slate-400">#{comic.issueNumber}</span>
@@ -341,13 +411,26 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Status & Location Management
               </h3>
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 font-semibold cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                {isEditing ? 'Cancel Edit' : 'Edit Values'}
-              </button>
+              <div className="flex items-center gap-2">
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleSaveQuickEdits}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 font-semibold cursor-pointer px-2 py-1 rounded-md hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  {isEditing ? 'Cancel' : 'Edit Values'}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -482,30 +565,44 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   <UserCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>Comic Creators & Role Contributions ({contributions.length})</span>
                 </h4>
+                {contributions.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandAllCreators(!expandAllCreators)}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    {expandAllCreators ? 'Show Less' : `Show All (${contributions.length})`}
+                  </button>
+                )}
               </div>
 
               {/* Contributions Badges List */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {contributions.map((item, idx) => (
-                  <div
-                    key={item.id || idx}
-                    className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium"
-                  >
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{item.creatorName}</span>
-                    <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 font-bold px-1.5 py-0.2 rounded uppercase tracking-wider">
-                      {item.roleName}
-                    </span>
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveContribution(idx)}
-                        className="text-slate-400 hover:text-rose-600 ml-1 font-bold cursor-pointer"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
+              <div className={`flex flex-wrap gap-1.5 pt-1 ${!expandAllCreators && contributions.length > 8 ? 'max-h-36 overflow-y-auto pr-1' : ''}`}>
+                {contributions.length === 0 ? (
+                  <span className="text-xs text-slate-400 dark:text-slate-500 italic">No creators listed yet.</span>
+                ) : (
+                  contributions.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium"
+                    >
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{item.creatorName}</span>
+                      <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 font-bold px-1.5 py-0.2 rounded uppercase tracking-wider">
+                        {item.roleName}
+                      </span>
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveContribution(idx)}
+                          className="text-slate-400 hover:text-rose-600 ml-1 font-bold cursor-pointer"
+                          title="Remove creator contribution"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Add New Creator Contribution in Edit Mode */}
@@ -548,16 +645,50 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   <span className="text-sm">🦸</span>
                   <span>Character Appearances ({characters.length})</span>
                 </h4>
+                {characters.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandAllCharacters(!expandAllCharacters)}
+                    className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    {expandAllCharacters ? 'Show Less' : `Show All (${characters.length})`}
+                  </button>
+                )}
               </div>
 
+              {/* Character Filter / Search Bar (if more than 6 characters) */}
+              {characters.length > 6 && (
+                <div className="relative pt-0.5">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder={`Filter ${characters.length} characters...`}
+                    value={charSearch}
+                    onChange={(e) => setCharSearch(e.target.value)}
+                    className="w-full pl-8 pr-7 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  {charSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCharSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Character Badges List */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
+              <div className={`flex flex-wrap gap-1.5 pt-1 ${!expandAllCharacters && characters.length > 8 ? 'max-h-48 overflow-y-auto pr-1' : ''}`}>
                 {characters.length === 0 ? (
                   <span className="text-xs text-slate-400 dark:text-slate-500 italic">No character appearances tracked for this issue yet.</span>
+                ) : filteredCharacters.length === 0 ? (
+                  <span className="text-xs text-slate-400 dark:text-slate-500 italic">No characters matching "{charSearch}".</span>
                 ) : (
-                  characters.map((char, idx) => (
+                  filteredCharacters.map((char, idx) => (
                     <div
-                      key={char.id || idx}
+                      key={char.id || `${char.characterName}-${idx}`}
                       className="inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium"
                     >
                       <span className="font-bold text-slate-900 dark:text-slate-100">{char.characterName}</span>
@@ -573,8 +704,9 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       {isEditing && (
                         <button
                           type="button"
-                          onClick={() => handleRemoveCharacter(idx)}
+                          onClick={() => handleRemoveCharacter(char)}
                           className="text-slate-400 hover:text-rose-600 ml-1 font-bold cursor-pointer"
+                          title="Remove character"
                         >
                           ×
                         </button>
@@ -726,29 +858,56 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             </div>
           )}
 
-          {/* Footer Actions */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <button
-              onClick={() => {
-                if (confirm(`Remove "${comic.title} #${comic.issueNumber}" from vault?`)) {
-                  onDeleteComic(comic.id);
-                  onClose();
-                }
-              }}
-              className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 flex items-center gap-1.5 font-semibold cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete Comic</span>
-            </button>
+        </div>
+        {/* End of Modal Main Content */}
 
+        </div>
+        {/* End of Scrollable Content Body */}
+
+        {/* Sticky Bottom Footer */}
+        <div className="px-4 sm:px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shrink-0 flex items-center justify-between z-10">
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm(`Remove "${comic.title} #${comic.issueNumber}" from vault?`)) {
+                onDeleteComic(comic.id);
+                onClose();
+              }
+            }}
+            className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 flex items-center gap-1.5 font-semibold cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete Comic</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            {isEditing && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveQuickEdits}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </button>
+              </>
+            )}
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold rounded-lg text-xs cursor-pointer"
             >
               Close
             </button>
           </div>
-
         </div>
 
       </div>
