@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ComicBook, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
-import { sortBoxes } from '../utils/boxUtils';
+import { sortBoxes, isTrueProposedMove } from '../utils/boxUtils';
 import { sortComicsByTitleAndIssue } from '../utils/comicSortUtils';
 import { fetchBoxComics } from '../services/postgresService';
 import { 
@@ -147,7 +147,11 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
       // Proposed Comics (uses proposedBoxId if set, otherwise currentBoxId)
       const proposedComics = sortComicsByTitleAndIssue(
-        activeStatsComics.filter((c) => ((c.proposedBoxId !== undefined ? c.proposedBoxId : c.currentBoxId) ?? 0) === box.id)
+        activeStatsComics.filter((c) => {
+          const hasValidProposed = c.proposedBoxId !== undefined && c.proposedBoxId !== null;
+          const targetBox = hasValidProposed ? Number(c.proposedBoxId) : Number(c.currentBoxId ?? 0);
+          return targetBox === box.id;
+        })
       );
       const proposedUsedThickness = proposedComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
       const proposedCount = proposedComics.length;
@@ -171,7 +175,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
   // Count total proposed relocations
   const proposedRelocationsCount = useMemo(() => {
-    return comics.filter((c) => c.proposedBoxId !== undefined && c.proposedBoxId !== c.currentBoxId).length;
+    return comics.filter(isTrueProposedMove).length;
   }, [comics]);
 
   // Modal Handlers
@@ -201,13 +205,13 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
   };
 
   const handleBulkMoveBoxZeroToTarget = () => {
-    const unallocated = comics.filter((c) => (c.currentBoxId ?? 0) === 0);
+    const unallocated = comics.filter((c) => c.readingStatus !== 'Wishlist' && (c.currentBoxId ?? 0) === 0);
     if (unallocated.length === 0) {
       alert('There are currently no unallocated comics in Box 0.');
       return;
     }
     const updated = comics.map((c) => {
-      if ((c.currentBoxId ?? 0) === 0) {
+      if (c.readingStatus !== 'Wishlist' && (c.currentBoxId ?? 0) === 0) {
         return {
           ...c,
           proposedBoxId: targetBulkBoxId,
@@ -337,11 +341,11 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
   // Apply proposed moves
   const handleApplyAllProposedMoves = () => {
     const updated = comics.map((c) => {
-      if (c.proposedBoxId !== undefined && c.proposedBoxId !== c.currentBoxId) {
+      if (isTrueProposedMove(c)) {
         return {
           ...c,
-          currentBoxId: c.proposedBoxId,
-          proposedBoxId: undefined,
+          currentBoxId: Number(c.proposedBoxId),
+          proposedBoxId: Number(c.proposedBoxId),
         };
       }
       return c;
@@ -349,12 +353,17 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     onUpdateComics(updated);
   };
 
-  // Discard proposed moves
+  // Discard proposed moves: reset any active proposed moves back to current box
   const handleResetProposedMoves = () => {
-    const updated = comics.map((c) => ({
-      ...c,
-      proposedBoxId: undefined,
-    }));
+    const updated = comics.map((c) => {
+      if (isTrueProposedMove(c)) {
+        return {
+          ...c,
+          proposedBoxId: c.currentBoxId ?? 0,
+        };
+      }
+      return c;
+    });
     onUpdateComics(updated);
   };
 
@@ -865,26 +874,30 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
             {/* Bulk Allocate Controls for Box 0 */}
             {selectedBoxStat.box.id === 0 && selectedBoxStat.currentComics.length > 0 && (
-              <div className="my-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+              <div className="my-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2 overflow-hidden">
                 <div className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center justify-between">
                   <span>Bulk Allocate Box 0 Items</span>
                   <span className="text-[10px] text-amber-800 dark:text-amber-300 font-normal">{selectedBoxStat.currentComics.length} items waiting</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
                   <select
                     value={targetBulkBoxId}
                     onChange={(e) => setTargetBulkBoxId(Number(e.target.value))}
-                    className="flex-1 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs text-slate-800 dark:text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                    className="flex-1 min-w-0 w-full truncate bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs text-slate-800 dark:text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
                   >
-                    {sortedBoxes.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        Box #{b.id}: {b.name.split('-')[1] || b.name}
-                      </option>
-                    ))}
+                    {sortedBoxes.map((b) => {
+                      const cleanName = b.name.replace(/^\d+\s*[-–]\s*/, '').replace(/^Box\s*\d+\s*[-–]\s*/i, '').trim();
+                      const displayName = cleanName.length > 32 ? `${cleanName.slice(0, 30)}...` : (cleanName || b.name);
+                      return (
+                        <option key={b.id} value={b.id} title={`Box #${b.id}: ${b.name}`}>
+                          Box #{b.id}: {displayName}
+                        </option>
+                      );
+                    })}
                   </select>
                   <button
                     onClick={handleBulkMoveBoxZeroToTarget}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0 cursor-pointer"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0 cursor-pointer text-center"
                   >
                     Allocate All
                   </button>
@@ -942,7 +955,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                             <span className="text-slate-800 dark:text-slate-200 font-bold bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                               {comic.sizeThickness.toFixed(1)}x Size
                             </span>
-                            {comic.proposedBoxId && comic.proposedBoxId !== comic.currentBoxId && (
+                            {isTrueProposedMove(comic) && (
                               <span className="text-slate-900 dark:text-slate-100 font-bold bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600">
                                 Proposed → Box {comic.proposedBoxId}
                               </span>
@@ -953,7 +966,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
                       {/* Relocate Dropdown */}
                       <select
-                        value={(comic.proposedBoxId !== undefined ? comic.proposedBoxId : comic.currentBoxId) ?? 0}
+                        value={(comic.proposedBoxId !== undefined && comic.proposedBoxId !== null ? comic.proposedBoxId : comic.currentBoxId) ?? 0}
                         onChange={(e) => {
                           const targetId = Number(e.target.value);
                           const updated = comics.map((c) =>

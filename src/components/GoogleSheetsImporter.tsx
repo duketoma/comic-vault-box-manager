@@ -574,7 +574,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       if (!isNaN(parsed) && parsed >= 0) boxVal = parsed;
     }
 
-    let proposedBoxVal = 0;
+    let proposedBoxVal: number | undefined = undefined;
     if (proposedBoxIdx >= 0 && row[proposedBoxIdx] !== undefined && row[proposedBoxIdx] !== null && String(row[proposedBoxIdx]).trim() !== '') {
       const parsed = parseInt(String(row[proposedBoxIdx]).trim(), 10);
       if (!isNaN(parsed) && parsed >= 0) proposedBoxVal = parsed;
@@ -623,7 +623,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       format: ['Single Issue', 'Trade Paperback', 'Hardcover', 'Omnibus', 'Graphic Novel'].includes(formatVal) ? formatVal : 'Single Issue',
       sizeThickness: thicknessVal > 0 ? thicknessVal : 1.0,
       currentBoxId: boxVal >= 0 ? boxVal : 0,
-      proposedBoxId: proposedBoxVal >= 0 ? proposedBoxVal : 0,
+      proposedBoxId: proposedBoxVal !== undefined ? proposedBoxVal : (isWishlist ? undefined : (boxVal >= 0 ? boxVal : 0)),
       readingStatus: readingStatusVal,
       readCount: readingStatusVal === 'Read' ? 1 : 0,
       condition: 'Near Mint',

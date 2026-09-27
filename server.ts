@@ -71,6 +71,9 @@ function rowToComic(row: Record<string, unknown>) {
   if (!comic.title || !String(comic.title).trim()) {
     comic.title = (comic.fullTitle as string) || (comic.seriesName as string) || 'Untitled Comic';
   }
+  if (comic.proposedBoxId === null) {
+    comic.proposedBoxId = undefined;
+  }
   return comic;
 }
 
