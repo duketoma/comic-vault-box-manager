@@ -7,6 +7,8 @@ import { google } from 'googleapis';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
 import { parseTitleAndIssue } from './src/utils/titleParser';
+import { sortComicsByTitleAndIssue } from './src/utils/comicSortUtils';
+import { ComicBook } from './src/types';
 
 // Local development overrides belong in .env.local; .env remains a shared fallback.
 dotenv.config({ path: ['.env.local', '.env'] });
@@ -432,17 +434,17 @@ const comicUpsertSql = `
         return res.status(404).json({ error: `Box ${boxId} not found.` });
       }
 
-      // Fetch comics in this box, sorted by creation order (stable ordering)
-      // Order by: current_box_id (ensures box filter), then created_at for stable ordering, then id as tiebreaker
+      // Fetch comics in this box, ordered by title and issue number
       const comicsResult = await pool!.query(
         `SELECT ${comicColumns.join(', ')}
          FROM comic_books
          WHERE current_box_id = $1
-         ORDER BY created_at ASC, id ASC`,
+         ORDER BY title ASC, issue_number ASC, created_at ASC, id ASC`,
         [boxId]
       );
 
-      const comics = comicsResult.rows.map(rowToComic);
+      const rawComics = comicsResult.rows.map(rowToComic) as unknown as ComicBook[];
+      const comics = sortComicsByTitleAndIssue(rawComics);
       res.json({
         box: {
           id: boxResult.rows[0].id,

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
+import { compareComicsByTitleAndIssue } from '../utils/comicSortUtils';
 import {
   ShoppingCart,
   CheckCircle2,
@@ -294,7 +295,7 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
     } else if (sortBy === 'value') {
       sorted.sort((a, b) => (b.comic.estimatedValue || 0) - (a.comic.estimatedValue || 0));
     } else if (sortBy === 'title') {
-      sorted.sort((a, b) => (a.comic.seriesName || a.comic.title).localeCompare(b.comic.seriesName || b.comic.title));
+      sorted.sort((a, b) => compareComicsByTitleAndIssue(a.comic, b.comic));
     }
 
     // Top 60 limitation (default)

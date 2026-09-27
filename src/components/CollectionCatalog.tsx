@@ -3,6 +3,7 @@ import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, getMonthIndex, MONTH_NAMES } from '../utils/dateUtils';
+import { compareComicsByTitleAndIssue, parseIntegerIssueNumber } from '../utils/comicSortUtils';
 import { 
   Grid3X3, 
   List, 
@@ -134,7 +135,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         map.set(sKey, stat);
       }
 
-      const num = parseInt(c.issueNumber, 10);
+      const num = parseIntegerIssueNumber(c.issueNumber);
       if (c.readingStatus === 'Wishlist') {
         stat.wishlist += 1;
         if (!isNaN(num) && !stat.wishlistIssueNumbers.includes(num)) {
@@ -314,17 +315,27 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     }).sort((a, b) => {
       let result = 0;
       if (sortBy === 'title') {
-        const titleA = a.title || a.fullTitle || a.seriesName || '';
-        const titleB = b.title || b.fullTitle || b.seriesName || '';
-        result = titleA.localeCompare(titleB);
+        result = compareComicsByTitleAndIssue(a, b);
       } else if (sortBy === 'year') {
         result = a.publicationYear - b.publicationYear || getMonthIndex(a.publicationMonth) - getMonthIndex(b.publicationMonth);
+        if (result === 0) {
+          result = compareComicsByTitleAndIssue(a, b);
+        }
       } else if (sortBy === 'thickness') {
         result = a.sizeThickness - b.sizeThickness;
+        if (result === 0) {
+          result = compareComicsByTitleAndIssue(a, b);
+        }
       } else if (sortBy === 'value') {
         result = (a.estimatedValue || 0) - (b.estimatedValue || 0);
+        if (result === 0) {
+          result = compareComicsByTitleAndIssue(a, b);
+        }
       } else if (sortBy === 'rating') {
         result = (a.userRating || 0) - (b.userRating || 0);
+        if (result === 0) {
+          result = compareComicsByTitleAndIssue(a, b);
+        }
       }
       return sortOrder === 'asc' ? result : -result;
     });

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ComicBook, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
+import { sortComicsByTitleAndIssue } from '../utils/comicSortUtils';
 import { fetchBoxComics } from '../services/postgresService';
 import { 
   Boxes, 
@@ -137,13 +138,17 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     const allBoxes = [BOX_ZERO, ...sortedBoxes];
     return allBoxes.map((box) => {
       // Current Comics in Box (respecting Wishlist toggle setting)
-      const currentComics = activeStatsComics.filter((c) => (c.currentBoxId ?? 0) === box.id);
+      const currentComics = sortComicsByTitleAndIssue(
+        activeStatsComics.filter((c) => (c.currentBoxId ?? 0) === box.id)
+      );
       const currentUsedThickness = currentComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
       const currentCount = currentComics.length;
       const currentPercent = box.id === 0 ? Math.min(100, (currentUsedThickness / 150) * 100) : (currentUsedThickness / box.maxCapacity) * 100;
 
       // Proposed Comics (uses proposedBoxId if set, otherwise currentBoxId)
-      const proposedComics = activeStatsComics.filter((c) => ((c.proposedBoxId !== undefined ? c.proposedBoxId : c.currentBoxId) ?? 0) === box.id);
+      const proposedComics = sortComicsByTitleAndIssue(
+        activeStatsComics.filter((c) => ((c.proposedBoxId !== undefined ? c.proposedBoxId : c.currentBoxId) ?? 0) === box.id)
+      );
       const proposedUsedThickness = proposedComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
       const proposedCount = proposedComics.length;
       const proposedPercent = box.id === 0 ? Math.min(100, (proposedUsedThickness / 150) * 100) : (proposedUsedThickness / box.maxCapacity) * 100;
@@ -318,12 +323,12 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     try {
       // Fetch ordered comics from backend
       const result = await fetchBoxComics(box.id);
-      setBox3DComics(result.comics);
+      setBox3DComics(sortComicsByTitleAndIssue(result.comics));
     } catch (error) {
       console.error('Failed to fetch comics for 3D viewer:', error);
       // Fall back to local comics filtered by box
       const localComics = comics.filter((c) => c.currentBoxId === box.id);
-      setBox3DComics(localComics);
+      setBox3DComics(sortComicsByTitleAndIssue(localComics));
     } finally {
       setIs3DLoading(false);
     }
@@ -355,21 +360,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
   // Helper for sorting comics alphabetically/numerically before rebalancing
   const sortComicsForStorage = (list: ComicBook[]) => {
-    return [...list].sort((a, b) => {
-      const titleA = (a.title || '').toLowerCase();
-      const titleB = (b.title || '').toLowerCase();
-      if (titleA !== titleB) return titleA.localeCompare(titleB);
-
-      const volA = parseFloat(a.volume || '1') || 1;
-      const volB = parseFloat(b.volume || '1') || 1;
-      if (volA !== volB) return volA - volB;
-
-      const issueA = parseFloat(a.issueNumber?.replace(/[^0-9.]/g, '') || '0') || 0;
-      const issueB = parseFloat(b.issueNumber?.replace(/[^0-9.]/g, '') || '0') || 0;
-      if (issueA !== issueB) return issueA - issueB;
-
-      return (a.issueNumber || '').localeCompare(b.issueNumber || '');
-    });
+    return sortComicsByTitleAndIssue(list);
   };
 
   // Auto-balance storage allocation across all available boxes (including empty/new boxes)
