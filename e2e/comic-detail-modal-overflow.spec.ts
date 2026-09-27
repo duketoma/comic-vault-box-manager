@@ -42,6 +42,27 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
   };
 
   test('Modal fits viewport and controls remain accessible when editing comic with 113 characters', async ({ page }) => {
+    // Mock API routes so test data does not persist to local PostgreSQL database
+    await page.route('**/api/collection', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: [testComicWithManyCharacters],
+          boxes: [{ id: 1, name: 'Box 01', maxCapacity: 150 }],
+          seriesTotals: [],
+        }),
+      });
+    });
+
+    await page.route(/.*\/api\/comics.*/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      });
+    });
+
     // Seed localStorage
     await page.addInitScript((comic) => {
       window.localStorage.setItem('comic_vault_comics', JSON.stringify([comic]));

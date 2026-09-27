@@ -342,7 +342,30 @@ export default function App() {
     setComics((prev) => {
       const updated = prev.map((c) => (c.id === comicId ? { ...c, coverImage: coverUrl } : c));
       const comic = updated.find((c) => c.id === comicId);
-      if (comic) dbCall(saveComic(comic));
+      if (comic) dbCall(saveComic(comic)).catch((err) => console.error('Failed to save comic cover:', err));
+      try {
+        localStorage.setItem('comic_vault_comics', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('LocalStorage save failed for comic cover update:', err);
+      }
+      return updated;
+    });
+  };
+
+  const handleUpdateComicCoversBatch = (updates: Array<{ comicId: string; coverUrl: string }>) => {
+    if (updates.length === 0) return;
+    const updateMap = new Map(updates.map((u) => [u.comicId, u.coverUrl]));
+    setComics((prev) => {
+      const updated = prev.map((c) => {
+        const newUrl = updateMap.get(c.id);
+        return newUrl ? { ...c, coverImage: newUrl } : c;
+      });
+      dbCall(replaceComics(updated)).catch((err) => console.error('Failed to persist batch comic covers:', err));
+      try {
+        localStorage.setItem('comic_vault_comics', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('LocalStorage save failed for batch comic covers:', err);
+      }
       return updated;
     });
   };
@@ -527,6 +550,7 @@ export default function App() {
         onClose={() => setIsDriveModalOpen(false)}
         comics={comics}
         onUpdateComicCover={handleUpdateComicCover}
+        onUpdateComicCoversBatch={handleUpdateComicCoversBatch}
         onApplyNoImageFallback={handleApplyNoImageFallback}
       />
 

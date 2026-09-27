@@ -12,19 +12,21 @@ import {
   Layers,
   FileQuestion,
   Cloud,
-  Check
+  Check,
+  Search
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { googleSignIn, initAuth, logout } from '../services/auth';
 import { scanDriveComicCovers, DriveFileItem, DriveCoversSyncResult } from '../services/driveService';
 import { ComicBook } from '../types';
-import { getComicCoverUrl, formatDriveImageUrl, setDriveNoImageUrl, handleImageError, isComicAlreadyLinked, doesFileNameMatchComic } from '../utils/imageUtils';
+import { getComicCoverUrl, formatDriveImageUrl, getDriveNoImageUrl, setDriveNoImageUrl, handleImageError, isComicAlreadyLinked, doesFileNameMatchComic, extractDriveFileId } from '../utils/imageUtils';
 
 interface GoogleDriveCoversModalProps {
   isOpen: boolean;
   onClose: () => void;
   comics: ComicBook[];
   onUpdateComicCover: (comicId: string, coverUrl: string) => void;
+  onUpdateComicCoversBatch?: (updates: Array<{ comicId: string; coverUrl: string }>) => void;
   onApplyNoImageFallback: (noImageUrl: string) => void;
 }
 
@@ -33,6 +35,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   onClose,
   comics,
   onUpdateComicCover,
+  onUpdateComicCoversBatch,
   onApplyNoImageFallback,
 }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -42,41 +45,175 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [isScanning, setIsScanning] = useState(false);
+  const [scanProgressCount, setScanProgressCount] = useState(0);
   const [syncResult, setSyncResult] = useState<DriveCoversSyncResult | null>(null);
   const [linkedCount, setLinkedCount] = useState(0);
+  const [stagedAssignments, setStagedAssignments] = useState<Record<string, string>>({});
+  const [fileSearchQuery, setFileSearchQuery] = useState('');
+  const [visibleCardCount, setVisibleCardCount] = useState(48);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isLinking, setIsLinking] = useState(false);
 
-  const mkDriveViewUrl = (fileId: string) => formatDriveImageUrl(fileId);
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setVisibleCardCount(48);
+  }, [fileSearchQuery]);
 
-  // Compute unlinked matches: match Drive files against comics, skipping comics that are already linked
-  const unlinkedMatches = useMemo(() => {
-    if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) {
-      return [];
+  const mkDriveViewUrl = (fileId: string) => {
+    if (!fileId) return getDriveNoImageUrl();
+    if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
+      return formatDriveImageUrl(fileId);
     }
+    return `https://lh3.googleusercontent.com/d/${fileId}=s800`;
+  };
 
-    const matches: Array<{ comic: ComicBook; driveFile: DriveFileItem }> = [];
-    comics.forEach((comic) => {
-      // Do NOT update comics that are already linked to a real cover image (NoImage.png doesn't count as linked)
-      const noImgUrl = syncResult?.noImageFile ? mkDriveViewUrl(syncResult.noImageFile.id) : undefined;
-      if (isComicAlreadyLinked(comic.coverImage, noImgUrl)) {
-        return;
+  const isFileLinkedToComic = (fileId: string, comic?: ComicBook | null): boolean => {
+    if (!comic || !comic.coverImage) return false;
+    if (comic.coverImage.includes(fileId)) return true;
+    const currentId = extractDriveFileId(comic.coverImage);
+    return currentId !== null && currentId === fileId;
+  };
+
+  // Populate or update stagedAssignments whenever syncResult or comics change
+  // Uses indexed issue lookup and Set for O(1) matching performance
+  useEffect(() => {
+    if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return;
+
+    setStagedAssignments((prev) => {
+      const updated = { ...prev };
+      const assignedSet = new Set(Object.values(updated));
+
+      // Pre-index comics by numeric/clean issue number for fast candidate lookup
+      const comicsByIssue = new Map<string, ComicBook[]>();
+      for (const c of comics) {
+        const clean = String(c.issueNumber ?? '').replace(/^#/, '').trim();
+        const num = clean.match(/^\d+$/) ? String(parseInt(clean, 10)) : clean.toLowerCase();
+        if (!comicsByIssue.has(num)) comicsByIssue.set(num, []);
+        comicsByIssue.get(num)!.push(c);
       }
 
-      const matchedFile = syncResult.coverFiles.find((f) =>
-        doesFileNameMatchComic(f.name, comic.title, comic.issueNumber, comic.volume)
-      );
+      syncResult.coverFiles.forEach((file) => {
+        // If already assigned and matches an existing comic in vault, keep it
+        const currentAssignedId = updated[file.id];
+        if (currentAssignedId && comics.some((c) => c.id === currentAssignedId)) {
+          return;
+        }
 
-      if (matchedFile) {
-        matches.push({ comic, driveFile: matchedFile });
+        // Check if already linked to a comic in the vault
+        const alreadyLinked = comics.find((c) => isFileLinkedToComic(file.id, c));
+        if (alreadyLinked) {
+          updated[file.id] = alreadyLinked.id;
+          assignedSet.add(alreadyLinked.id);
+          return;
+        }
+
+        // Extract candidate numbers from filename
+        const base = file.name.replace(/\.[^/.]+$/, '').trim();
+        const numMatches = base.match(/(?:#|\b)(\d+)\b/g) || [];
+        let candidateComics: ComicBook[] = [];
+        for (const m of numMatches) {
+          const cleanM = String(parseInt(m.replace(/^#/, ''), 10));
+          if (comicsByIssue.has(cleanM)) {
+            candidateComics.push(...comicsByIssue.get(cleanM)!);
+          }
+        }
+        if (candidateComics.length === 0) {
+          candidateComics = comics;
+        }
+
+        // Otherwise find a matching comic by filename prioritizing unassigned
+        const suggested =
+          candidateComics.find(
+            (c) =>
+              !assignedSet.has(c.id) &&
+              doesFileNameMatchComic(
+                file.name,
+                c.title,
+                c.issueNumber,
+                c.volume,
+                c.seriesName,
+                c.fullTitle,
+                c.publicationYear
+              )
+          ) ||
+          candidateComics.find((c) =>
+            doesFileNameMatchComic(
+              file.name,
+              c.title,
+              c.issueNumber,
+              c.volume,
+              c.seriesName,
+              c.fullTitle,
+              c.publicationYear
+            )
+          );
+
+        if (suggested) {
+          updated[file.id] = suggested.id;
+          assignedSet.add(suggested.id);
+        }
+      });
+      return updated;
+    });
+  }, [syncResult, comics]);
+
+  // Pending matches: files that have an assigned comic that is not yet linked to this file
+  const pendingMatches = useMemo(() => {
+    if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return [];
+    const list: Array<{ comic: ComicBook; file: DriveFileItem }> = [];
+    syncResult.coverFiles.forEach((file) => {
+      const comicId = stagedAssignments[file.id];
+      if (!comicId) return;
+      const comic = comics.find((c) => c.id === comicId);
+      if (comic && !isFileLinkedToComic(file.id, comic)) {
+        list.push({ comic, file });
       }
     });
+    return list;
+  }, [syncResult, stagedAssignments, comics]);
 
-    return matches;
-  }, [comics, syncResult]);
-
+  // Already linked count across all files in Drive
   const alreadyLinkedCount = useMemo(() => {
-    const noImgUrl = syncResult?.noImageFile ? mkDriveViewUrl(syncResult.noImageFile.id) : undefined;
-    return comics.filter((c) => isComicAlreadyLinked(c.coverImage, noImgUrl)).length;
-  }, [comics, syncResult]);
+    if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return 0;
+    return syncResult.coverFiles.filter((file) =>
+      comics.some((c) => isFileLinkedToComic(file.id, c))
+    ).length;
+  }, [syncResult, comics]);
+
+  // Sorted and filtered cover files list (pending matches first, then unassigned, then linked, filtered by search)
+  const sortedAndFilteredCoverFiles = useMemo(() => {
+    if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return [];
+
+    let list = syncResult.coverFiles;
+    if (fileSearchQuery.trim()) {
+      const q = fileSearchQuery.toLowerCase().trim();
+      list = list.filter((f) => f.name.toLowerCase().includes(q));
+    }
+
+    return [...list].sort((a, b) => {
+      const aAssignedId = stagedAssignments[a.id];
+      const bAssignedId = stagedAssignments[b.id];
+      const aComic = aAssignedId ? comics.find((c) => c.id === aAssignedId) : null;
+      const bComic = bAssignedId ? comics.find((c) => c.id === bAssignedId) : null;
+      const aLinked = isFileLinkedToComic(a.id, aComic);
+      const bLinked = isFileLinkedToComic(b.id, bComic);
+      const aPending = !!aComic && !aLinked;
+      const bPending = !!bComic && !bLinked;
+
+      // 1. Pending (Ready to Link) first
+      if (aPending && !bPending) return -1;
+      if (!aPending && bPending) return 1;
+
+      // 2. Unassigned next
+      const aUnassigned = !aComic;
+      const bUnassigned = !bComic;
+      if (aUnassigned && !bUnassigned && !aPending && !bPending) return -1;
+      if (!aUnassigned && bUnassigned && !aPending && !bPending) return 1;
+
+      // 3. Natural alphanumeric sort by filename
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [syncResult?.coverFiles, stagedAssignments, comics, fileSearchQuery]);
 
   useEffect(() => {
     const unsubscribe = initAuth(
@@ -118,13 +255,25 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     }
   };
 
+  // Memoize comic options so React doesn't allocate thousands of option elements per card
+  const comicOptions = useMemo(() => {
+    return comics.map((c) => (
+      <option key={c.id} value={c.id}>
+        {c.title} #{c.issueNumber}
+      </option>
+    ));
+  }, [comics]);
+
   const handleScanDrive = async (tokenToUse?: string) => {
     const tok = tokenToUse || accessToken;
     if (!tok) return;
 
     setIsScanning(true);
+    setScanProgressCount(0);
     try {
-      const result = await scanDriveComicCovers(tok);
+      const result = await scanDriveComicCovers(tok, (count) => {
+        setScanProgressCount(count);
+      });
       setSyncResult(result);
 
       if (result.noImageFile) {
@@ -132,7 +281,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         setDriveNoImageUrl(noUrl);
         onApplyNoImageFallback(noUrl);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to scan Drive:', err);
     } finally {
       setIsScanning(false);
@@ -147,18 +296,50 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     setLinkedCount((prev) => prev + 1);
   };
 
-  const handleAutoLinkAllMatches = () => {
-    unlinkedMatches.forEach(({ comic, driveFile }) => {
-      const url = mkDriveViewUrl(driveFile.id);
-      onUpdateComicCover(comic.id, url);
-    });
-    setLinkedCount((prev) => prev + unlinkedMatches.length);
+  const executeLinking = (items: Array<{ comic: ComicBook; file: DriveFileItem }>) => {
+    if (items.length === 0) return;
+    setIsLinking(true);
+    try {
+      const updates = items.map(({ comic, file }) => ({
+        comicId: comic.id,
+        coverUrl: mkDriveViewUrl(file.id),
+      }));
+
+      if (onUpdateComicCoversBatch) {
+        onUpdateComicCoversBatch(updates);
+      } else {
+        updates.forEach((u) => onUpdateComicCover(u.comicId, u.coverUrl));
+      }
+
+      setLinkedCount((prev) => prev + updates.length);
+      setSuccessMessage(`✓ Successfully linked ${updates.length} comic cover${updates.length === 1 ? '' : 's'}!`);
+      setTimeout(() => setSuccessMessage(null), 6000);
+    } catch (err) {
+      console.error('Failed to link comic covers:', err);
+    } finally {
+      setIsLinking(false);
+    }
   };
 
-  const handleLinkSingleCover = (comicId: string, driveFileId: string) => {
-    const url = mkDriveViewUrl(driveFileId);
-    onUpdateComicCover(comicId, url);
-    setLinkedCount((prev) => prev + 1);
+  const handleLinkAllMatchesNow = () => {
+    executeLinking(pendingMatches);
+  };
+
+  const handleLinkSingleCover = (fileId: string, explicitComicId?: string) => {
+    const comicId = explicitComicId || stagedAssignments[fileId];
+    if (!comicId) return;
+    const comic = comics.find((c) => c.id === comicId);
+    const file = syncResult?.coverFiles.find((f) => f.id === fileId);
+    if (comic && file) {
+      executeLinking([{ comic, file }]);
+    }
+  };
+
+  const handleDone = () => {
+    if (pendingMatches.length > 0) {
+      executeLinking(pendingMatches);
+    }
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -344,120 +525,217 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
 
               {/* Cover Files Section */}
               <div className="space-y-3">
+                {successMessage && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>{successMessage}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSuccessMessage(null)}
+                      className="text-xs text-emerald-600 hover:text-emerald-800 font-bold cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <ImageIcon className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                     Cover Images in Google Drive ({syncResult?.coverFiles.length || 0})
                   </h4>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {alreadyLinkedCount > 0 && (
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                        <Check className="w-3 h-3 text-emerald-600" />
                         {alreadyLinkedCount} Already Linked
                       </span>
                     )}
 
-                    {unlinkedMatches.length > 0 ? (
+                    {pendingMatches.length > 0 ? (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                          {unlinkedMatches.length} New Matches
+                        <span className="text-xs text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          {pendingMatches.length} Ready to Link
                         </span>
                         <button
-                          onClick={handleAutoLinkAllMatches}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] shadow-xs flex items-center gap-1 cursor-pointer"
+                          type="button"
+                          onClick={handleLinkAllMatchesNow}
+                          disabled={isLinking}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                         >
-                          <Sparkles className="w-3 h-3" />
-                          Auto-Link {unlinkedMatches.length} Unlinked Matches
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Link All ({pendingMatches.length})</span>
                         </button>
                       </div>
                     ) : syncResult?.coverFiles && syncResult.coverFiles.length > 0 ? (
-                      <span className="text-xs text-slate-600 dark:text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                      <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        All Matched Comics Already Linked
+                        All Matched Covers Linked!
                       </span>
                     ) : null}
                   </div>
                 </div>
 
+                {/* Search / Filter Input */}
+                {syncResult?.coverFiles && syncResult.coverFiles.length > 0 && (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={fileSearchQuery}
+                      onChange={(e) => setFileSearchQuery(e.target.value)}
+                      placeholder="Search cover files by name..."
+                      className="w-full pl-8 pr-8 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                    />
+                    {fileSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setFileSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {syncResult?.error && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{syncResult.error}</span>
+                  </div>
+                )}
+
                 {isScanning ? (
                   <div className="py-8 text-center text-slate-500 dark:text-slate-400 space-y-2">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-slate-700 dark:text-slate-300" />
-                    <p className="text-xs font-semibold">Scanning Google Drive "Comic Covers" folder...</p>
+                    <p className="text-xs font-semibold">Scanning Google Drive &ldquo;Comic Covers&rdquo; folder...</p>
+                    {scanProgressCount > 0 ? (
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">
+                        Found {scanProgressCount} cover files so far...
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                        Connecting to Google Drive...
+                      </p>
+                    )}
                   </div>
                 ) : syncResult?.coverFiles.length === 0 ? (
                   <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-500 dark:text-slate-400 space-y-1">
-                    <p className="text-xs font-semibold">No scanned comic covers found in "Comic Covers" folder yet.</p>
+                    <p className="text-xs font-semibold">No scanned comic covers found in &ldquo;Comic Covers&rdquo; folder.</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      Add images named after issue titles (e.g. "Spider-Man 300.jpg") to your Google Drive folder and click Re-scan!
+                      Add images named after issue titles (e.g. &ldquo;Spider-Man 300.jpg&rdquo;) to your Google Drive folder and click Re-scan!
                     </p>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-1 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
-                    {syncResult?.coverFiles.map((file) => {
-                      const fileUrl = mkDriveViewUrl(file.id);
-                      const matchedComic = comics.find(
-                        (c) => c.coverImage === fileUrl || (c.coverImage && c.coverImage.includes(file.id))
-                      );
-
-                      const suggestedComic = !matchedComic
-                        ? comics.find((c) => doesFileNameMatchComic(file.name, c.title, c.issueNumber, c.volume))
-                        : undefined;
-
-                      return (
-                        <div
-                          key={file.id}
-                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 flex flex-col justify-between space-y-2 shadow-xs group"
-                        >
-                          <div className="relative aspect-3/4 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
-                            <img
-                              src={mkDriveViewUrl(file.id)}
-                              alt={file.name}
-                              onError={handleImageError}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                            {matchedComic ? (
-                              <div className="absolute top-1 right-1 bg-emerald-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
-                                <Check className="w-2.5 h-2.5" /> Linked
-                              </div>
-                            ) : suggestedComic ? (
-                              <div className="absolute top-1 right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
-                                <Sparkles className="w-2.5 h-2.5" /> Match
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div className="space-y-1">
-                            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate" title={file.name}>
-                              {file.name}
-                            </p>
-                            
-                            {/* Vault Comic Selector to Link */}
-                            <select
-                              value={matchedComic ? matchedComic.id : (suggestedComic ? suggestedComic.id : '')}
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                handleLinkSingleCover(e.target.value, file.id);
-                                }
-                              }}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[10px] px-1.5 py-1 font-medium text-slate-700 dark:text-slate-300"
-                            >
-                              <option value="">Link to Comic...</option>
-                              {suggestedComic && !matchedComic && (
-                                <option value={suggestedComic.id}>
-                                  ✨ Suggested: {suggestedComic.title} #{suggestedComic.issueNumber}
-                                </option>
-                              )}
-                              {comics.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.title} #{c.issueNumber}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      );
-                    })}
+                ) : sortedAndFilteredCoverFiles.length === 0 ? (
+                  <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-500 dark:text-slate-400 space-y-1">
+                    <p className="text-xs font-semibold">No cover files match &ldquo;{fileSearchQuery}&rdquo;</p>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto p-1.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
+                      {sortedAndFilteredCoverFiles.slice(0, visibleCardCount).map((file) => {
+                        const assignedComicId = stagedAssignments[file.id] || '';
+                        const assignedComic = comics.find((c) => c.id === assignedComicId);
+                        const isLinked = isFileLinkedToComic(file.id, assignedComic);
+                        const isPending = !!assignedComic && !isLinked;
+
+                        return (
+                          <div
+                            key={file.id}
+                            className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 flex flex-col justify-between space-y-2 shadow-xs group transition-all ${
+                              isLinked
+                                ? 'border-emerald-300 dark:border-emerald-800/80 bg-emerald-50/20 dark:bg-emerald-950/10'
+                                : isPending
+                                ? 'border-indigo-300 dark:border-indigo-800/80 bg-indigo-50/20 dark:bg-indigo-950/10'
+                                : 'border-slate-200 dark:border-slate-800'
+                            }`}
+                          >
+                            <div className="relative aspect-3/4 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                              <img
+                                src={mkDriveViewUrl(file.id)}
+                                alt={file.name}
+                                onError={handleImageError}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              {isLinked ? (
+                                <div className="absolute top-1 right-1 bg-emerald-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                                  <Check className="w-2.5 h-2.5" /> Linked
+                                </div>
+                              ) : isPending ? (
+                                <div className="absolute top-1 right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                                  <Sparkles className="w-2.5 h-2.5" /> Ready to Link
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate" title={file.name}>
+                                {file.name}
+                              </p>
+                              
+                              {/* Vault Comic Selector */}
+                              <select
+                                value={assignedComicId}
+                                onChange={(e) => {
+                                  const newComicId = e.target.value;
+                                  setStagedAssignments((prev) => ({ ...prev, [file.id]: newComicId }));
+                                }}
+                                className={`w-full border rounded text-[10px] px-1.5 py-1 font-medium transition-colors ${
+                                  isLinked
+                                    ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 font-bold'
+                                    : isPending
+                                    ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold'
+                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                <option value="">(No comic assigned)</option>
+                                {comicOptions}
+                              </select>
+
+                              {/* Action Button / Status per card */}
+                              {isPending ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleLinkSingleCover(file.id)}
+                                  disabled={isLinking}
+                                  className="w-full py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 shadow-xs cursor-pointer transition-colors"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>Link This Cover</span>
+                                </button>
+                              ) : isLinked ? (
+                                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 py-0.5">
+                                  <Check className="w-3 h-3" />
+                                  <span>Linked to Vault</span>
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-0.5">
+                                  Select a comic above
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {sortedAndFilteredCoverFiles.length > visibleCardCount && (
+                      <div className="text-center pt-1 pb-1">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCardCount((prev) => prev + 48)}
+                          className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                        >
+                          Show More Covers ({Math.min(visibleCardCount, sortedAndFilteredCoverFiles.length)} of {sortedAndFilteredCoverFiles.length})
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -465,14 +743,46 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <span>Google Drive OAuth API Connected</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-bold rounded-xl shadow-xs cursor-pointer"
-          >
-            Done
-          </button>
+        <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <span>Google Drive Connected</span>
+            {pendingMatches.length > 0 && (
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                • {pendingMatches.length} cover{pendingMatches.length === 1 ? '' : 's'} waiting to be linked
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {pendingMatches.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3.5 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                >
+                  Close without Linking
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDone}
+                  disabled={isLinking}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Link {pendingMatches.length} Cover{pendingMatches.length === 1 ? '' : 's'} & Done</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer"
+              >
+                Done
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

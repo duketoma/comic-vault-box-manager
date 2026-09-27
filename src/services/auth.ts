@@ -15,6 +15,12 @@ export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (typeof window !== 'undefined' && (window as any).__MOCK_AUTH__) {
+    const mock = (window as any).__MOCK_AUTH__;
+    if (onAuthSuccess) onAuthSuccess(mock.user, mock.token);
+    return () => {};
+  }
+
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
