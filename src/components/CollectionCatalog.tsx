@@ -3,7 +3,20 @@ import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, getMonthIndex, MONTH_NAMES } from '../utils/dateUtils';
-import { compareComicsByTitleAndIssue, parseIntegerIssueNumber } from '../utils/comicSortUtils';
+import { 
+  compareComicsByTitleAndIssue, 
+  parseIntegerIssueNumber,
+  MultiSortOptions,
+  SortCriterion,
+  ComicSortField,
+  SORT_PRESETS,
+  DEFAULT_MULTI_SORT_OPTIONS,
+  compareComicsMultiSort,
+  detectActivePresetId,
+  getSortFieldLabel,
+  getSortDirectionLabel,
+} from '../utils/comicSortUtils';
+import { CatalogSortModal } from './CatalogSortModal';
 import { 
   Grid3X3, 
   List, 
@@ -25,7 +38,11 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  Check
+  Check,
+  SlidersHorizontal,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw
 } from 'lucide-react';
 
 interface CollectionCatalogProps {
@@ -70,8 +87,84 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [yearRange, setYearRange] = useState<[number, number]>([1930, 2026]);
-  const [sortBy, setSortBy] = useState<'title' | 'year' | 'thickness' | 'value' | 'rating'>('title');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [multiSortOptions, setMultiSortOptions] = useState<MultiSortOptions>(() => {
+    try {
+      const saved = localStorage.getItem('comic_vault_catalog_sort_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.criteria) && parsed.criteria.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved catalog sort config:', e);
+    }
+    return DEFAULT_MULTI_SORT_OPTIONS;
+  });
+
+  const [isSortModalOpen, setIsSortModalOpen] = useState<boolean>(false);
+
+  const updateMultiSortOptions = (newOptions: MultiSortOptions) => {
+    setMultiSortOptions(newOptions);
+    try {
+      localStorage.setItem('comic_vault_catalog_sort_v1', JSON.stringify(newOptions));
+    } catch (e) {
+      console.error('Failed to save catalog sort config:', e);
+    }
+  };
+
+  const activePresetId = detectActivePresetId(multiSortOptions);
+  const activePreset = SORT_PRESETS.find((p) => p.id === activePresetId);
+
+  const handleColumnHeaderClick = (field: ComicSortField, shiftKey: boolean = false) => {
+    if (shiftKey) {
+      const existingIdx = multiSortOptions.criteria.findIndex((c) => c.field === field);
+      if (existingIdx >= 0) {
+        const newCrit = [...multiSortOptions.criteria];
+        newCrit[existingIdx] = {
+          ...newCrit[existingIdx],
+          direction: newCrit[existingIdx].direction === 'asc' ? 'desc' : 'asc',
+        };
+        updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+      } else {
+        const newCriterion: SortCriterion = {
+          id: `crit-${Date.now()}`,
+          field,
+          direction: 'asc',
+        };
+        updateMultiSortOptions({
+          ...multiSortOptions,
+          criteria: [...multiSortOptions.criteria, newCriterion],
+        });
+      }
+    } else {
+      const primary = multiSortOptions.criteria[0];
+      if (primary && primary.field === field) {
+        const newCrit = [...multiSortOptions.criteria];
+        newCrit[0] = { ...primary, direction: primary.direction === 'asc' ? 'desc' : 'asc' };
+        updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+      } else {
+        const remaining = multiSortOptions.criteria.filter((c) => c.field !== field);
+        const newCrit: SortCriterion[] = [
+          { id: `crit-${Date.now()}`, field, direction: 'asc' },
+          ...remaining,
+        ];
+        updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+      }
+    }
+  };
+
+  const getColumnSortIndicator = (field: ComicSortField) => {
+    const idx = multiSortOptions.criteria.findIndex((c) => c.field === field);
+    if (idx < 0) return null;
+    const criterion = multiSortOptions.criteria[idx];
+    return (
+      <span className="inline-flex items-center gap-0.5 ml-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-1 py-0.2 rounded border border-indigo-200 dark:border-indigo-800">
+        <span>{idx + 1}</span>
+        {criterion.direction === 'asc' ? '▲' : '▼'}
+      </span>
+    );
+  };
 
   // Extract unique filter options
   const seriesList = useMemo(() => {
@@ -312,33 +405,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       if (c.publicationYear < yearRange[0] || c.publicationYear > yearRange[1]) return false;
 
       return true;
-    }).sort((a, b) => {
-      let result = 0;
-      if (sortBy === 'title') {
-        result = compareComicsByTitleAndIssue(a, b);
-      } else if (sortBy === 'year') {
-        result = a.publicationYear - b.publicationYear || getMonthIndex(a.publicationMonth) - getMonthIndex(b.publicationMonth);
-        if (result === 0) {
-          result = compareComicsByTitleAndIssue(a, b);
-        }
-      } else if (sortBy === 'thickness') {
-        result = a.sizeThickness - b.sizeThickness;
-        if (result === 0) {
-          result = compareComicsByTitleAndIssue(a, b);
-        }
-      } else if (sortBy === 'value') {
-        result = (a.estimatedValue || 0) - (b.estimatedValue || 0);
-        if (result === 0) {
-          result = compareComicsByTitleAndIssue(a, b);
-        }
-      } else if (sortBy === 'rating') {
-        result = (a.userRating || 0) - (b.userRating || 0);
-        if (result === 0) {
-          result = compareComicsByTitleAndIssue(a, b);
-        }
-      }
-      return sortOrder === 'asc' ? result : -result;
-    });
+    }).sort((a, b) => compareComicsMultiSort(a, b, multiSortOptions));
   }, [
     comics,
     searchQuery,
@@ -355,8 +422,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     startDate,
     endDate,
     yearRange,
-    sortBy,
-    sortOrder,
+    multiSortOptions,
     seriesStatsMap,
   ]);
 
@@ -639,31 +705,176 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
             </select>
           </div>
 
-          {/* Sort By */}
+          {/* Multi-Sort Selector */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Sort By</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                Sort Order
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsSortModalOpen(true)}
+                className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer"
+              >
+                Customize ({multiSortOptions.criteria.length})
+              </button>
+            </div>
             <div className="flex items-center gap-1">
               <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600"
+                value={activePresetId || 'custom'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'custom') {
+                    setIsSortModalOpen(true);
+                  } else {
+                    const preset = SORT_PRESETS.find(p => p.id === val);
+                    if (preset) {
+                      updateMultiSortOptions({
+                        criteria: preset.criteria.map(c => ({ ...c })),
+                        separateAnnuals: preset.separateAnnuals,
+                        emptyEventPlacement: preset.emptyEventPlacement || 'last',
+                      });
+                    }
+                  }
+                }}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="title">Title</option>
-                <option value="year">Year</option>
-                <option value="thickness">Size Units</option>
-                <option value="value">Est. Value</option>
-                <option value="rating">Rating</option>
+                {SORT_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+                {!activePresetId && (
+                  <option value="custom">
+                    Custom ({multiSortOptions.criteria.length} Levels)...
+                  </option>
+                )}
               </select>
               <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                title={`Order: ${sortOrder.toUpperCase()}`}
+                type="button"
+                onClick={() => {
+                  const newCrit = [...multiSortOptions.criteria];
+                  if (newCrit.length > 0) {
+                    newCrit[0] = {
+                      ...newCrit[0],
+                      direction: newCrit[0].direction === 'asc' ? 'desc' : 'asc',
+                    };
+                    updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+                  }
+                }}
+                className="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer shrink-0"
+                title={`Toggle direction of Level 1: ${getSortFieldLabel(multiSortOptions.criteria[0]?.field || 'publisher')}`}
               >
                 <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSortModalOpen(true)}
+                className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-md text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer shrink-0"
+                title="Configure Multi-Sort Rules"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
+        </div>
+      </div>
+
+      {/* Interactive Multi-Sort Chain Toolbar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5 shrink-0">
+            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Sort Hierarchy:</span>
+          </span>
+
+          {/* Sort Chain Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {multiSortOptions.criteria.map((criterion, idx) => {
+              const fieldLabel = getSortFieldLabel(criterion.field);
+              const dirLabel = getSortDirectionLabel(criterion.field, criterion.direction);
+              return (
+                <div
+                  key={criterion.id}
+                  className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-2 pr-1.5 py-1 text-slate-800 dark:text-slate-200 group hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors"
+                >
+                  <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-1 rounded">
+                    L{idx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newCrit = [...multiSortOptions.criteria];
+                      newCrit[idx] = {
+                        ...newCrit[idx],
+                        direction: newCrit[idx].direction === 'asc' ? 'desc' : 'asc',
+                      };
+                      updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+                    }}
+                    className="font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1"
+                    title={`Click to flip direction (${dirLabel})`}
+                  >
+                    <span>{fieldLabel}</span>
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                      ({criterion.direction === 'asc' ? '↑' : '↓'} {dirLabel})
+                    </span>
+                  </button>
+                  {multiSortOptions.criteria.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newCrit = multiSortOptions.criteria.filter((_, i) => i !== idx);
+                        updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+                      }}
+                      className="text-slate-400 hover:text-rose-500 ml-0.5 p-0.5 rounded transition-colors cursor-pointer"
+                      title="Remove this sort level"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Annuals Separation Badge Button */}
+          <button
+            type="button"
+            onClick={() => updateMultiSortOptions({
+              ...multiSortOptions,
+              separateAnnuals: !multiSortOptions.separateAnnuals,
+            })}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer flex items-center gap-1.5 ${
+              multiSortOptions.separateAnnuals
+                ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/80'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 line-through'
+            }`}
+            title="Toggle keeping Annuals grouped together separate from regular numbered titles"
+          >
+            <span>Annuals: {multiSortOptions.separateAnnuals ? 'Separate ✓' : 'Interleaved'}</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {activePreset ? (
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 hidden sm:inline">
+              Preset: <strong className="text-slate-800 dark:text-slate-200">{activePreset.shortLabel}</strong>
+            </span>
+          ) : (
+            <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 hidden sm:inline">
+              Custom Multi-Sort
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsSortModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Customize Multi-Sort...</span>
+          </button>
         </div>
       </div>
 
@@ -1118,15 +1329,96 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
             <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
               <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="py-3 px-4">Comic Title & Issue</th>
-                  <th className="py-3 px-3">Publisher & Year</th>
-                  <th className="py-3 px-3">Creator / Artist</th>
-                  <th className="py-3 px-3">Format</th>
-                  <th className="py-3 px-3">Size Units</th>
-                  <th className="py-3 px-3">Storage Box</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3">Rating</th>
-                  <th className="py-3 px-3 text-right">Est. Value</th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('seriesName', e.shiftKey)}
+                    className="py-3 px-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Title & Issue. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Comic Title & Issue</span>
+                      {getColumnSortIndicator('seriesName') || getColumnSortIndicator('title') || getColumnSortIndicator('issueNumber')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('publisher', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Publisher. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Publisher & Year</span>
+                      {getColumnSortIndicator('publisher') || getColumnSortIndicator('publicationYear')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('writer', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Creator/Artist. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Creator / Artist</span>
+                      {getColumnSortIndicator('writer') || getColumnSortIndicator('artist')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('format', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Format. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Format</span>
+                      {getColumnSortIndicator('format')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('sizeThickness', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Size Thickness. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Size Units</span>
+                      {getColumnSortIndicator('sizeThickness')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('currentBoxId', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Storage Box. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Storage Box</span>
+                      {getColumnSortIndicator('currentBoxId')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('readingStatus', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Reading Status. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Status</span>
+                      {getColumnSortIndicator('readingStatus')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('userRating', e.shiftKey)}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Rating. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Rating</span>
+                      {getColumnSortIndicator('userRating')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={(e) => handleColumnHeaderClick('estimatedValue', e.shiftKey)}
+                    className="py-3 px-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    title="Click to sort by Estimated Value. Shift+click to add to multi-sort."
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <span>Est. Value</span>
+                      {getColumnSortIndicator('estimatedValue')}
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1284,6 +1576,14 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
           </div>
         </div>
       )}
+
+      {/* Multi-Sort Configuration Modal */}
+      <CatalogSortModal
+        isOpen={isSortModalOpen}
+        onClose={() => setIsSortModalOpen(false)}
+        options={multiSortOptions}
+        onChange={updateMultiSortOptions}
+      />
     </div>
   );
 };

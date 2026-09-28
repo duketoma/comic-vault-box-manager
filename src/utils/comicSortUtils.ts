@@ -19,7 +19,7 @@ export interface ParsedIssueNumber {
  * - Fractions: "1/2" -> 0.5, "3/4" -> 0.75
  * - Letter suffixes: "1A", "1B", "1-A", "1 (Variant)"
  * - Multi-issue ranges: "1-13", "#1-13 Set", "#227-233"
- * - Prefixed/named issues: "Annual 1", "TPB 1", "Special #2", "Vol. 1"
+ * - Prefixed/named issues: "Annual 1", "Annual '95", "TPB 1", "Special #2", "Vol. 1"
  * - Non-numeric: "Deluxe HC", "One-Shot", "Graphic Novel"
  */
 export function parseIssueNumber(val?: string | number): ParsedIssueNumber {
@@ -55,12 +55,14 @@ export function parseIssueNumber(val?: string | number): ParsedIssueNumber {
     };
   }
 
-  // Label prefix like 'Annual 1', 'TPB 2', 'Vol. 1', 'Special #3', 'Giant-Size #1', 'Flashback #-1'
-  const labelMatch = str.match(/^([a-zA-Z\s.-]+?)\s*#?\s*(-?\d+(?:\.\d+)?)(.*)$/);
+  // Label prefix like 'Annual 1', 'Annual '95', 'TPB 2', 'Vol. 1', 'Special #3', 'Giant-Size #1', 'Flashback #-1'
+  const labelMatch = str.match(/^([a-zA-Z\s.'-]+?)\s*#?\s*'?(-?\d+(?:\.\d+)?)(.*)$/);
   if (labelMatch && isNaN(Number(str))) {
+    const rawPrefix = labelMatch[1].replace(/['.]/g, '').trim().toLowerCase();
+    const rawMajor = parseFloat(labelMatch[2]);
     return {
-      prefix: labelMatch[1].trim().toLowerCase(),
-      major: parseFloat(labelMatch[2]),
+      prefix: rawPrefix,
+      major: rawMajor,
       minor: 0,
       suffix: labelMatch[3].trim().toLowerCase(),
       isRange: false,
@@ -85,6 +87,98 @@ export function parseIssueNumber(val?: string | number): ParsedIssueNumber {
 
   // Purely text/non-numeric issue
   return { prefix: str.toLowerCase(), major: 0, minor: 0, suffix: '', isRange: false, isText: true, raw: String(val) };
+}
+
+/**
+ * Checks whether a comic represents an Annual publication.
+ * Detects annuals via issue number ('Annual 1', 'Annual #20'), title ('Fantastic Four Annual'),
+ * fullTitle ('Fantastic Four Annual #20'), seriesName, or tags.
+ */
+export function isAnnualComic(comic?: Partial<ComicBook> | null): boolean {
+  if (!comic) return false;
+
+  // 1. Issue number prefix or text
+  if (comic.issueNumber !== undefined && comic.issueNumber !== null) {
+    const rawIssue = String(comic.issueNumber).trim();
+    if (/\bannual\b/i.test(rawIssue)) return true;
+    const parsed = parseIssueNumber(rawIssue);
+    if (parsed.prefix.toLowerCase().includes('annual')) return true;
+  }
+
+  // 2. Comic Title (e.g. "Fantastic Four Annual")
+  if (comic.title && /\bannual\b/i.test(comic.title)) {
+    return true;
+  }
+
+  // 3. Full Title (e.g. "Fantastic Four Annual #20")
+  if (comic.fullTitle && /\bannual\b/i.test(comic.fullTitle)) {
+    return true;
+  }
+
+  // 4. Series Name (if series itself contains Annual)
+  if (comic.seriesName && /\bannual\b/i.test(comic.seriesName)) {
+    return true;
+  }
+
+  // 5. Tags
+  if (Array.isArray(comic.tags) && comic.tags.some(t => /\bannual\b/i.test(t))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Extracts a numeric value for ordering annuals among themselves.
+ * Handles issue numbers (#20, Annual 1) and year designations (Annual '95 -> 1995, Annual 1998 -> 1998).
+ */
+export function getAnnualNumericValue(comic: Partial<ComicBook>): number {
+  if (comic.issueNumber !== undefined && comic.issueNumber !== null) {
+    const parsed = parseIssueNumber(comic.issueNumber);
+    if (parsed.major > 1) {
+      return parsed.major;
+    }
+    if (parsed.prefix.toLowerCase().includes('annual') && parsed.major >= 1) {
+      return parsed.major;
+    }
+  }
+
+  // Extract from title or fullTitle (e.g. "Generation X Annual '95" -> 1995, "Fantastic Four Annual #20" -> 20)
+  const titleStr = `${comic.title || ''} ${comic.fullTitle || ''}`;
+  const yearApostropheMatch = titleStr.match(/annual\s+'(\d{2})\b/i);
+  if (yearApostropheMatch) {
+    const y = parseInt(yearApostropheMatch[1], 10);
+    return y < 50 ? 2000 + y : 1900 + y;
+  }
+
+  const year4DigitMatch = titleStr.match(/annual\s+(?:19|20)(\d{2})\b/i);
+  if (year4DigitMatch) {
+    return parseInt(year4DigitMatch[0].replace(/\D/g, ''), 10);
+  }
+
+  const numMatch = titleStr.match(/annual\s+#?(\d+)/i);
+  if (numMatch) {
+    return parseFloat(numMatch[1]);
+  }
+
+  if (comic.issueNumber !== undefined && comic.issueNumber !== null) {
+    const parsed = parseIssueNumber(comic.issueNumber);
+    if (parsed.major >= 1) return parsed.major;
+  }
+
+  return 0;
+}
+
+/**
+ * Compares two annual comics to order them correctly (e.g. Annual 1 < Annual 2 < Annual '95 < Annual '96).
+ */
+export function compareAnnualComics(a: ComicBook, b: ComicBook): number {
+  const numA = getAnnualNumericValue(a);
+  const numB = getAnnualNumericValue(b);
+  if (numA !== numB) {
+    return numA - numB;
+  }
+  return compareIssueNumbers(a.issueNumber, b.issueNumber);
 }
 
 /**
@@ -126,6 +220,31 @@ export function compareIssueNumbers(a?: string | number, b?: string | number): n
   }
 
   return pA.raw.localeCompare(pB.raw, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * Natural issue number comparison with explicit Annuals separation support.
+ * When separateAnnuals is true, regular issues (#1, #2, #300) come before Annuals (Annual #1, #2...).
+ */
+export function compareIssueNumbersWithAnnuals(
+  a: ComicBook,
+  b: ComicBook,
+  separateAnnuals: boolean = true
+): number {
+  if (separateAnnuals) {
+    const aAnnual = isAnnualComic(a);
+    const bAnnual = isAnnualComic(b);
+    if (aAnnual !== bAnnual) {
+      // Regular issues (0) come before Annuals (1)
+      return aAnnual ? 1 : -1;
+    }
+    if (aAnnual && bAnnual) {
+      const annualCmp = compareAnnualComics(a, b);
+      if (annualCmp !== 0) return annualCmp;
+    }
+  }
+
+  return compareIssueNumbers(a.issueNumber, b.issueNumber);
 }
 
 /**
@@ -176,8 +295,8 @@ export function compareComicsByTitleAndIssue(a: ComicBook, b: ComicBook): number
     if (sCmp !== 0) return sCmp;
   }
 
-  // Compare issue numbers naturally (e.g. 1, 2, 10, 100)
-  const issueCmp = compareIssueNumbers(a.issueNumber, b.issueNumber);
+  // Compare issue numbers naturally with annuals separation
+  const issueCmp = compareIssueNumbersWithAnnuals(a, b, true);
   if (issueCmp !== 0) return issueCmp;
 
   // Tie-breakers: publication year
@@ -204,4 +323,404 @@ export function parseIntegerIssueNumber(val?: string | number): number {
   const clean = String(val).trim().replace(/^#\s*/, '');
   const num = parseInt(clean, 10);
   return isNaN(num) ? NaN : num;
+}
+
+/* ==========================================================================
+   MULTI-SORT SYSTEM DEFINITIONS, PRESETS & COMPARATORS
+   ========================================================================== */
+
+export type ComicSortField =
+  | 'publisher'
+  | 'event'
+  | 'seriesName'
+  | 'issueNumber'
+  | 'title'
+  | 'publicationYear'
+  | 'currentBoxId'
+  | 'sizeThickness'
+  | 'estimatedValue'
+  | 'userRating'
+  | 'readingStatus'
+  | 'format'
+  | 'genre'
+  | 'writer'
+  | 'artist';
+
+export type SortDirection = 'asc' | 'desc';
+
+export interface SortCriterion {
+  id: string;
+  field: ComicSortField;
+  direction: SortDirection;
+}
+
+export interface MultiSortOptions {
+  criteria: SortCriterion[];
+  separateAnnuals: boolean; // default true
+  emptyEventPlacement?: 'first' | 'last'; // default 'last'
+}
+
+export interface SortPreset {
+  id: string;
+  label: string;
+  shortLabel: string;
+  description: string;
+  criteria: SortCriterion[];
+  separateAnnuals: boolean;
+  emptyEventPlacement?: 'first' | 'last';
+}
+
+export const SORT_PRESETS: SortPreset[] = [
+  {
+    id: 'box_organizer',
+    label: 'Box Organizer (Publisher → Event → Series → Issue)',
+    shortLabel: 'Box Organizer',
+    description: 'Publisher, Crossover Event, Series Name, Issue Number (Annuals separate)',
+    criteria: [
+      { id: 'crit-pub', field: 'publisher', direction: 'asc' },
+      { id: 'crit-evt', field: 'event', direction: 'asc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'series_issue',
+    label: 'Series & Issue (Standard Run)',
+    shortLabel: 'Series & Issue',
+    description: 'Series Name, Issue Number (Annuals separate), Publication Year',
+    criteria: [
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+      { id: 'crit-year', field: 'publicationYear', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'publisher_series',
+    label: 'Publisher & Series',
+    shortLabel: 'Publisher & Series',
+    description: 'Publisher, Series Name, Issue Number',
+    criteria: [
+      { id: 'crit-pub', field: 'publisher', direction: 'asc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'events_first',
+    label: 'Crossover Events First',
+    shortLabel: 'Crossover Events',
+    description: 'Crossover Event, Series Name, Issue Number',
+    criteria: [
+      { id: 'crit-evt', field: 'event', direction: 'asc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'chronological',
+    label: 'Chronological Release Date',
+    shortLabel: 'Release Date',
+    description: 'Publication Date (Oldest First), Series Name, Issue Number',
+    criteria: [
+      { id: 'crit-year', field: 'publicationYear', direction: 'asc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'value_desc',
+    label: 'Estimated Value (Highest First)',
+    shortLabel: 'Est. Value',
+    description: 'Estimated market value from high to low',
+    criteria: [
+      { id: 'crit-val', field: 'estimatedValue', direction: 'desc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'storage_box',
+    label: 'Storage Box Location',
+    shortLabel: 'Storage Box',
+    description: 'Storage Box # (0 to 15), Series Name, Issue Number',
+    criteria: [
+      { id: 'crit-box', field: 'currentBoxId', direction: 'asc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'rating_desc',
+    label: 'User Rating (5 Stars First)',
+    shortLabel: 'User Rating',
+    description: 'Highest user rated issues first',
+    criteria: [
+      { id: 'crit-rating', field: 'userRating', direction: 'desc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+  {
+    id: 'thickness_desc',
+    label: 'Thickness / Size Units',
+    shortLabel: 'Thickness',
+    description: 'Thickest graphic novels / TPBs first',
+    criteria: [
+      { id: 'crit-thick', field: 'sizeThickness', direction: 'desc' },
+      { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+      { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+    ],
+    separateAnnuals: true,
+    emptyEventPlacement: 'last',
+  },
+];
+
+export const DEFAULT_MULTI_SORT_OPTIONS: MultiSortOptions = {
+  criteria: [
+    { id: 'crit-pub', field: 'publisher', direction: 'asc' },
+    { id: 'crit-evt', field: 'event', direction: 'asc' },
+    { id: 'crit-series', field: 'seriesName', direction: 'asc' },
+    { id: 'crit-issue', field: 'issueNumber', direction: 'asc' },
+  ],
+  separateAnnuals: true,
+  emptyEventPlacement: 'last',
+};
+
+export const SORT_FIELD_OPTIONS: { field: ComicSortField; label: string; group: string }[] = [
+  { field: 'publisher', label: 'Publisher', group: 'Organization' },
+  { field: 'event', label: 'Crossover Event', group: 'Organization' },
+  { field: 'seriesName', label: 'Series Name', group: 'Title & Series' },
+  { field: 'issueNumber', label: 'Issue Number', group: 'Title & Series' },
+  { field: 'title', label: 'Comic Title', group: 'Title & Series' },
+  { field: 'publicationYear', label: 'Publication Year / Date', group: 'Date & Logistics' },
+  { field: 'currentBoxId', label: 'Storage Box #', group: 'Date & Logistics' },
+  { field: 'sizeThickness', label: 'Size Units (Thickness)', group: 'Date & Logistics' },
+  { field: 'estimatedValue', label: 'Estimated Value ($)', group: 'Collection Value' },
+  { field: 'userRating', label: 'User Rating (★)', group: 'Collection Value' },
+  { field: 'readingStatus', label: 'Reading Status', group: 'Status & Metadata' },
+  { field: 'format', label: 'Format (Single, TPB, etc.)', group: 'Status & Metadata' },
+  { field: 'genre', label: 'Genre', group: 'Status & Metadata' },
+  { field: 'writer', label: 'Writer', group: 'Creators' },
+  { field: 'artist', label: 'Artist', group: 'Creators' },
+];
+
+export function getSortFieldLabel(field: ComicSortField): string {
+  const item = SORT_FIELD_OPTIONS.find(o => o.field === field);
+  return item ? item.label : field;
+}
+
+export function getSortDirectionLabel(field: ComicSortField, direction: SortDirection): string {
+  if (direction === 'asc') {
+    switch (field) {
+      case 'issueNumber':
+        return '#1 → #999';
+      case 'publicationYear':
+        return 'Oldest First';
+      case 'currentBoxId':
+        return 'Box 0 → 15';
+      case 'sizeThickness':
+        return 'Thinnest';
+      case 'estimatedValue':
+        return '$ Low → High';
+      case 'userRating':
+        return '★ 1 → 5';
+      case 'readingStatus':
+        return 'Reading → Wishlist';
+      default:
+        return 'A → Z';
+    }
+  } else {
+    switch (field) {
+      case 'issueNumber':
+        return '#999 → #1';
+      case 'publicationYear':
+        return 'Newest First';
+      case 'currentBoxId':
+        return 'Box 15 → 0';
+      case 'sizeThickness':
+        return 'Thickest';
+      case 'estimatedValue':
+        return '$ High → Low';
+      case 'userRating':
+        return '★ 5 → 1';
+      case 'readingStatus':
+        return 'Wishlist → Reading';
+      default:
+        return 'Z → A';
+    }
+  }
+}
+
+export function detectActivePresetId(options: MultiSortOptions): string | null {
+  for (const preset of SORT_PRESETS) {
+    if (preset.separateAnnuals !== options.separateAnnuals) continue;
+    if (preset.criteria.length !== options.criteria.length) continue;
+    const allMatch = preset.criteria.every((c, i) => {
+      const oc = options.criteria[i];
+      return oc && oc.field === c.field && oc.direction === c.direction;
+    });
+    if (allMatch) return preset.id;
+  }
+  return null;
+}
+
+/**
+ * Compares two comic books by a specific single field.
+ */
+export function compareComicsByField(
+  a: ComicBook,
+  b: ComicBook,
+  field: ComicSortField,
+  options: MultiSortOptions
+): number {
+  switch (field) {
+    case 'publisher': {
+      const pubA = (a.publisher || '').trim();
+      const pubB = (b.publisher || '').trim();
+      return pubA.localeCompare(pubB, undefined, { numeric: true, sensitivity: 'base' });
+    }
+    case 'event': {
+      const evA = (a.event || '').trim();
+      const evB = (b.event || '').trim();
+      if (!evA && !evB) return 0;
+      const placement = options.emptyEventPlacement || 'last';
+      if (!evA) return placement === 'last' ? 1 : -1;
+      if (!evB) return placement === 'last' ? -1 : 1;
+      return evA.localeCompare(evB, undefined, { numeric: true, sensitivity: 'base' });
+    }
+    case 'seriesName': {
+      const sA = (a.seriesName || a.title || '').trim();
+      const sB = (b.seriesName || b.title || '').trim();
+      const cmp = sA.localeCompare(sB, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+      if (options.separateAnnuals) {
+        const aAnn = isAnnualComic(a);
+        const bAnn = isAnnualComic(b);
+        if (aAnn !== bAnn) return aAnn ? 1 : -1;
+      }
+      return 0;
+    }
+    case 'issueNumber': {
+      return compareIssueNumbersWithAnnuals(a, b, options.separateAnnuals);
+    }
+    case 'title': {
+      const tA = getComicTitle(a);
+      const tB = getComicTitle(b);
+      const cmp = tA.localeCompare(tB, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+      if (options.separateAnnuals) {
+        const aAnn = isAnnualComic(a);
+        const bAnn = isAnnualComic(b);
+        if (aAnn !== bAnn) return aAnn ? 1 : -1;
+      }
+      return 0;
+    }
+    case 'publicationYear': {
+      const yA = a.publicationYear || 0;
+      const yB = b.publicationYear || 0;
+      if (yA !== yB) return yA - yB;
+      const dateA = a.publicationDate || (a.publicationMonth ? `${yA}-${a.publicationMonth}` : '');
+      const dateB = b.publicationDate || (b.publicationMonth ? `${yB}-${b.publicationMonth}` : '');
+      return dateA.localeCompare(dateB);
+    }
+    case 'currentBoxId': {
+      const boxA = a.currentBoxId ?? 0;
+      const boxB = b.currentBoxId ?? 0;
+      return boxA - boxB;
+    }
+    case 'sizeThickness': {
+      return (a.sizeThickness || 1.0) - (b.sizeThickness || 1.0);
+    }
+    case 'estimatedValue': {
+      return (a.estimatedValue || 0) - (b.estimatedValue || 0);
+    }
+    case 'userRating': {
+      return (a.userRating || 0) - (b.userRating || 0);
+    }
+    case 'readingStatus': {
+      const statusWeight: Record<string, number> = {
+        Reading: 1,
+        Unread: 2,
+        Read: 3,
+        Wishlist: 4,
+      };
+      const wA = statusWeight[a.readingStatus] ?? 99;
+      const wB = statusWeight[b.readingStatus] ?? 99;
+      return wA - wB;
+    }
+    case 'format': {
+      return (a.format || '').localeCompare(b.format || '');
+    }
+    case 'genre': {
+      return (a.genre || '').localeCompare(b.genre || '');
+    }
+    case 'writer': {
+      return (a.writer || '').localeCompare(b.writer || '');
+    }
+    case 'artist': {
+      return (a.artist || '').localeCompare(b.artist || '');
+    }
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Compares two comic books using a chain of multi-sort criteria.
+ */
+export function compareComicsMultiSort(
+  a: ComicBook,
+  b: ComicBook,
+  options: MultiSortOptions
+): number {
+  if (Array.isArray(options.criteria)) {
+    for (const criterion of options.criteria) {
+      const diff = compareComicsByField(a, b, criterion.field, options);
+      if (diff !== 0) {
+        // Special case: if sorting by event and one item has no event,
+        // ensure empty event stays at the configured placement (e.g. 'last') regardless of direction
+        if (criterion.field === 'event') {
+          const evA = (a.event || '').trim();
+          const evB = (b.event || '').trim();
+          if ((!evA && evB) || (evA && !evB)) {
+            const placement = options.emptyEventPlacement || 'last';
+            return placement === 'last' ? (!evA ? 1 : -1) : (!evA ? -1 : 1);
+          }
+        }
+        return criterion.direction === 'asc' ? diff : -diff;
+      }
+    }
+  }
+
+  // Fallback tie-breaker: Title & Issue, then ID
+  const fallback = compareComicsByTitleAndIssue(a, b);
+  if (fallback !== 0) return fallback;
+  return (a.id || '').localeCompare(b.id || '');
+}
+
+/**
+ * Sorts an array of comics using the specified MultiSortOptions.
+ */
+export function sortComicsMultiSort(
+  comics: ComicBook[],
+  options: MultiSortOptions
+): ComicBook[] {
+  if (!Array.isArray(comics)) return [];
+  return [...comics].sort((a, b) => compareComicsMultiSort(a, b, options));
 }
