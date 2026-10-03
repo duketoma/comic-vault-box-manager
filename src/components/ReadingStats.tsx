@@ -57,6 +57,7 @@ interface ReadingStatsProps {
   boxes: StorageBox[];
   seriesTotals?: SeriesIssueTotal[];
   onViewSeriesInCatalog?: (seriesName: string) => void;
+  onOpenGenerateWishlist?: (seriesName?: string) => void;
   initialSubTab?: 'events' | 'series' | 'creators' | 'achievements' | 'general';
 }
 
@@ -67,6 +68,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   boxes, 
   seriesTotals = [], 
   onViewSeriesInCatalog,
+  onOpenGenerateWishlist,
   initialSubTab = 'events' 
 }) => {
   // Navigation & Sub-Tab State
@@ -1529,6 +1531,17 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                           >
                             {copiedSeriesMissing === s.seriesName ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
                             <span>{copiedSeriesMissing === s.seriesName ? 'Copied!' : 'Copy Missing'}</span>
+                          </button>
+                        )}
+                        {onOpenGenerateWishlist && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenGenerateWishlist(s.seriesName)}
+                            className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer font-semibold"
+                            title="Generate missing issues as wishlist comics"
+                          >
+                            <Bookmark className="w-2.5 h-2.5" />
+                            <span>Add to Wishlist</span>
                           </button>
                         )}
                       </div>

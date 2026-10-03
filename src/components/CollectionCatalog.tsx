@@ -56,6 +56,7 @@ interface CollectionCatalogProps {
   seriesTotals?: SeriesIssueTotal[];
   selectedSeries?: string;
   onSelectSeries?: (series: string) => void;
+  onOpenGenerateWishlist?: (seriesName?: string) => void;
 }
 
 export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
@@ -67,6 +68,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   seriesTotals = [],
   selectedSeries: controlledSelectedSeries,
   onSelectSeries: onSelectSeriesProp,
+  onOpenGenerateWishlist,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [internalSelectedSeries, setInternalSelectedSeries] = useState<string>('all');
@@ -966,6 +968,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                     <>Showing all {comics.filter(c => (c.seriesName || c.title || '').trim().toLowerCase() === sKey).length} comics in this series</>
                   )}
                 </p>
+
+                {!publishedCount && onOpenGenerateWishlist && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenGenerateWishlist(selectedSeries)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center gap-1.5 transition-colors cursor-pointer w-fit"
+                      title="Set total issues and generate wishlist items for this series"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                      <span>Add Missing to Wishlist</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {publishedCount ? (
@@ -1038,6 +1054,18 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                             <span>Copy Missing Issues</span>
                           </>
                         )}
+                      </button>
+                    )}
+
+                    {onOpenGenerateWishlist && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenGenerateWishlist(selectedSeries)}
+                        className="text-[11px] font-bold px-2 py-1 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Automatically generate wishlist entries for missing issues in this series"
+                      >
+                        <Bookmark className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                        <span>Add Missing to Wishlist</span>
                       </button>
                     )}
 
@@ -1176,42 +1204,46 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                     </button>
                   )}
 
-                  {/* Box # Badge */}
+                  {/* Top-Right Badge: Wishlist or Box Location */}
                   <div className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 ${
-                    comic.currentBoxId === 0
-                      ? comic.readingStatus === 'Wishlist'
-                        ? 'bg-rose-900 text-white'
-                        : 'bg-amber-500 text-slate-950 font-extrabold'
-                      : 'bg-slate-900 dark:bg-slate-800 dark:border dark:border-slate-700 text-white'
+                    comic.readingStatus === 'Wishlist'
+                      ? 'bg-rose-900 text-white'
+                      : comic.currentBoxId === 0
+                        ? 'bg-amber-500 text-slate-950 font-extrabold'
+                        : 'bg-slate-900 dark:bg-slate-800 dark:border dark:border-slate-700 text-white'
                   }`}>
-                    <Boxes className="w-3 h-3" />
+                    {comic.readingStatus === 'Wishlist' ? (
+                      <Bookmark className="w-3 h-3" />
+                    ) : (
+                      <Boxes className="w-3 h-3" />
+                    )}
                     <span>
-                      {comic.currentBoxId === 0
-                        ? comic.readingStatus === 'Wishlist'
-                          ? 'Wishlist'
-                          : 'Box 0 (Unallocated)'
-                        : `Box ${comic.currentBoxId}`}
+                      {comic.readingStatus === 'Wishlist'
+                        ? 'Wishlist'
+                        : comic.currentBoxId === 0
+                          ? 'Box 0 (Unallocated)'
+                          : `Box ${comic.currentBoxId}`}
                     </span>
                   </div>
 
                   {/* Status Indicator Bar */}
                   <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-md border shadow-xs ${
-                        comic.readingStatus === 'Read'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
-                          : comic.readingStatus === 'Reading'
-                          ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800'
-                          : comic.readingStatus === 'Wishlist'
-                          ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-800'
-                          : 'bg-white/90 text-slate-700 border-slate-200 dark:bg-slate-900/90 dark:text-slate-300 dark:border-slate-700'
-                      }`}
-                    >
-                      {comic.readingStatus}
-                    </span>
+                    {comic.readingStatus !== 'Wishlist' && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-md border shadow-xs ${
+                          comic.readingStatus === 'Read'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
+                            : comic.readingStatus === 'Reading'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800'
+                            : 'bg-white/90 text-slate-700 border-slate-200 dark:bg-slate-900/90 dark:text-slate-300 dark:border-slate-700'
+                        }`}
+                      >
+                        {comic.readingStatus}
+                      </span>
+                    )}
 
                     {comic.userRating ? (
-                      <span className="flex items-center gap-0.5 bg-white/90 dark:bg-slate-900/90 text-amber-500 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-xs">
+                      <span className="ml-auto flex items-center gap-0.5 bg-white/90 dark:bg-slate-900/90 text-amber-500 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-xs">
                         <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                         {comic.userRating}
                       </span>

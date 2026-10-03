@@ -396,6 +396,24 @@ const comicUpsertSql = `
     } finally { client.release(); }
   });
 
+  app.post('/api/comics/batch', requireDatabase, async (req, res) => {
+    if (!Array.isArray(req.body?.comics)) return res.status(400).json({ error: 'comics must be an array.' });
+    const client = await pool!.connect();
+    try {
+      await client.query('BEGIN');
+      for (const comic of req.body.comics) {
+        await client.query(comicUpsertSql, comicValues(comic));
+      }
+      await client.query('COMMIT');
+      res.status(200).json({ success: true, count: req.body.comics.length });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL comic batch insert failed:', detail);
+      res.status(500).json({ error: `Unable to batch save comics: ${detail}` });
+    } finally { client.release(); }
+  });
+
   app.put('/api/boxes/:id', requireDatabase, async (req, res) => {
     if (Number(req.params.id) !== req.body?.id) return res.status(400).json({ error: 'Box ID must match the request path.' });
     try {

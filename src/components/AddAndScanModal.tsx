@@ -19,7 +19,8 @@ import {
   ArrowRight,
   ShieldAlert,
   Cloud,
-  Info
+  Info,
+  Bookmark
 } from 'lucide-react';
 
 interface AddAndScanModalProps {
@@ -30,6 +31,7 @@ interface AddAndScanModalProps {
   onAddComic: (newComic: ComicBook) => void;
   onUpdateComic?: (updatedComic: ComicBook) => void;
   initialScanMode?: boolean;
+  onOpenGenerateWishlist?: () => void;
 }
 
 export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
@@ -40,6 +42,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
   onAddComic,
   onUpdateComic,
   initialScanMode = false,
+  onOpenGenerateWishlist,
 }) => {
   const [activeMode, setActiveMode] = useState<'scan' | 'manual'>(initialScanMode ? 'scan' : 'manual');
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -241,6 +244,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     const isWishlist = readingStatus === 'Wishlist';
     const finalCopies = isWishlist ? 0 : (Number(copiesOwned) > 0 ? Number(copiesOwned) : 1);
+    const finalBoxId = isWishlist ? 0 : Number(currentBoxId);
 
     const newComic: ComicBook = {
       id: `c-${Date.now()}`,
@@ -260,7 +264,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       coverImage: coverImage || 'NoImage.png',
       format,
       sizeThickness: Number(sizeThickness) || 1.0,
-      currentBoxId: Number(currentBoxId),
+      currentBoxId: finalBoxId,
       readingStatus,
       readCount: readingStatus === 'Read' ? 1 : 0,
       condition,
@@ -326,6 +330,21 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
             <BookOpen className="w-4 h-4" />
             <span>Manual Entry Form</span>
           </button>
+
+          {onOpenGenerateWishlist && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenGenerateWishlist();
+              }}
+              className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50"
+              title="Automatically generate wishlist items for all missing issues in a series"
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Auto-Generate</span> Wishlist
+            </button>
+          )}
         </div>
 
         {/* Modal Body */}
@@ -510,12 +529,17 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">Copies Owned (Qty)</label>
+                  <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">
+                    Copies Owned (Qty)
+                    {readingStatus === 'Wishlist' && (
+                      <span className="ml-1 text-[10px] font-normal text-rose-600 dark:text-rose-400">(0 for Wishlist)</span>
+                    )}
+                  </label>
                   <input
                     type="number"
-                    min={1}
+                    min={readingStatus === 'Wishlist' ? 0 : 1}
                     value={copiesOwned}
-                    onChange={(e) => setCopiesOwned(Number(e.target.value))}
+                    onChange={(e) => setCopiesOwned(Math.max(readingStatus === 'Wishlist' ? 0 : 1, Number(e.target.value)))}
                     className="w-full bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-800 rounded-lg px-3 py-2 text-xs text-amber-900 dark:text-amber-200 font-bold focus:outline-none focus:border-amber-600"
                   />
                 </div>
@@ -665,7 +689,17 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Reading Status</label>
                   <select
                     value={readingStatus}
-                    onChange={(e) => setReadingStatus(e.target.value as ReadingStatus)}
+                    onChange={(e) => {
+                      const newStatus = e.target.value as ReadingStatus;
+                      setReadingStatus(newStatus);
+                      if (newStatus === 'Wishlist') {
+                        setCopiesOwned(0);
+                        setCurrentBoxId(0);
+                      } else if (readingStatus === 'Wishlist') {
+                        if (copiesOwned === 0) setCopiesOwned(1);
+                        if (currentBoxId === 0) setCurrentBoxId(1);
+                      }
+                    }}
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                   >
                     <option value="Unread">Unread</option>
@@ -789,7 +823,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                       type="submit"
                       className="px-5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
                     >
-                      Save Comic to Box #{currentBoxId}
+                      {readingStatus === 'Wishlist' ? 'Save Comic to Wishlist' : `Save Comic to Box #${currentBoxId}`}
                     </button>
                   </div>
                 )}

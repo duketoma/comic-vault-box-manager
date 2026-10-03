@@ -25,9 +25,10 @@ import {
   Info, 
   ShieldAlert, 
   Target, 
-  Crown, 
+  Crown,
   Search,
-  Sparkles
+  Sparkles,
+  Bookmark
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -39,6 +40,7 @@ interface ComicDetailModalProps {
   seriesTotals?: SeriesIssueTotal[];
   allComics?: ComicBook[];
   onViewSeriesInCatalog?: (seriesName: string) => void;
+  onOpenGenerateWishlist?: (seriesName?: string) => void;
 }
 
 export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
@@ -50,6 +52,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   seriesTotals = [],
   allComics = [],
   onViewSeriesInCatalog,
+  onOpenGenerateWishlist,
 }) => {
   if (!comic) return null;
 
@@ -434,19 +437,39 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   )}
                 </div>
 
-                {onViewSeriesInCatalog && (
-                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onViewSeriesInCatalog(seriesInfo.seriesName);
-                      }}
-                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>View all {seriesInfo.ownedInSeries} issues in Series Run</span>
-                    </button>
+                {(onViewSeriesInCatalog || onOpenGenerateWishlist) && (
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {onViewSeriesInCatalog && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onViewSeriesInCatalog(seriesInfo.seriesName);
+                          }}
+                          className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>View all {seriesInfo.ownedInSeries} issues in Series Run</span>
+                        </button>
+                      )}
+
+                      {onOpenGenerateWishlist && !seriesInfo.isComplete && seriesInfo.remaining > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onOpenGenerateWishlist(seriesInfo.seriesName);
+                          }}
+                          className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Generate missing issues as wishlist comics"
+                        >
+                          <Bookmark className="w-3.5 h-3.5" />
+                          <span>Add Missing to Wishlist</span>
+                        </button>
+                      )}
+                    </div>
+
                     <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                       {seriesInfo.pct}% to 100%
                     </span>

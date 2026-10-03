@@ -60,6 +60,13 @@ export async function replaceComics(comics: ComicBook[]) {
   await request('/api/comics', { method: 'PUT', body: JSON.stringify({ comics: cleanComics }) });
 }
 
+/** Transactionally saves/upserts a batch of comics without removing any existing ones. */
+export async function saveComicsBatch(comics: ComicBook[]): Promise<{ success: boolean; count: number }> {
+  const cleanComics = await Promise.all(comics.map(prepareComic));
+  const res = await request('/api/comics/batch', { method: 'POST', body: JSON.stringify({ comics: cleanComics }) });
+  return (await res.json()) as { success: boolean; count: number };
+}
+
 export async function saveBox(box: StorageBox) {
   await request(`/api/boxes/${box.id}`, { method: 'PUT', body: JSON.stringify(box) });
 }

@@ -12,8 +12,9 @@ import { AddAndScanModal } from './components/AddAndScanModal';
 import { ComicDetailModal } from './components/ComicDetailModal';
 import { GoogleDriveCoversModal } from './components/GoogleDriveCoversModal';
 import { DataManagementModal } from './components/DataManagementModal';
+import { GenerateSeriesWishlistModal } from './components/GenerateSeriesWishlistModal';
 import {
-  deleteBox, deleteComic, loadCollection, replaceBoxes, replaceComics, saveBox, saveBoxes, saveComic,
+  deleteBox, deleteComic, loadCollection, replaceBoxes, replaceComics, saveBox, saveBoxes, saveComic, saveComicsBatch,
 } from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
 
@@ -64,11 +65,18 @@ export default function App() {
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [initialScanMode, setInitialScanMode] = useState<boolean>(false);
+  const [isGenerateWishlistModalOpen, setIsGenerateWishlistModalOpen] = useState<boolean>(false);
+  const [generateWishlistSeriesName, setGenerateWishlistSeriesName] = useState<string>('');
   const [selectedComic, setSelectedComic] = useState<ComicBook | null>(null);
   const [selectedSeriesFilter, setSelectedSeriesFilter] = useState<string>('all');
   const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState<boolean>(false);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
+
+  const handleOpenGenerateWishlistModal = (seriesName?: string) => {
+    setGenerateWishlistSeriesName(seriesName || '');
+    setIsGenerateWishlistModalOpen(true);
+  };
 
   const handleViewSeriesInCatalog = (seriesName: string) => {
     setSelectedSeriesFilter(seriesName);
@@ -155,6 +163,19 @@ export default function App() {
     const cleanComic = newComic.readingStatus === 'Wishlist' ? { ...newComic, copiesOwned: 0 } : newComic;
     setComics((prev) => [cleanComic, ...prev]);
     dbCall(saveComic(cleanComic));
+  };
+
+  const handleBatchAddComics = async (newComics: ComicBook[]) => {
+    const cleanComics = newComics.map((c) =>
+      c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c
+    );
+    setComics((prev) => [...cleanComics, ...prev]);
+    try {
+      await saveComicsBatch(cleanComics);
+    } catch (err: any) {
+      console.error('Failed to batch save comics:', err);
+      setDatabaseError(err.message || 'Failed to batch save comics in database');
+    }
   };
 
   const handleUpdateComic = (updatedComic: ComicBook) => {
@@ -502,6 +523,7 @@ export default function App() {
             seriesTotals={seriesTotals}
             selectedSeries={selectedSeriesFilter}
             onSelectSeries={setSelectedSeriesFilter}
+            onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
           />
         )}
 
@@ -534,6 +556,7 @@ export default function App() {
             boxes={boxes}
             seriesTotals={seriesTotals}
             onViewSeriesInCatalog={handleViewSeriesInCatalog}
+            onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
             initialSubTab={statsSubTab}
           />
         )}
@@ -564,6 +587,7 @@ export default function App() {
         onAddComic={handleAddComic}
         onUpdateComic={handleUpdateComic}
         initialScanMode={initialScanMode}
+        onOpenGenerateWishlist={() => handleOpenGenerateWishlistModal()}
       />
 
       <ComicDetailModal
@@ -575,6 +599,16 @@ export default function App() {
         seriesTotals={seriesTotals}
         allComics={comics}
         onViewSeriesInCatalog={handleViewSeriesInCatalog}
+        onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
+      />
+
+      <GenerateSeriesWishlistModal
+        isOpen={isGenerateWishlistModalOpen}
+        onClose={() => setIsGenerateWishlistModalOpen(false)}
+        comics={comics}
+        seriesTotals={seriesTotals}
+        initialSeriesName={generateWishlistSeriesName}
+        onBatchAddComics={handleBatchAddComics}
       />
 
       <GoogleDriveCoversModal
