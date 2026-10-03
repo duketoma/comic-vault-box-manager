@@ -39,6 +39,7 @@ interface ComicDetailModalProps {
   onDeleteComic: (comicId: string) => void;
   seriesTotals?: SeriesIssueTotal[];
   allComics?: ComicBook[];
+  creatorTypes?: string[];
   onViewSeriesInCatalog?: (seriesName: string) => void;
   onOpenGenerateWishlist?: (seriesName?: string) => void;
 }
@@ -51,6 +52,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   onDeleteComic,
   seriesTotals = [],
   allComics = [],
+  creatorTypes = [],
   onViewSeriesInCatalog,
   onOpenGenerateWishlist,
 }) => {
@@ -106,6 +108,55 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   );
   const [newCreatorName, setNewCreatorName] = useState('');
   const [newRoleName, setNewRoleName] = useState<string>('Writer');
+  const [customRoleName, setCustomRoleName] = useState<string>('');
+
+  const availableRoles = useMemo(() => {
+    const roleMap = new Map<string, string>();
+
+    // 1. Add all baseline roles from CREATOR_ROLES
+    CREATOR_ROLES.forEach((r) => {
+      if (r && r.trim()) {
+        roleMap.set(r.trim().toLowerCase(), r.trim());
+      }
+    });
+
+    // 2. Add all roles from creatorTypes (loaded from database)
+    if (creatorTypes && Array.isArray(creatorTypes)) {
+      creatorTypes.forEach((ct) => {
+        if (ct && ct.trim()) {
+          const trimmed = ct.trim();
+          if (!roleMap.has(trimmed.toLowerCase())) {
+            roleMap.set(trimmed.toLowerCase(), trimmed);
+          }
+        }
+      });
+    }
+
+    // 3. Add all roles from allComics
+    if (allComics && Array.isArray(allComics)) {
+      allComics.forEach((c) => {
+        c.creatorContributions?.forEach((cc) => {
+          const r = (cc.roleName || cc.creatorType || '').trim();
+          if (r && !roleMap.has(r.toLowerCase())) {
+            roleMap.set(r.toLowerCase(), r);
+          }
+        });
+      });
+    }
+
+    // 4. Add all roles from current comic contributions
+    if (contributions && Array.isArray(contributions)) {
+      contributions.forEach((cc) => {
+        const r = (cc.roleName || cc.creatorType || '').trim();
+        if (r && !roleMap.has(r.toLowerCase())) {
+          roleMap.set(r.toLowerCase(), r);
+        }
+      });
+    }
+
+    // Sort alphabetically
+    return Array.from(roleMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [creatorTypes, allComics, contributions]);
 
   // Character Appearances State
   const [characters, setCharacters] = useState<CharacterAppearance[]>(comic.characterAppearances || []);
@@ -179,16 +230,22 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
   const handleAddContribution = () => {
     if (!newCreatorName.trim()) return;
+    const finalRole = (newRoleName === '__custom__' ? customRoleName.trim() : newRoleName.trim()) || 'Writer';
+
     const updated = [
       ...contributions,
       {
         id: `contrib-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         creatorName: newCreatorName.trim(),
-        roleName: newRoleName,
+        roleName: finalRole,
       },
     ];
     setContributions(updated);
     setNewCreatorName('');
+    if (newRoleName === '__custom__') {
+      setCustomRoleName('');
+      setNewRoleName(finalRole);
+    }
   };
 
   const handleRemoveContribution = (index: number) => {
@@ -220,7 +277,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const handleSaveQuickEdits = () => {
     // Derive primary writer and artist for backwards compatibility
     const writerContrib = contributions.find((c) => c.roleName.toLowerCase() === 'writer');
-    const artistContrib = contributions.find((c) => ['penciler', 'artist'].includes(c.roleName.toLowerCase()));
+    const artistContrib = contributions.find((c) => ['penciler', 'penciller', 'artist'].includes(c.roleName.toLowerCase()));
 
     const cleanTitle = title.trim() || comic.title;
     const cleanIssue = issueNumber.trim() || comic.issueNumber;
@@ -759,14 +816,24 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   <select
                     value={newRoleName}
                     onChange={(e) => setNewRoleName(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium"
+                    className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium max-w-[210px]"
                   >
-                    {CREATOR_ROLES.map((r) => (
+                    {availableRoles.map((r) => (
                       <option key={r} value={r}>
                         {r}
                       </option>
                     ))}
+                    <option value="__custom__">+ Custom Role Type...</option>
                   </select>
+                  {newRoleName === '__custom__' && (
+                    <input
+                      type="text"
+                      placeholder="Type custom role (e.g., Flatter)"
+                      value={customRoleName}
+                      onChange={(e) => setCustomRoleName(e.target.value)}
+                      className="min-w-[140px] bg-white dark:bg-slate-900 border border-indigo-400 dark:border-indigo-600 rounded-lg px-2.5 py-1.5 text-xs text-indigo-900 dark:text-indigo-200 font-medium"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={handleAddContribution}

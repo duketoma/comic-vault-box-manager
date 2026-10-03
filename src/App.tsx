@@ -62,6 +62,8 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [creatorTypes, setCreatorTypes] = useState<string[]>([]);
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [initialScanMode, setInitialScanMode] = useState<boolean>(false);
@@ -118,10 +120,11 @@ export default function App() {
   useEffect(() => {
     let active = true;
     loadCollection()
-      .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals }) => {
+      .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals, creatorTypes: storedCreatorTypes }) => {
         if (!active) return;
         if (storedBoxes.length > 0) setBoxes(storedBoxes);
         if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
+        if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
         if (storedComics.length > 0) {
           setComics(storedComics
             .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
@@ -311,9 +314,10 @@ export default function App() {
 
   const handleRefreshCollection = async () => {
     try {
-      const { comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals } = await loadCollection();
+      const { comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals, creatorTypes: storedCreatorTypes } = await loadCollection();
       if (storedBoxes.length > 0) setBoxes(storedBoxes);
       if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
+      if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
       if (storedComics.length > 0) {
         setComics(storedComics
           .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
@@ -598,6 +602,7 @@ export default function App() {
         onDeleteComic={handleDeleteComic}
         seriesTotals={seriesTotals}
         allComics={comics}
+        creatorTypes={creatorTypes}
         onViewSeriesInCatalog={handleViewSeriesInCatalog}
         onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
       />

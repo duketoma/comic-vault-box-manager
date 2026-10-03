@@ -85,14 +85,14 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     const catalogTab = page.getByRole('button', { name: /Catalog/i });
     await catalogTab.click();
 
-    // Select Silver Surfer (Vol. 3) in the Series Run dropdown
+    // Select Captain America (Vol. 1) in the Series Run dropdown
     const seriesSelect = page.locator('label:has-text("Series Run") + select');
     await expect(seriesSelect).toBeVisible();
 
-    const surferOption = seriesSelect.locator('option').filter({ hasText: 'Silver Surfer (Vol. 3)' }).first();
-    const surferValue = await surferOption.getAttribute('value');
-    if (surferValue) {
-      await seriesSelect.selectOption(surferValue);
+    const capOption = seriesSelect.locator('option').filter({ hasText: 'Captain America (Vol. 1)' }).first();
+    const capValue = await capOption.getAttribute('value');
+    if (capValue) {
+      await seriesSelect.selectOption(capValue);
     }
 
     // Verify Series Run Tracker banner is rendered

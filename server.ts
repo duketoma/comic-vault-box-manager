@@ -336,10 +336,18 @@ const comicUpsertSql = `
 
   app.get('/api/collection', requireDatabase, async (_req, res) => {
     try {
-      const [comics, boxes, seriesTotals] = await Promise.all([
+      const [comics, boxes, seriesTotals, creatorTypesResult] = await Promise.all([
         pool!.query('SELECT * FROM comic_books ORDER BY created_at DESC, title ASC'),
         pool!.query('SELECT id, name, location, max_capacity, color_tag, notes FROM storage_boxes WHERE id > 0 ORDER BY id'),
         pool!.query('SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC'),
+        pool!.query(`
+          SELECT DISTINCT type_name FROM (
+            SELECT type_name FROM creator_types WHERE type_name IS NOT NULL AND TRIM(type_name) != ''
+            UNION
+            SELECT creator_type AS type_name FROM title_contributors WHERE creator_type IS NOT NULL AND TRIM(creator_type) != ''
+          ) all_types
+          ORDER BY type_name ASC
+        `),
       ]);
       res.json({
         comics: comics.rows.map(rowToComic),
@@ -348,6 +356,7 @@ const comicUpsertSql = `
           colorTag: box.color_tag, notes: box.notes ?? undefined,
         })),
         seriesTotals: seriesTotals.rows,
+        creatorTypes: creatorTypesResult.rows.map((r) => r.type_name),
       });
     } catch (error) {
       const detail = databaseErrorMessage(error);
@@ -517,6 +526,25 @@ const comicUpsertSql = `
       const detail = databaseErrorMessage(error);
       console.error('PostgreSQL series totals fetch failed:', detail);
       res.status(500).json({ error: `Unable to load series totals: ${detail}` });
+    }
+  });
+
+  // --- API ROUTE: Get all creator types ---
+  app.get('/api/creator-types', requireDatabase, async (_req, res) => {
+    try {
+      const result = await pool!.query(`
+        SELECT DISTINCT type_name FROM (
+          SELECT type_name FROM creator_types WHERE type_name IS NOT NULL AND TRIM(type_name) != ''
+          UNION
+          SELECT creator_type AS type_name FROM title_contributors WHERE creator_type IS NOT NULL AND TRIM(creator_type) != ''
+        ) all_types
+        ORDER BY type_name ASC
+      `);
+      res.json({ creatorTypes: result.rows.map((r) => r.type_name) });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL creator-types read failed:', detail);
+      res.status(500).json({ error: `Unable to load creator types: ${detail}` });
     }
   });
 

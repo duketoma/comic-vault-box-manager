@@ -6,6 +6,7 @@ export interface CollectionResponse {
   comics: ComicBook[];
   boxes: StorageBox[];
   seriesTotals?: SeriesIssueTotal[];
+  creatorTypes?: string[];
 }
 
 async function request(path: string, options?: RequestInit) {
@@ -40,7 +41,14 @@ export async function loadCollection(): Promise<CollectionResponse> {
     comics: collection.comics,
     boxes: sortBoxes(collection.boxes),
     seriesTotals: collection.seriesTotals || [],
+    creatorTypes: collection.creatorTypes || [],
   };
+}
+
+export async function fetchCreatorTypes(): Promise<string[]> {
+  const response = await request('/api/creator-types');
+  const data = await response.json() as { creatorTypes: string[] };
+  return data.creatorTypes || [];
 }
 
 export async function saveComic(comic: ComicBook) {
