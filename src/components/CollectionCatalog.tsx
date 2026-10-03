@@ -17,6 +17,7 @@ import {
   getSortDirectionLabel,
 } from '../utils/comicSortUtils';
 import { CatalogSortModal } from './CatalogSortModal';
+import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { 
   Grid3X3, 
   List, 
@@ -87,6 +88,8 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [yearRange, setYearRange] = useState<[number, number]>([1930, 2026]);
+  const [onlyFullArt, setOnlyFullArt] = useState<boolean>(false);
+  const [fullArtComic, setFullArtComic] = useState<ComicBook | null>(null);
   const [multiSortOptions, setMultiSortOptions] = useState<MultiSortOptions>(() => {
     try {
       const saved = localStorage.getItem('comic_vault_catalog_sort_v1');
@@ -378,6 +381,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       if (selectedStatus !== 'all' && c.readingStatus !== selectedStatus) return false;
       if (selectedFormat !== 'all' && c.format !== selectedFormat) return false;
       if (selectedEvent !== 'all' && c.event !== selectedEvent) return false;
+      if (onlyFullArt && !c.coverImageFull) return false;
       // Publication date range filter (if set)
       if (startDate || endDate) {
         const pubIso = (() => {
@@ -419,6 +423,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     selectedStatus,
     selectedFormat,
     selectedEvent,
+    onlyFullArt,
     startDate,
     endDate,
     yearRange,
@@ -437,12 +442,13 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     setSelectedStatus('all');
     setSelectedFormat('all');
     setSelectedEvent('all');
+    setOnlyFullArt(false);
     setStartDate('');
     setEndDate('');
     setYearRange([1930, 2026]);
   };
 
-  const hasActiveFilters = selectedSeries !== 'all' || selectedRunProgress !== 'all' || selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || startDate !== '' || endDate !== '';
+  const hasActiveFilters = selectedSeries !== 'all' || selectedRunProgress !== 'all' || selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || onlyFullArt || startDate !== '' || endDate !== '';
 
   return (
     <div className="space-y-6">
@@ -545,6 +551,21 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
             >
               <span>In-Progress (&lt;75%) ({seriesRunCounts.inProgress})</span>
             </button>
+            {comics.some((c) => !!c.coverImageFull) && (
+              <button
+                type="button"
+                onClick={() => setOnlyFullArt(!onlyFullArt)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  onlyFullArt
+                    ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-300'
+                    : 'bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-300/80 dark:border-purple-700/60 hover:bg-purple-100'
+                }`}
+                title="Show comics with full wraparound / front+back cover art"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span>Full Art ({comics.filter((c) => !!c.coverImageFull).length})</span>
+              </button>
+            )}
           </div>
 
           {selectedRunProgress !== 'all' && (
@@ -1137,6 +1158,22 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                     <span>{comic.sizeThickness.toFixed(1)}x Size</span>
                   </div>
 
+                  {/* Full Art Badge */}
+                  {comic.coverImageFull && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFullArtComic(comic);
+                      }}
+                      className="absolute top-8 left-2 bg-purple-600 hover:bg-purple-700 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md flex items-center gap-1 transition-transform hover:scale-105 cursor-pointer z-10"
+                      title="View Full Wraparound Cover Art"
+                    >
+                      <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                      <span>Full Art</span>
+                    </button>
+                  )}
+
                   {/* Box # Badge */}
                   <div className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 ${
                     comic.currentBoxId === 0
@@ -1467,6 +1504,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                               </button>
                             );
                           })()}
+                          {comic.coverImageFull && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFullArtComic(comic);
+                              }}
+                              className="inline-flex items-center gap-1 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[9px] font-bold px-1.5 py-0.2 rounded transition-colors cursor-pointer"
+                              title="Show Full Wraparound Cover Art"
+                            >
+                              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                              <span>Full Art</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -1584,6 +1635,17 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         options={multiSortOptions}
         onChange={updateMultiSortOptions}
       />
+
+      {/* Full Art Wraparound Showcase Modal */}
+      {fullArtComic && (
+        <FullArtShowcaseModal
+          isOpen={!!fullArtComic}
+          onClose={() => setFullArtComic(null)}
+          comic={fullArtComic}
+          allComics={comics}
+          onSelectComic={(c) => setFullArtComic(c)}
+        />
+      )}
     </div>
   );
 };

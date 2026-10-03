@@ -126,7 +126,7 @@ function toComic(row, index) {
 const columns = [
   'id', 'title', 'issue_number', 'volume', 'series_name', 'full_title', 'event', 'copies_owned', 'publisher', 'publication_year',
   'publication_month', 'publication_date', 'genre', 'writer', 'artist', 'cover_artist',
-  'creator_contributions', 'character_appearances', 'cover_image', 'format', 'size_thickness',
+  'creator_contributions', 'character_appearances', 'cover_image', 'cover_image_full', 'format', 'size_thickness',
   'current_box_id', 'proposed_box_id', 'reading_status',
   'user_rating', 'condition', 'purchase_price', 'estimated_value', 'notes', 'tags', 'created_at', 'updated_at',
 ];
@@ -137,7 +137,7 @@ const fields = {
   publication_month: 'publicationMonth', publication_date: 'publicationDate', genre: 'genre', writer: 'writer',
   artist: 'artist', cover_artist: 'coverArtist', creator_contributions: 'creatorContributions',
   character_appearances: 'characterAppearances',
-  cover_image: 'coverImage', format: 'format', size_thickness: 'sizeThickness',
+  cover_image: 'coverImage', cover_image_full: 'coverImageFull', format: 'format', size_thickness: 'sizeThickness',
   current_box_id: 'currentBoxId', proposed_box_id: 'proposedBoxId', reading_status: 'readingStatus',
   user_rating: 'userRating', condition: 'condition',
   purchase_price: 'purchasePrice', estimated_value: 'estimatedValue', notes: 'notes', tags: 'tags', created_at: 'createdAt', updated_at: 'updatedAt',

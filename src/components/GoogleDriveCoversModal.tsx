@@ -19,14 +19,28 @@ import { User } from 'firebase/auth';
 import { googleSignIn, initAuth, logout } from '../services/auth';
 import { scanDriveComicCovers, DriveFileItem, DriveCoversSyncResult } from '../services/driveService';
 import { ComicBook } from '../types';
-import { getComicCoverUrl, formatDriveImageUrl, getDriveNoImageUrl, setDriveNoImageUrl, handleImageError, isComicAlreadyLinked, doesFileNameMatchComic, extractDriveFileId } from '../utils/imageUtils';
+import { 
+  getComicCoverUrl, 
+  formatDriveImageUrl, 
+  getDriveNoImageUrl, 
+  setDriveNoImageUrl, 
+  handleImageError, 
+  isComicAlreadyLinked, 
+  isComicFullCoverLinked,
+  doesFileNameMatchComic, 
+  extractDriveFileId,
+  hasFullCoverWord,
+  parseStrictFullCoverFileName,
+  doesFullCoverMatchComic
+} from '../utils/imageUtils';
 
 interface GoogleDriveCoversModalProps {
   isOpen: boolean;
   onClose: () => void;
   comics: ComicBook[];
   onUpdateComicCover: (comicId: string, coverUrl: string) => void;
-  onUpdateComicCoversBatch?: (updates: Array<{ comicId: string; coverUrl: string }>) => void;
+  onUpdateComicFullCover?: (comicId: string, coverFullUrl: string) => void;
+  onUpdateComicCoversBatch?: (updates: Array<{ comicId: string; coverUrl?: string; coverImageFullUrl?: string }>) => void;
   onApplyNoImageFallback: (noImageUrl: string) => void;
 }
 
@@ -35,6 +49,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   onClose,
   comics,
   onUpdateComicCover,
+  onUpdateComicFullCover,
   onUpdateComicCoversBatch,
   onApplyNoImageFallback,
 }) => {
@@ -54,10 +69,12 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLinking, setIsLinking] = useState(false);
 
+  const [fileTypeFilter, setFileTypeFilter] = useState<'all' | 'standard' | 'full'>('all');
+
   // Reset pagination when search query changes
   useEffect(() => {
     setVisibleCardCount(48);
-  }, [fileSearchQuery]);
+  }, [fileSearchQuery, fileTypeFilter]);
 
   const mkDriveViewUrl = (fileId: string) => {
     if (!fileId) return getDriveNoImageUrl();
@@ -67,11 +84,16 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     return `https://lh3.googleusercontent.com/d/${fileId}=s800`;
   };
 
-  const isFileLinkedToComic = (fileId: string, comic?: ComicBook | null): boolean => {
-    if (!comic || !comic.coverImage) return false;
-    if (comic.coverImage.includes(fileId)) return true;
+  const isFileLinkedToComic = (file: DriveFileItem, comic?: ComicBook | null): boolean => {
+    if (!comic) return false;
+    const isFull = hasFullCoverWord(file.name);
+    if (isFull) {
+      return isComicFullCoverLinked(comic.coverImageFull, file.id);
+    }
+    if (!comic.coverImage) return false;
+    if (comic.coverImage.includes(file.id)) return true;
     const currentId = extractDriveFileId(comic.coverImage);
-    return currentId !== null && currentId === fileId;
+    return currentId !== null && currentId === file.id;
   };
 
   // Populate or update stagedAssignments whenever syncResult or comics change
@@ -100,13 +122,35 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         }
 
         // Check if already linked to a comic in the vault
-        const alreadyLinked = comics.find((c) => isFileLinkedToComic(file.id, c));
+        const alreadyLinked = comics.find((c) => isFileLinkedToComic(file, c));
         if (alreadyLinked) {
           updated[file.id] = alreadyLinked.id;
           assignedSet.add(alreadyLinked.id);
           return;
         }
 
+        const isFull = hasFullCoverWord(file.name);
+
+        if (isFull) {
+          // Strictly parse full cover filename
+          const parsed = parseStrictFullCoverFileName(file.name);
+          if (!parsed.isStrictFullCover) {
+            // Does not follow strict placement (<Title> Full #<Issue> or <Title> Annual Full <Year/Issue>) -> Do not auto-match
+            return;
+          }
+
+          const suggested =
+            comics.find((c) => !assignedSet.has(c.id) && doesFullCoverMatchComic(parsed, c)) ||
+            comics.find((c) => doesFullCoverMatchComic(parsed, c));
+
+          if (suggested) {
+            updated[file.id] = suggested.id;
+            assignedSet.add(suggested.id);
+          }
+          return;
+        }
+
+        // Standard covers
         // Extract candidate numbers from filename
         const base = file.name.replace(/\.[^/.]+$/, '').trim();
         const numMatches = base.match(/(?:#|\b)(\d+)\b/g) || [];
@@ -157,6 +201,15 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     });
   }, [syncResult, comics]);
 
+  // Counts for standard vs full covers
+  const standardCoverFilesCount = useMemo(() => {
+    return (syncResult?.coverFiles || []).filter((f) => !hasFullCoverWord(f.name)).length;
+  }, [syncResult?.coverFiles]);
+
+  const fullCoverFilesCount = useMemo(() => {
+    return (syncResult?.coverFiles || []).filter((f) => hasFullCoverWord(f.name)).length;
+  }, [syncResult?.coverFiles]);
+
   // Pending matches: files that have an assigned comic that is not yet linked to this file
   const pendingMatches = useMemo(() => {
     if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return [];
@@ -165,7 +218,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       const comicId = stagedAssignments[file.id];
       if (!comicId) return;
       const comic = comics.find((c) => c.id === comicId);
-      if (comic && !isFileLinkedToComic(file.id, comic)) {
+      if (comic && !isFileLinkedToComic(file, comic)) {
         list.push({ comic, file });
       }
     });
@@ -176,15 +229,22 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   const alreadyLinkedCount = useMemo(() => {
     if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return 0;
     return syncResult.coverFiles.filter((file) =>
-      comics.some((c) => isFileLinkedToComic(file.id, c))
+      comics.some((c) => isFileLinkedToComic(file, c))
     ).length;
   }, [syncResult, comics]);
 
-  // Sorted and filtered cover files list (pending matches first, then unassigned, then linked, filtered by search)
+  // Sorted and filtered cover files list (pending matches first, then unassigned, then linked, filtered by search and filter type)
   const sortedAndFilteredCoverFiles = useMemo(() => {
     if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return [];
 
     let list = syncResult.coverFiles;
+
+    if (fileTypeFilter === 'standard') {
+      list = list.filter((f) => !hasFullCoverWord(f.name));
+    } else if (fileTypeFilter === 'full') {
+      list = list.filter((f) => hasFullCoverWord(f.name));
+    }
+
     if (fileSearchQuery.trim()) {
       const q = fileSearchQuery.toLowerCase().trim();
       list = list.filter((f) => f.name.toLowerCase().includes(q));
@@ -195,8 +255,8 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       const bAssignedId = stagedAssignments[b.id];
       const aComic = aAssignedId ? comics.find((c) => c.id === aAssignedId) : null;
       const bComic = bAssignedId ? comics.find((c) => c.id === bAssignedId) : null;
-      const aLinked = isFileLinkedToComic(a.id, aComic);
-      const bLinked = isFileLinkedToComic(b.id, bComic);
+      const aLinked = isFileLinkedToComic(a, aComic);
+      const bLinked = isFileLinkedToComic(b, bComic);
       const aPending = !!aComic && !aLinked;
       const bPending = !!bComic && !bLinked;
 
@@ -213,7 +273,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       // 3. Natural alphanumeric sort by filename
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     });
-  }, [syncResult?.coverFiles, stagedAssignments, comics, fileSearchQuery]);
+  }, [syncResult?.coverFiles, stagedAssignments, comics, fileSearchQuery, fileTypeFilter]);
 
   useEffect(() => {
     const unsubscribe = initAuth(
@@ -300,15 +360,25 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     if (items.length === 0) return;
     setIsLinking(true);
     try {
-      const updates = items.map(({ comic, file }) => ({
-        comicId: comic.id,
-        coverUrl: mkDriveViewUrl(file.id),
-      }));
+      const updates = items.map(({ comic, file }) => {
+        const isFull = hasFullCoverWord(file.name);
+        const url = mkDriveViewUrl(file.id);
+        return {
+          comicId: comic.id,
+          coverUrl: isFull ? undefined : url,
+          coverImageFullUrl: isFull ? url : undefined,
+        };
+      });
 
       if (onUpdateComicCoversBatch) {
         onUpdateComicCoversBatch(updates);
       } else {
-        updates.forEach((u) => onUpdateComicCover(u.comicId, u.coverUrl));
+        updates.forEach((u) => {
+          if (u.coverUrl) onUpdateComicCover(u.comicId, u.coverUrl);
+          if (u.coverImageFullUrl && onUpdateComicFullCover) {
+            onUpdateComicFullCover(u.comicId, u.coverImageFullUrl);
+          }
+        });
       }
 
       setLinkedCount((prev) => prev + updates.length);
@@ -581,24 +651,64 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
 
                 {/* Search / Filter Input */}
                 {syncResult?.coverFiles && syncResult.coverFiles.length > 0 && (
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={fileSearchQuery}
-                      onChange={(e) => setFileSearchQuery(e.target.value)}
-                      placeholder="Search cover files by name..."
-                      className="w-full pl-8 pr-8 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                    />
-                    {fileSearchQuery && (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={fileSearchQuery}
+                        onChange={(e) => setFileSearchQuery(e.target.value)}
+                        placeholder="Search cover files by name..."
+                        className="w-full pl-8 pr-8 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                      {fileSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setFileSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Filter Segmented Control */}
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
                       <button
                         type="button"
-                        onClick={() => setFileSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                        onClick={() => setFileTypeFilter('all')}
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                          fileTypeFilter === 'all'
+                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
                       >
-                        ×
+                        All Images ({syncResult.coverFiles.length})
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => setFileTypeFilter('standard')}
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                          fileTypeFilter === 'standard'
+                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        Front Covers ({standardCoverFilesCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFileTypeFilter('full')}
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                          fileTypeFilter === 'full'
+                            ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-xs font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Full Wraparound Art ({fullCoverFilesCount})</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -638,9 +748,14 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto p-1.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
                       {sortedAndFilteredCoverFiles.slice(0, visibleCardCount).map((file) => {
+                        const isFull = hasFullCoverWord(file.name);
+                        const parsedFull = isFull ? parseStrictFullCoverFileName(file.name) : null;
+                        const isStrictFull = isFull && !!parsedFull?.isStrictFullCover;
+                        const isInvalidFullFormat = isFull && !isStrictFull;
+
                         const assignedComicId = stagedAssignments[file.id] || '';
                         const assignedComic = comics.find((c) => c.id === assignedComicId);
-                        const isLinked = isFileLinkedToComic(file.id, assignedComic);
+                        const isLinked = isFileLinkedToComic(file, assignedComic);
                         const isPending = !!assignedComic && !isLinked;
 
                         return (
@@ -650,11 +765,15 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                               isLinked
                                 ? 'border-emerald-300 dark:border-emerald-800/80 bg-emerald-50/20 dark:bg-emerald-950/10'
                                 : isPending
-                                ? 'border-indigo-300 dark:border-indigo-800/80 bg-indigo-50/20 dark:bg-indigo-950/10'
+                                ? isFull
+                                  ? 'border-purple-300 dark:border-purple-800/80 bg-purple-50/20 dark:bg-purple-950/10'
+                                  : 'border-indigo-300 dark:border-indigo-800/80 bg-indigo-50/20 dark:bg-indigo-950/10'
+                                : isInvalidFullFormat
+                                ? 'border-amber-300 dark:border-amber-800/80 bg-amber-50/20 dark:bg-amber-950/10'
                                 : 'border-slate-200 dark:border-slate-800'
                             }`}
                           >
-                            <div className="relative aspect-3/4 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                            <div className={`relative ${isFull ? 'aspect-4/3' : 'aspect-3/4'} rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800`}>
                               <img
                                 src={mkDriveViewUrl(file.id)}
                                 alt={file.name}
@@ -662,12 +781,26 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                               />
+
+                              {/* Type Badge on Top Left */}
+                              {isFull && isStrictFull && (
+                                <div className="absolute top-1 left-1 bg-purple-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                                  <Layers className="w-2.5 h-2.5" /> Full Art
+                                </div>
+                              )}
+                              {isInvalidFullFormat && (
+                                <div className="absolute top-1 left-1 bg-amber-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5" title="Strict format required: Title Full #Issue or Title Annual Full Year">
+                                  <AlertCircle className="w-2.5 h-2.5" /> Format Error
+                                </div>
+                              )}
+
+                              {/* Status Badge on Top Right */}
                               {isLinked ? (
                                 <div className="absolute top-1 right-1 bg-emerald-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
-                                  <Check className="w-2.5 h-2.5" /> Linked
+                                  <Check className="w-2.5 h-2.5" /> {isFull ? 'Linked' : 'Linked'}
                                 </div>
                               ) : isPending ? (
-                                <div className="absolute top-1 right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                                <div className={`absolute top-1 right-1 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5 ${isFull ? 'bg-purple-600' : 'bg-indigo-600'}`}>
                                   <Sparkles className="w-2.5 h-2.5" /> Ready to Link
                                 </div>
                               ) : null}
@@ -689,7 +822,9 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                                   isLinked
                                     ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 font-bold'
                                     : isPending
-                                    ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold'
+                                    ? isFull
+                                      ? 'bg-purple-50/60 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-200 font-bold'
+                                      : 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold'
                                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                                 }`}
                               >
@@ -697,25 +832,33 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                                 {comicOptions}
                               </select>
 
+                              {isInvalidFullFormat && (
+                                <div className="text-[9px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-100/70 dark:bg-amber-950/60 p-1 rounded border border-amber-300 dark:border-amber-800 leading-tight">
+                                  Format: <em>Title Full #Issue</em> or <em>Title Annual Full Year</em>
+                                </div>
+                              )}
+
                               {/* Action Button / Status per card */}
                               {isPending ? (
                                 <button
                                   type="button"
                                   onClick={() => handleLinkSingleCover(file.id)}
                                   disabled={isLinking}
-                                  className="w-full py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 shadow-xs cursor-pointer transition-colors"
+                                  className={`w-full py-1 px-2 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 shadow-xs cursor-pointer transition-colors ${
+                                    isFull ? 'bg-purple-600 hover:bg-purple-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                                  }`}
                                 >
                                   <Check className="w-3 h-3" />
-                                  <span>Link This Cover</span>
+                                  <span>{isFull ? 'Link as Full Art' : 'Link Front Cover'}</span>
                                 </button>
                               ) : isLinked ? (
                                 <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 py-0.5">
                                   <Check className="w-3 h-3" />
-                                  <span>Linked to Vault</span>
+                                  <span>{isFull ? 'Linked as Full Art' : 'Linked to Vault'}</span>
                                 </div>
                               ) : (
                                 <div className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-0.5">
-                                  Select a comic above
+                                  {isInvalidFullFormat ? 'Rename file or select comic' : 'Select a comic above'}
                                 </div>
                               )}
                             </div>

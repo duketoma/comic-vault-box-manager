@@ -161,6 +161,16 @@ export function isComicAlreadyLinked(coverUrl?: string, driveNoImageUrlOrId?: st
 }
 
 /**
+ * Checks if a comic book already has a full cover image linked to a specific Drive file ID.
+ */
+export function isComicFullCoverLinked(coverImageFullUrl?: string, driveFileId?: string): boolean {
+  if (!coverImageFullUrl || !driveFileId) return false;
+  if (coverImageFullUrl.includes(driveFileId)) return true;
+  const currentId = extractDriveFileId(coverImageFullUrl);
+  return currentId !== null && currentId === driveFileId;
+}
+
+/**
  * Normalization helper (converts punctuation to spaces and collapses whitespace)
  */
 function normalizeText(str: string): string {
@@ -209,6 +219,154 @@ function buildIssueRegex(issueStr: string): RegExp | null {
   return new RegExp(`(?<![0-9a-zA-Z])#?${escaped}(?![0-9a-zA-Z])`, 'i');
 }
 
+export interface ParsedFullCoverFileName {
+  isStrictFullCover: boolean;
+  hasFullWord: boolean;
+  title?: string;
+  isAnnual?: boolean;
+  issueOrYear?: string;
+  normalizedFileNameForMatch?: string;
+}
+
+/**
+ * Checks if any standalone word 'Full' is present in the filename (case-insensitive).
+ * Used to strictly exclude 'Full' files from standard front cover matching.
+ */
+export function hasFullCoverWord(fileName: string): boolean {
+  if (!fileName) return false;
+  const baseName = fileName.replace(/\.[^/.]+$/, '').trim();
+  return /\bfull\b/i.test(baseName);
+}
+
+/**
+ * Strictly parses a full cover filename according to rules:
+ * 1. Regular: <Title> Full #<Issue> or <Title> Full <Issue>
+ *    Full MUST be immediately after the title and before the issue number.
+ * 2. Annuals: <Title> Annual Full <Year or Issue>
+ *    Full MUST be immediately after the title and the word "Annual", and before the year or issue number.
+ */
+export function parseStrictFullCoverFileName(fileName: string): ParsedFullCoverFileName {
+  if (!fileName) return { isStrictFullCover: false, hasFullWord: false };
+  const extMatch = fileName.match(/(\.[^/.]+)$/);
+  const ext = extMatch ? extMatch[1] : '';
+  const baseName = fileName.replace(/\.[^/.]+$/, '').trim();
+  const hasFull = /\bfull\b/i.test(baseName);
+
+  // Rule 1: Annual Full
+  // e.g. "X-Man Annual Full '96", "Alpha Flight Annual Full #2", "Spider-Man Annual Full 1998"
+  const annualMatch = baseName.match(/^(.+?)\s+Annual\s+Full\s+(?:#\s*)?(['’]?\d+.*)$/i);
+  if (annualMatch) {
+    const title = annualMatch[1].trim();
+    const issueYear = annualMatch[2].trim();
+    return {
+      isStrictFullCover: true,
+      hasFullWord: true,
+      title,
+      isAnnual: true,
+      issueOrYear: issueYear,
+      normalizedFileNameForMatch: `${title} Annual ${issueYear}${ext}`,
+    };
+  }
+
+  // Rule 2: Regular Issue Full
+  // e.g. "Comic Title Full #1", "The Amazing Spider-Man Full #300", "Marvel Comics Presents Full 16"
+  const regularMatch = baseName.match(/^(.+?)\s+Full\s+(?:#\s*)?(-?\d+[a-zA-Z0-9.-]*)$/i);
+  if (regularMatch) {
+    const title = regularMatch[1].trim();
+    const issue = regularMatch[2].trim();
+    return {
+      isStrictFullCover: true,
+      hasFullWord: true,
+      title,
+      isAnnual: false,
+      issueOrYear: issue,
+      normalizedFileNameForMatch: `${title} #${issue}${ext}`,
+    };
+  }
+
+  return {
+    isStrictFullCover: false,
+    hasFullWord: hasFull,
+  };
+}
+
+/**
+ * Matches a strictly parsed full cover file against a comic book.
+ */
+export function doesFullCoverMatchComic(
+  parsedFullCover: ParsedFullCoverFileName,
+  comic: {
+    title: string;
+    issueNumber: string | number;
+    volume?: string | number;
+    seriesName?: string;
+    fullTitle?: string;
+    publicationYear?: number;
+  }
+): boolean {
+  if (!parsedFullCover.isStrictFullCover || !parsedFullCover.title || !parsedFullCover.issueOrYear) {
+    return false;
+  }
+
+  const cTitle = (comic.title || '').toLowerCase();
+  const cFullTitle = (comic.fullTitle || '').toLowerCase();
+  const cSeries = (comic.seriesName || '').toLowerCase();
+  const parsedTitle = parsedFullCover.title.toLowerCase().trim();
+
+  // 1. Check title match
+  const titleMatches =
+    cTitle.includes(parsedTitle) ||
+    cFullTitle.includes(parsedTitle) ||
+    cSeries.includes(parsedTitle) ||
+    parsedTitle.includes(cTitle);
+
+  if (!titleMatches) return false;
+
+  // 2. If Annual
+  if (parsedFullCover.isAnnual) {
+    const isComicAnnual = cTitle.includes('annual') || cFullTitle.includes('annual') || cSeries.includes('annual');
+    if (!isComicAnnual) return false;
+
+    const rawIssueYear = parsedFullCover.issueOrYear.replace(/^[#'’]/, '').trim();
+    // Check issue number match
+    const cleanIssue = String(comic.issueNumber || '').replace(/^[#]/, '').trim();
+    if (cleanIssue && cleanIssue.toLowerCase() === rawIssueYear.toLowerCase()) {
+      return true;
+    }
+
+    // Check year match (e.g. '96 -> 1996, 2020 -> 2020)
+    if (comic.publicationYear) {
+      const yearStr = String(comic.publicationYear);
+      if (yearStr === rawIssueYear || yearStr.endsWith(rawIssueYear)) {
+        return true;
+      }
+    }
+
+    // Check if title or fullTitle contains the year/issue
+    if (cTitle.includes(rawIssueYear) || cFullTitle.includes(rawIssueYear)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // 3. Regular Issue
+  const rawIssue = parsedFullCover.issueOrYear.replace(/^[#]/, '').trim();
+  const cleanIssue = String(comic.issueNumber || '').replace(/^[#]/, '').trim();
+
+  // Numeric or exact match on issue number
+  if (cleanIssue.toLowerCase() === rawIssue.toLowerCase()) {
+    return true;
+  }
+  const cleanIssueNum = parseInt(cleanIssue, 10);
+  const rawIssueNum = parseInt(rawIssue, 10);
+  if (!isNaN(cleanIssueNum) && !isNaN(rawIssueNum) && cleanIssueNum === rawIssueNum) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Matches a Google Drive file name against a comic book's title, issue number, and volume.
  * Concatenates Title + Issue Number (e.g. "Amazing Spider-Man 300" or "Amazing Spider-Man #300"),
@@ -225,6 +383,11 @@ export function doesFileNameMatchComic(
   publicationYear?: number
 ): boolean {
   if (!driveFileName || !comicTitle) return false;
+
+  // Strict check: if filename contains standalone "Full", it must not match standard cover art
+  if (hasFullCoverWord(driveFileName)) {
+    return false;
+  }
 
   // 1. Strip file extension
   let baseFileName = driveFileName.replace(/\.[^/.]+$/, '').trim();

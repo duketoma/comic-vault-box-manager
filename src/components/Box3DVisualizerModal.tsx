@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import { ComicBook, StorageBox } from '../types';
 import Box3DVisualizer from './Box3DVisualizer';
 import { ComicDetailPanel } from './ComicDetailPanel';
+import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { X } from 'lucide-react';
 
 export interface Box3DVisualizerModalProps {
@@ -29,6 +30,7 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
   onDeleteComic,
 }) => {
   const [selectedComic, setSelectedComic] = useState<ComicBook | null>(null);
+  const [fullArtComic, setFullArtComic] = useState<ComicBook | null>(null);
 
   if (!isOpen) return null;
 
@@ -54,6 +56,7 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
               box={box}
               comics={comics}
               onSelectComic={setSelectedComic}
+              onViewFullArt={(comic) => setFullArtComic(comic)}
               highlightedComicId={selectedComic?.id}
             />
           </div>
@@ -64,6 +67,7 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
               <ComicDetailPanel
                 comic={selectedComic}
                 onUpdate={onUpdateComic}
+                onViewFullArt={(comic) => setFullArtComic(comic)}
                 onDelete={() => {
                   if (onDeleteComic) {
                     onDeleteComic(selectedComic.id);
@@ -82,6 +86,17 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Full Art Wraparound Showcase Modal */}
+      {fullArtComic && (
+        <FullArtShowcaseModal
+          isOpen={!!fullArtComic}
+          onClose={() => setFullArtComic(null)}
+          comic={fullArtComic}
+          allComics={comics}
+          onSelectComic={(c) => setFullArtComic(c)}
+        />
+      )}
     </div>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ComicBook, SeriesIssueTotal, StorageBox, CREATOR_ROLES, CreatorContribution, CharacterAppearance } from '../types';
-import { getComicCoverUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
+import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
+import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { 
   X, 
   Star, 
@@ -15,17 +16,18 @@ import {
   DollarSign, 
   Tag, 
   Clock, 
-  Calendar,
-  Image as ImageIcon,
-  UserCheck,
-  Plus,
-  Cloud,
-  ExternalLink,
-  Info,
-  ShieldAlert,
-  Target,
-  Crown,
-  Search
+  Calendar, 
+  Image as ImageIcon, 
+  UserCheck, 
+  Plus, 
+  Cloud, 
+  ExternalLink, 
+  Info, 
+  ShieldAlert, 
+  Target, 
+  Crown, 
+  Search,
+  Sparkles
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -60,6 +62,9 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [notes, setNotes] = useState(comic.notes || '');
   const [thickness, setThickness] = useState(comic.sizeThickness);
   const [coverImage, setCoverImage] = useState(comic.coverImage || '');
+  const [coverImageFull, setCoverImageFull] = useState(comic.coverImageFull || '');
+  const [showFullArtModal, setShowFullArtModal] = useState(false);
+  const [heroViewMode, setHeroViewMode] = useState<'front' | 'full'>('front');
   const [volume, setVolume] = useState(comic.volume || '');
   const [event, setEvent] = useState(comic.event || '');
   const [publicationYear, setPublicationYear] = useState<number>(comic.publicationYear);
@@ -77,6 +82,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setNotes(comic.notes || '');
     setThickness(comic.sizeThickness);
     setCoverImage(comic.coverImage || '');
+    setCoverImageFull(comic.coverImageFull || '');
+    setHeroViewMode('front');
     setVolume(comic.volume || '');
     setEvent(comic.event || '');
     setPublicationYear(comic.publicationYear);
@@ -227,6 +234,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       notes,
       sizeThickness: Number(thickness),
       coverImage: coverImage.trim() || 'NoImage.png',
+      coverImageFull: coverImageFull.trim() || undefined,
       volume: volume.trim() || undefined,
       event: event.trim() || undefined,
       publicationYear: Number(publicationYear) || comic.publicationYear,
@@ -295,13 +303,73 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
           {/* Top Image & Hero Overlay */}
           <div className="relative bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start">
-            <img
-              src={getComicCoverUrl(coverImage || comic.coverImage)}
-              alt={comic.title}
-              onError={handleImageError}
-              referrerPolicy="no-referrer"
-              className="w-36 h-54 sm:w-40 sm:h-60 object-cover rounded-xl shadow-md border border-slate-200 dark:border-slate-700 shrink-0"
-            />
+            <div className="flex flex-col items-center shrink-0 space-y-2">
+              <div className="relative group">
+                <img
+                  src={
+                    heroViewMode === 'full' && (coverImageFull || comic.coverImageFull)
+                      ? formatDriveImageUrl(coverImageFull || comic.coverImageFull!)
+                      : getComicCoverUrl(coverImage || comic.coverImage)
+                  }
+                  alt={comic.title}
+                  onError={handleImageError}
+                  referrerPolicy="no-referrer"
+                  className={`${
+                    heroViewMode === 'full' && (coverImageFull || comic.coverImageFull)
+                      ? 'w-60 h-40 sm:w-72 sm:h-48 object-contain bg-black/40'
+                      : 'w-36 h-54 sm:w-40 sm:h-60 object-cover'
+                  } rounded-xl shadow-md border border-slate-200 dark:border-slate-700 transition-all cursor-pointer`}
+                  onClick={() => {
+                    if (comic.coverImageFull) setShowFullArtModal(true);
+                  }}
+                  title={comic.coverImageFull ? 'Click to open full-art showcase' : undefined}
+                />
+
+                {(coverImageFull || comic.coverImageFull) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowFullArtModal(true);
+                    }}
+                    className="absolute bottom-2 right-2 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold px-2 py-1 rounded-lg shadow-lg flex items-center gap-1 transition-all cursor-pointer"
+                    title="Open Full Art Showcase"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Showcase</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Toggle Front vs Full Art if Full Art is available */}
+              {(coverImageFull || comic.coverImageFull) && (
+                <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-700/80 p-0.5 rounded-lg text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setHeroViewMode('front')}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                      heroViewMode === 'front'
+                        ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs font-black'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Front Cover
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeroViewMode('full')}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-0.5 ${
+                      heroViewMode === 'full'
+                        ? 'bg-purple-600 text-white shadow-xs font-black'
+                        : 'text-purple-700 dark:text-purple-300 hover:text-purple-900'
+                    }`}
+                  >
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>Full Art</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="flex-1 space-y-2 text-center sm:text-left min-w-0 w-full">
               <div className="flex items-center justify-between gap-2">
@@ -847,6 +915,38 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               </div>
             )}
 
+            {/* Full Wraparound Art URL Edit Field */}
+            {isEditing && (
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                <label className="block text-[11px] font-bold text-purple-700 dark:text-purple-400 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    Full Wraparound Art URL (Front + Back Cover Spread)
+                  </span>
+                  {coverImageFull && (
+                    <button
+                      type="button"
+                      onClick={() => setCoverImageFull('')}
+                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-rose-600 underline font-semibold cursor-pointer"
+                    >
+                      Clear Full Art
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={coverImageFull}
+                  onChange={(e) => setCoverImageFull(e.target.value)}
+                  placeholder="e.g. Google Drive link to wraparound or panoramic cover art"
+                  className="w-full bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-800/60 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-600"
+                />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Info className="w-3 h-3 text-purple-500 shrink-0" />
+                  <span>Wraparound/full-bleed back+front cover art. Shown in Full Art showcase and 3D visualizer.</span>
+                </p>
+              </div>
+            )}
+
             {isEditing && (
               <div className="pt-2 flex justify-end">
                 <button
@@ -961,6 +1061,16 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
         </div>
 
       </div>
+
+      {/* Full Art Showcase Modal */}
+      {showFullArtModal && (
+        <FullArtShowcaseModal
+          isOpen={showFullArtModal}
+          onClose={() => setShowFullArtModal(false)}
+          comic={comic}
+          allComics={allComics}
+        />
+      )}
     </div>
   );
 };

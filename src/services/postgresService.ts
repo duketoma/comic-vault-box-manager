@@ -26,6 +26,10 @@ async function prepareComic(comic: ComicBook): Promise<ComicBook> {
     clean.coverImage = await compressBase64Image(clean.coverImage, 800, 0.7);
   }
   if (clean.coverImage?.length > 800000) clean.coverImage = 'NoImage.png';
+
+  if (clean.coverImageFull?.startsWith('data:image') && clean.coverImageFull.length > 250000) {
+    clean.coverImageFull = await compressBase64Image(clean.coverImageFull, 1600, 0.75);
+  }
   return clean;
 }
 

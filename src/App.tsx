@@ -352,13 +352,45 @@ export default function App() {
     });
   };
 
-  const handleUpdateComicCoversBatch = (updates: Array<{ comicId: string; coverUrl: string }>) => {
+  const handleUpdateComicFullCover = (comicId: string, coverFullUrl: string) => {
+    setComics((prev) => {
+      const updated = prev.map((c) => (c.id === comicId ? { ...c, coverImageFull: coverFullUrl } : c));
+      const comic = updated.find((c) => c.id === comicId);
+      if (comic) dbCall(saveComic(comic)).catch((err) => console.error('Failed to save comic full cover:', err));
+      try {
+        localStorage.setItem('comic_vault_comics', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('LocalStorage save failed for comic full cover update:', err);
+      }
+      return updated;
+    });
+  };
+
+  const handleUpdateComicCoversBatch = (updates: Array<{ comicId: string; coverUrl?: string; coverImageFullUrl?: string }>) => {
     if (updates.length === 0) return;
-    const updateMap = new Map(updates.map((u) => [u.comicId, u.coverUrl]));
+    const coverMap = new Map<string, string>();
+    const fullCoverMap = new Map<string, string>();
+    updates.forEach((u) => {
+      if (u.coverUrl) coverMap.set(u.comicId, u.coverUrl);
+      if (u.coverImageFullUrl) fullCoverMap.set(u.comicId, u.coverImageFullUrl);
+    });
+
     setComics((prev) => {
       const updated = prev.map((c) => {
-        const newUrl = updateMap.get(c.id);
-        return newUrl ? { ...c, coverImage: newUrl } : c;
+        let changed = false;
+        let newCover = c.coverImage;
+        let newFull = c.coverImageFull;
+
+        if (coverMap.has(c.id)) {
+          newCover = coverMap.get(c.id)!;
+          changed = true;
+        }
+        if (fullCoverMap.has(c.id)) {
+          newFull = fullCoverMap.get(c.id)!;
+          changed = true;
+        }
+
+        return changed ? { ...c, coverImage: newCover, coverImageFull: newFull } : c;
       });
       dbCall(replaceComics(updated)).catch((err) => console.error('Failed to persist batch comic covers:', err));
       try {
@@ -550,6 +582,7 @@ export default function App() {
         onClose={() => setIsDriveModalOpen(false)}
         comics={comics}
         onUpdateComicCover={handleUpdateComicCover}
+        onUpdateComicFullCover={handleUpdateComicFullCover}
         onUpdateComicCoversBatch={handleUpdateComicCoversBatch}
         onApplyNoImageFallback={handleApplyNoImageFallback}
       />

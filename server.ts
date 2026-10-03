@@ -24,7 +24,7 @@ const pool = databaseUrl
 const comicColumns = [
   'id', 'title', 'issue_number', 'volume', 'series_name', 'full_title', 'event', 'copies_owned', 'publisher',
   'publication_year', 'publication_month', 'publication_date', 'genre', 'writer',
-  'artist', 'cover_artist', 'creator_contributions', 'character_appearances', 'cover_image', 'format',
+  'artist', 'cover_artist', 'creator_contributions', 'character_appearances', 'cover_image', 'cover_image_full', 'format',
   'size_thickness', 'current_box_id', 'proposed_box_id', 'reading_status', 
   'user_rating', 'condition', 'purchase_price', 'estimated_value',
   'notes', 'tags', 'created_at', 'updated_at',
@@ -37,7 +37,7 @@ const comicFields: Record<(typeof comicColumns)[number], string> = {
   publication_month: 'publicationMonth', publication_date: 'publicationDate', genre: 'genre',
   writer: 'writer', artist: 'artist', cover_artist: 'coverArtist',
   creator_contributions: 'creatorContributions', character_appearances: 'characterAppearances',
-  cover_image: 'coverImage', format: 'format',
+  cover_image: 'coverImage', cover_image_full: 'coverImageFull', format: 'format',
   size_thickness: 'sizeThickness', current_box_id: 'currentBoxId', proposed_box_id: 'proposedBoxId',
   reading_status: 'readingStatus', user_rating: 'userRating', condition: 'condition', purchase_price: 'purchasePrice',
   estimated_value: 'estimatedValue', notes: 'notes', tags: 'tags', created_at: 'createdAt', updated_at: 'updatedAt',
@@ -177,6 +177,7 @@ async function initDatabase(db: Pool) {
     ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS series_name TEXT;
     ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS full_title TEXT;
     ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS character_appearances JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS cover_image_full TEXT;
 
     UPDATE comic_books
     SET full_title = CASE 
@@ -1246,6 +1247,8 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
         sql += `  writer TEXT,\n`;
         sql += `  artist TEXT,\n`;
         sql += `  cover_artist TEXT,\n`;
+        sql += `  cover_image TEXT,\n`;
+        sql += `  cover_image_full TEXT,\n`;
         sql += `  format TEXT NOT NULL,\n`;
         sql += `  size_thickness REAL NOT NULL DEFAULT 1.0,\n`;
         sql += `  current_box_id INTEGER FOREIGN KEY REFERENCES storage_boxes(id),\n`;
@@ -1320,6 +1323,8 @@ Return ONLY valid JSON without markdown fences if possible or clean JSON.
         sql += `  writer VARCHAR(255),\n`;
         sql += `  artist VARCHAR(255),\n`;
         sql += `  cover_artist VARCHAR(255),\n`;
+        sql += `  cover_image TEXT,\n`;
+        sql += `  cover_image_full TEXT,\n`;
         sql += `  format VARCHAR(100) NOT NULL,\n`;
         sql += `  size_thickness NUMERIC(5,2) NOT NULL DEFAULT 1.0,\n`;
         sql += `  current_box_id INT REFERENCES storage_boxes(id),\n`;

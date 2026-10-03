@@ -33,7 +33,8 @@ import {
   Zap, 
   ArrowDownToLine, 
   ChevronRight, 
-  HelpCircle 
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
 import { createComicPuller, ComicPuller } from '../utils/comic-puller';
 import { preloadComicTextures, clearTextureCache } from '../utils/three-textures';
@@ -42,6 +43,7 @@ export interface Box3DVisualizerProps {
   box: StorageBox;
   comics: ComicBook[];
   onSelectComic?: (comic: ComicBook) => void;
+  onViewFullArt?: (comic: ComicBook) => void;
   onClose?: () => void;
   highlightedComicId?: string;
 }
@@ -50,6 +52,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   box,
   comics,
   onSelectComic,
+  onViewFullArt,
   onClose,
   highlightedComicId,
 }) => {
@@ -435,6 +438,21 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
             </button>
           )}
 
+          {/* Full Art Button */}
+          {(() => {
+            const sc = selectedComicId ? comics.find((c) => c.id === selectedComicId) : null;
+            return sc?.coverImageFull && onViewFullArt ? (
+              <button
+                onClick={() => onViewFullArt(sc)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-all cursor-pointer"
+                title="View Full Wraparound Cover Art"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Full Art</span>
+              </button>
+            ) : null;
+          })()}
+
           {/* Reset Camera Button */}
           <button
             onClick={handleResetCamera}
@@ -503,6 +521,17 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline">
                   • {isComicPulled ? 'Currently pulled out for inspection' : 'Sitting in box'}
                 </span>
+                {comic.coverImageFull && onViewFullArt && (
+                  <button
+                    type="button"
+                    onClick={() => onViewFullArt(comic)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 ml-2 cursor-pointer transition-colors"
+                    title="View Full Wraparound Cover Art"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>View Full Art Spread</span>
+                  </button>
+                )}
               </div>
             ) : null;
           })()
