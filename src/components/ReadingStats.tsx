@@ -344,7 +344,13 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     if (seriesSortBy === 'owned') {
       list.sort((a, b) => b.ownedCount - a.ownedCount);
     } else if (seriesSortBy === 'collection') {
-      list.sort((a, b) => b.collectionPct - a.collectionPct || b.ownedCount - a.ownedCount);
+      list.sort((a, b) => {
+        const aHasRemaining = !a.isRunComplete && a.collectionPct < 100 && a.remainingIssues > 0;
+        const bHasRemaining = !b.isRunComplete && b.collectionPct < 100 && b.remainingIssues > 0;
+        if (aHasRemaining && !bHasRemaining) return -1;
+        if (!aHasRemaining && bHasRemaining) return 1;
+        return b.collectionPct - a.collectionPct || b.ownedCount - a.ownedCount;
+      });
     } else if (seriesSortBy === 'remaining') {
       list.sort((a, b) => {
         const aHasRemaining = !a.isRunComplete && a.collectionPct < 100 && a.remainingIssues > 0;
@@ -406,7 +412,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // Top 10 Series for Bar Chart (Showing Owned vs Total Published Issues)
   const topSeriesChartData = useMemo(() => {
     let source = seriesSummary;
-    if (seriesSortBy === 'remaining') {
+    if (seriesSortBy === 'collection' || seriesSortBy === 'remaining') {
       source = source.filter((s) => !s.isRunComplete && s.collectionPct < 100 && s.remainingIssues > 0);
     }
     return source.slice(0, 10).map((s) => ({
@@ -1288,7 +1294,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   <span>Top Series Run Breakdown (Owned vs Total Published Issues)</span>
                 </h4>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {seriesSortBy === 'remaining' ? 'Showing top 10 series with issues remaining' : 'Showing top 10 series'}
+                  {['collection', 'remaining'].includes(seriesSortBy) ? 'Showing top 10 series with issues remaining' : 'Showing top 10 series'}
                 </span>
               </div>
 

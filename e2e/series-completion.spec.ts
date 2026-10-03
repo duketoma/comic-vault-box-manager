@@ -121,4 +121,30 @@ test.describe('Series Collection Completion Tracking', () => {
     await expect(firstSeriesCard).toBeVisible();
     await expect(firstSeriesCard).toContainText(/issue.*needed to complete run/i);
   });
+
+  test('Collection Progress % graph only shows in-progress series runs that still have issues remaining', async ({ page }) => {
+    await page.goto('/');
+
+    // Navigate to Stats tab
+    const statsTab = page.getByRole('button', { name: /Reading & Box Stats/i });
+    await statsTab.click();
+
+    // Switch to Series Completion sub-tab
+    const seriesTab = page.getByRole('button', { name: /Comic Titles \/ Series Graph/i });
+    await seriesTab.click();
+
+    // Select "Collection Progress % (Run Completion)" in the Sort dropdown
+    const sortSelect = page.locator('select').filter({ hasText: /Collection Progress/i }).or(
+      page.locator('label:has-text("Sort Series By:") + select')
+    );
+    await sortSelect.selectOption({ label: 'Collection Progress % (Run Completion)' });
+
+    // Verify chart subtitle indicates series with issues remaining
+    await expect(page.getByText('Showing top 10 series with issues remaining')).toBeVisible();
+
+    // Verify the first series card in the list has issues needed (in-progress run closest to completion, not 100% complete)
+    const firstSeriesCard = page.locator('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3 > div').first();
+    await expect(firstSeriesCard).toBeVisible();
+    await expect(firstSeriesCard).toContainText(/issue.*needed to complete run/i);
+  });
 });
