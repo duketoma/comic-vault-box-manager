@@ -6,6 +6,7 @@ import { formatPublicationDate, getMonthIndex, MONTH_NAMES } from '../utils/date
 import { 
   compareComicsByTitleAndIssue, 
   parseIntegerIssueNumber,
+  isAnnualComic,
   MultiSortOptions,
   SortCriterion,
   ComicSortField,
@@ -232,14 +233,15 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       }
 
       const num = parseIntegerIssueNumber(c.issueNumber);
+      const isAnnual = isAnnualComic(c);
       if (c.readingStatus === 'Wishlist') {
         stat.wishlist += 1;
-        if (!isNaN(num) && !stat.wishlistIssueNumbers.includes(num)) {
+        if (!isAnnual && !isNaN(num) && !stat.wishlistIssueNumbers.includes(num)) {
           stat.wishlistIssueNumbers.push(num);
         }
       } else {
         stat.owned += 1;
-        if (!isNaN(num) && !stat.ownedIssueNumbers.includes(num)) {
+        if (!isAnnual && !isNaN(num) && !stat.ownedIssueNumbers.includes(num)) {
           stat.ownedIssueNumbers.push(num);
         }
       }

@@ -129,6 +129,51 @@ export function isAnnualComic(comic?: Partial<ComicBook> | null): boolean {
 }
 
 /**
+ * Checks whether an Annual comic has a year-based designation (e.g. "Annual '95", "Annual 1998", "1997 Annual")
+ * rather than a standard sequential integer issue number (e.g. "Annual #4").
+ */
+export function isYearDesignatedAnnual(comic?: Partial<ComicBook> | null): boolean {
+  if (!comic) return false;
+  const full = [comic.title, comic.fullTitle, comic.issueNumber, comic.seriesName].filter(Boolean).join(' ');
+  if (/\bannual\s*['’`]\d{2}\b/i.test(full)) return true;
+  if (/\bannual\s*(?:19|20)\d{2}\b/i.test(full)) return true;
+  if (/\b(?:19|20)\d{2}\s*annual\b/i.test(full)) return true;
+  if (comic.issueNumber !== undefined && comic.issueNumber !== null) {
+    const rawIssue = String(comic.issueNumber).trim();
+    if (/^['’`]\d{2}$/.test(rawIssue)) return true;
+    if (/^(?:19|20)\d{2}$/.test(rawIssue)) return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts a numeric issue number for a sequentially numbered Annual (e.g. "Silver Surfer Annual #4" -> 4).
+ * Returns null if the comic is not an annual, is a year-designated annual, or does not have a valid positive integer number.
+ */
+export function extractAnnualNumber(comic?: Partial<ComicBook> | null): number | null {
+  if (!comic || !isAnnualComic(comic) || isYearDesignatedAnnual(comic)) return null;
+
+  // 1. Try to find "Annual #<num>" or "Annual <num>" in fullTitle or title
+  const full = `${comic.fullTitle || ''} ${comic.title || ''}`;
+  const annualNumMatch = full.match(/\bannual\s*#?\s*(\d+)\b/i);
+  if (annualNumMatch) {
+    const n = parseInt(annualNumMatch[1], 10);
+    if (!isNaN(n) && n > 0) return n;
+  }
+
+  // 2. Try issueNumber if it is a clean integer or prefixed annual
+  if (comic.issueNumber !== undefined && comic.issueNumber !== null) {
+    const rawIssue = String(comic.issueNumber).replace(/^#\s*/, '').trim();
+    const parsed = parseIssueNumber(rawIssue);
+    if (!parsed.isText && parsed.major > 0 && Number.isInteger(parsed.major)) {
+      return parsed.major;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Extracts a numeric value for ordering annuals among themselves.
  * Handles issue numbers (#20, Annual 1) and year designations (Annual '95 -> 1995, Annual 1998 -> 1998).
  */

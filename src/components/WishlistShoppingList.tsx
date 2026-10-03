@@ -1,7 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
-import { compareComicsByTitleAndIssue } from '../utils/comicSortUtils';
+import { 
+  compareComicsByTitleAndIssue,
+  isAnnualComic,
+  isYearDesignatedAnnual,
+  extractAnnualNumber
+} from '../utils/comicSortUtils';
 import {
   ShoppingCart,
   CheckCircle2,
@@ -83,7 +88,8 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
     // B. Build counts and sets for owned series and events
     const seriesOwnedMap = new Map<string, number>();
     const seriesWishlistMap = new Map<string, number>();
-    const seriesOwnedNumbers = new Map<string, Set<number>>();
+    const seriesOwnedRegularNumbers = new Map<string, Set<number>>();
+    const seriesOwnedAnnualNumbers = new Map<string, Set<number>>();
 
     const eventTotalMap = new Map<string, number>();
     const eventOwnedMap = new Map<string, number>();
@@ -94,12 +100,27 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
 
       if (isOwned) {
         seriesOwnedMap.set(sKey, (seriesOwnedMap.get(sKey) || 0) + 1);
-        const num = parseInt(c.issueNumber, 10);
-        if (!isNaN(num)) {
-          if (!seriesOwnedNumbers.has(sKey)) {
-            seriesOwnedNumbers.set(sKey, new Set<number>());
+
+        if (isAnnualComic(c)) {
+          // Annual issue: only track if it's a sequentially numbered annual (not year-based)
+          if (!isYearDesignatedAnnual(c)) {
+            const annualNum = extractAnnualNumber(c);
+            if (annualNum !== null) {
+              if (!seriesOwnedAnnualNumbers.has(sKey)) {
+                seriesOwnedAnnualNumbers.set(sKey, new Set<number>());
+              }
+              seriesOwnedAnnualNumbers.get(sKey)!.add(annualNum);
+            }
           }
-          seriesOwnedNumbers.get(sKey)!.add(num);
+        } else {
+          // Regular issue: track integer issue numbers
+          const num = parseInt(c.issueNumber, 10);
+          if (!isNaN(num)) {
+            if (!seriesOwnedRegularNumbers.has(sKey)) {
+              seriesOwnedRegularNumbers.set(sKey, new Set<number>());
+            }
+            seriesOwnedRegularNumbers.get(sKey)!.add(num);
+          }
         }
       } else {
         seriesWishlistMap.set(sKey, (seriesWishlistMap.get(sKey) || 0) + 1);
@@ -154,25 +175,62 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
       let gapScore = 0;
       let gapType: 'full' | 'half_prev' | 'half_next' | 'none' = 'none';
       let gapDetail = 'No adjacent owned issues';
-      const num = parseInt(c.issueNumber, 10);
 
-      if (!isNaN(num) && seriesOwnedNumbers.has(sKey)) {
-        const ownedSet = seriesOwnedNumbers.get(sKey)!;
-        const hasPrev = ownedSet.has(num - 1);
-        const hasNext = ownedSet.has(num + 1);
+      if (isAnnualComic(c)) {
+        if (isYearDesignatedAnnual(c)) {
+          // Annuals with year-based designations (e.g. Annual '95, Annual '96) are excluded from gap checking
+          gapScore = 0;
+          gapType = 'none';
+          gapDetail = 'Annual release (gap analysis excluded)';
+        } else {
+          // Sequentially numbered annual: check against owned numbered annuals for this series
+          const annualNum = extractAnnualNumber(c);
+          if (annualNum !== null && seriesOwnedAnnualNumbers.has(sKey)) {
+            const ownedSet = seriesOwnedAnnualNumbers.get(sKey)!;
+            const hasPrev = ownedSet.has(annualNum - 1);
+            const hasNext = ownedSet.has(annualNum + 1);
 
-        if (hasPrev && hasNext) {
-          gapScore = 100; // Full bridge between two owned issues
-          gapType = 'full';
-          gapDetail = `Bridges gap between #${num - 1} & #${num + 1}`;
-        } else if (hasPrev) {
-          gapScore = 50; // Half gap: extends run after previous issue
-          gapType = 'half_prev';
-          gapDetail = `Extends run after #${num - 1}`;
-        } else if (hasNext) {
-          gapScore = 50; // Half gap: precedes owned next issue
-          gapType = 'half_next';
-          gapDetail = `Precedes owned #${num + 1}`;
+            if (hasPrev && hasNext) {
+              gapScore = 100; // Full bridge between two owned Annuals
+              gapType = 'full';
+              gapDetail = `Bridges gap between Annuals #${annualNum - 1} & #${annualNum + 1}`;
+            } else if (hasPrev) {
+              gapScore = 50; // Half gap: extends run after previous Annual
+              gapType = 'half_prev';
+              gapDetail = `Extends Annual run after #${annualNum - 1}`;
+            } else if (hasNext) {
+              gapScore = 50; // Half gap: precedes owned next Annual
+              gapType = 'half_next';
+              gapDetail = `Precedes owned Annual #${annualNum + 1}`;
+            } else {
+              gapDetail = 'No adjacent owned Annuals';
+            }
+          } else {
+            gapDetail = 'No adjacent owned Annuals';
+          }
+        }
+      } else {
+        // Regular issue: check against owned regular issues for this series
+        const num = parseInt(c.issueNumber, 10);
+
+        if (!isNaN(num) && seriesOwnedRegularNumbers.has(sKey)) {
+          const ownedSet = seriesOwnedRegularNumbers.get(sKey)!;
+          const hasPrev = ownedSet.has(num - 1);
+          const hasNext = ownedSet.has(num + 1);
+
+          if (hasPrev && hasNext) {
+            gapScore = 100; // Full bridge between two owned issues
+            gapType = 'full';
+            gapDetail = `Bridges gap between #${num - 1} & #${num + 1}`;
+          } else if (hasPrev) {
+            gapScore = 50; // Half gap: extends run after previous issue
+            gapType = 'half_prev';
+            gapDetail = `Extends run after #${num - 1}`;
+          } else if (hasNext) {
+            gapScore = 50; // Half gap: precedes owned next issue
+            gapType = 'half_next';
+            gapDetail = `Precedes owned #${num + 1}`;
+          }
         }
       }
 
