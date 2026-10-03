@@ -1,6 +1,27 @@
 import { test, expect } from '@playwright/test';
+import dotenv from 'dotenv';
+import { Pool } from 'pg';
+
+dotenv.config({ path: ['.env.local', '.env'] });
 
 test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', () => {
+  const cleanupTestData = async () => {
+    if (process.env.DATABASE_URL) {
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      try {
+        await pool.query("DELETE FROM comic_books WHERE id LIKE 'c-wishlist-%' OR title LIKE 'Wishlist Hero%'");
+      } catch (e) {
+        console.error('Failed to cleanup test data:', e);
+      } finally {
+        await pool.end();
+      }
+    }
+  };
+
+  test.afterAll(async () => {
+    await cleanupTestData();
+  });
+
   test('Add Comic modal allows 0 copies and Box 0 for Wishlist comics', async ({ page }) => {
     await page.goto('/');
 
@@ -59,7 +80,7 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     await searchInput.fill(uniqueTitle);
 
     // Verify card is rendered
-    const card = page.locator('.grid div.group').first();
+    const card = page.locator('.grid > div.group').first();
     await expect(card).toBeVisible({ timeout: 10000 });
     await expect(card).toContainText(uniqueTitle);
     await expect(card).toContainText('#77');

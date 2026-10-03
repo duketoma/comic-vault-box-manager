@@ -22,9 +22,11 @@ import {
   X,
   PackageCheck,
   Bookmark,
-  Box
+  Box,
+  Eye
 } from 'lucide-react';
 import Box3DVisualizerModal from './Box3DVisualizerModal';
+import ProposedMovesModal from './ProposedMovesModal';
 
 interface BoxManagerProps {
   boxes: StorageBox[];
@@ -74,6 +76,9 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
   const [selected3DBox, setSelected3DBox] = useState<StorageBox | null>(null);
   const [box3DComics, setBox3DComics] = useState<ComicBook[]>([]);
   const [is3DLoading, setIs3DLoading] = useState<boolean>(false);
+
+  // Proposed Moves Review Modal State
+  const [isProposedMovesModalOpen, setIsProposedMovesModalOpen] = useState<boolean>(false);
 
   // Edit / Add Box Modal state
   const [isBoxModalOpen, setIsBoxModalOpen] = useState<boolean>(false);
@@ -523,6 +528,15 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
             {proposedRelocationsCount > 0 && (
               <>
                 <button
+                  onClick={() => setIsProposedMovesModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Inspect all proposed moves and target boxes"
+                >
+                  <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>View Moves ({proposedRelocationsCount})</span>
+                </button>
+
+                <button
                   onClick={handleApplyAllProposedMoves}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
                 >
@@ -645,20 +659,30 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
         {/* Rebalancing Active Banner */}
         {proposedRelocationsCount > 0 && (
-          <div className="mt-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center justify-between gap-3 text-amber-900 dark:text-amber-200 text-xs">
-            <div className="flex items-center gap-2">
+          <div className="mt-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 text-xs shadow-2xs">
+            <div className="flex items-center gap-2.5">
               <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
               <div>
                 <strong>Rebalancing Proposal Active:</strong> You have proposed moving{' '}
-                <span className="font-bold text-amber-950 dark:text-amber-100">{proposedRelocationsCount} comic items</span> to optimal boxes. Review box meters below before finalizing.
+                <span className="font-bold text-amber-950 dark:text-amber-100">{proposedRelocationsCount} comic items</span> to optimal boxes. Review the specific items and destinations before committing.
               </div>
             </div>
-            <button
-              onClick={handleApplyAllProposedMoves}
-              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs shrink-0 cursor-pointer"
-            >
-              Commit Moves
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                onClick={() => setIsProposedMovesModalOpen(true)}
+                className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-lg text-xs border border-amber-300 dark:border-amber-700 flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+              >
+                <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>View Proposed Moves</span>
+              </button>
+              <button
+                onClick={handleApplyAllProposedMoves}
+                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs shadow-2xs cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Commit Moves</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -771,9 +795,19 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                     {/* Proposed Fill Level if altered */}
                     {hasProposal && (
                       <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px]">
-                        <span className="text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1">
-                          <ArrowRight className="w-3 h-3" /> Proposed:
-                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsProposedMovesModalOpen(true);
+                          }}
+                          className="text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1 hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer"
+                          title="Click to view proposed relocations"
+                        >
+                          <ArrowRight className="w-3 h-3 text-amber-500" />
+                          <span>Proposed:</span>
+                          <Eye className="w-3 h-3 text-amber-500 opacity-80" />
+                        </button>
                         <span className={isProposedOverCapacity ? 'text-rose-600 font-bold' : 'text-slate-900 dark:text-slate-100 font-bold'}>
                           {proposedUsedThickness.toFixed(1)} u ({proposedPercent.toFixed(0)}%)
                         </span>
@@ -1131,6 +1165,16 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
           }}
         />
       )}
+
+      {/* Proposed Moves Review Modal */}
+      <ProposedMovesModal
+        isOpen={isProposedMovesModalOpen}
+        onClose={() => setIsProposedMovesModalOpen(false)}
+        comics={comics}
+        boxes={boxes}
+        onUpdateComics={onUpdateComics}
+        onSelectComic={onSelectComic}
+      />
 
     </div>
   );
