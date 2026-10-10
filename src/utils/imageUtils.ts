@@ -1,5 +1,6 @@
 import type { SyntheticEvent } from 'react';
 import noImageAsset from '../../assets/NoImage.png';
+import { buildApiUrl } from '../services/apiConfig';
 
 // Utility functions for comic cover images, Google Drive image links, and NoImage.png placeholder
 
@@ -42,7 +43,7 @@ export function handleImageError(e: SyntheticEvent<HTMLImageElement, Event>) {
 
   // Attempt 1 retry via server proxy
   img.dataset.proxyRetried = 'true';
-  img.src = `/api/proxy-image?url=${encodeURIComponent(currentSrc)}`;
+  img.src = buildApiUrl(`/api/proxy-image?url=${encodeURIComponent(currentSrc)}`);
 }
 
 /**

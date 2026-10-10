@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
+import { buildApiUrl } from '../services/apiConfig';
 import { 
   Database, 
   Download, 
@@ -33,7 +34,7 @@ export const DatabasePlanner: React.FC<DatabasePlannerProps> = ({ comics, boxes,
     setIsExporting(true);
 
     try {
-      const response = await fetch('/api/export-sql', {
+      const response = await fetch(buildApiUrl('/api/export-sql'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

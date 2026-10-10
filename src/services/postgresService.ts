@@ -1,6 +1,7 @@
 import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { compressBase64Image } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
+import { buildApiUrl } from './apiConfig';
 
 export interface CollectionResponse {
   comics: ComicBook[];
@@ -10,7 +11,8 @@ export interface CollectionResponse {
 }
 
 async function request(path: string, options?: RequestInit) {
-  const response = await fetch(path, {
+  const url = buildApiUrl(path);
+  const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });

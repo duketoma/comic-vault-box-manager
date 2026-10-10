@@ -13,6 +13,8 @@ import { ComicDetailModal } from './components/ComicDetailModal';
 import { GoogleDriveCoversModal } from './components/GoogleDriveCoversModal';
 import { DataManagementModal } from './components/DataManagementModal';
 import { GenerateSeriesWishlistModal } from './components/GenerateSeriesWishlistModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { ServerSettingsModal } from './components/ServerSettingsModal';
 import {
   deleteBox, deleteComic, loadCollection, replaceBoxes, replaceComics, saveBox, saveBoxes, saveComic, saveComicsBatch,
 } from './services/postgresService';
@@ -73,6 +75,7 @@ export default function App() {
   const [selectedSeriesFilter, setSelectedSeriesFilter] = useState<string>('all');
   const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState<boolean>(false);
+  const [isServerModalOpen, setIsServerModalOpen] = useState<boolean>(false);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
 
   const handleOpenGenerateWishlistModal = (seriesName?: string) => {
@@ -117,11 +120,9 @@ export default function App() {
     }
   }, [seriesTotals]);
 
-  useEffect(() => {
-    let active = true;
-    loadCollection()
+  const refreshCollectionData = () => {
+    return loadCollection()
       .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals, creatorTypes: storedCreatorTypes }) => {
-        if (!active) return;
         if (storedBoxes.length > 0) setBoxes(storedBoxes);
         if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
         if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
@@ -130,15 +131,18 @@ export default function App() {
             .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
             .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c)));
         } else if (storedBoxes.length === 0) {
-          // First local PostgreSQL run: move the browser's existing collection into it.
+          // First local run: move the browser's existing collection into it.
           saveBoxes(boxes)
             .then(() => replaceComics(comics))
-            .catch((error) => active && setDatabaseError(error.message));
+            .catch((error) => setDatabaseError(error.message));
         }
         setDatabaseError(null);
       })
-      .catch((error) => active && setDatabaseError(error instanceof Error ? error.message : 'Unable to reach PostgreSQL.'));
-    return () => { active = false; };
+      .catch((error) => setDatabaseError(error instanceof Error ? error.message : 'Unable to reach PostgreSQL.'));
+  };
+
+  useEffect(() => {
+    refreshCollectionData();
   }, []);
 
   // If a database error is present, poll the backend until the connection is restored and clear the banner
@@ -499,6 +503,7 @@ export default function App() {
           setStatsSubTab('series');
           setActiveTab('stats');
         }}
+        onOpenServerSettings={() => setIsServerModalOpen(true)}
       />
 
       {databaseError && (
@@ -515,7 +520,7 @@ export default function App() {
       )}
 
       {/* Main Content View Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-6">
         
         {activeTab === 'catalog' && (
           <CollectionCatalog
@@ -633,6 +638,28 @@ export default function App() {
         onRemoveDuplicates={handleRemoveDuplicates}
         onClearAllComics={handleClearAllComics}
         onResetSampleData={handleResetSampleData}
+      />
+
+      <ServerSettingsModal
+        isOpen={isServerModalOpen}
+        onClose={() => setIsServerModalOpen(false)}
+        onSaved={refreshCollectionData}
+      />
+
+      {/* Mobile Bottom Navigation Bar (thumb navigation on Android/iOS) */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenScanModal={() => {
+          setInitialScanMode(true);
+          setIsAddModalOpen(true);
+        }}
+        onOpenAddModal={() => {
+          setInitialScanMode(false);
+          setIsAddModalOpen(true);
+        }}
+        onOpenServerSettings={() => setIsServerModalOpen(true)}
+        wishlistCount={wishlistCount}
       />
 
       {/* Footer */}

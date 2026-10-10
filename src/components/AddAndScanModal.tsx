@@ -20,8 +20,11 @@ import {
   ShieldAlert,
   Cloud,
   Info,
-  Bookmark
+  Bookmark,
+  Barcode
 } from 'lucide-react';
+import { buildApiUrl } from '../services/apiConfig';
+import { capturePhotoNative, scanBarcodeNative, isNativeMobile } from '../utils/nativeHardware';
 
 interface AddAndScanModalProps {
   isOpen: boolean;
@@ -101,61 +104,88 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle Cover Image Upload and Scan with Gemini
+  // Process and scan cover image with Gemini API
+  const processCoverImage = async (base64Image: string) => {
+    setScanError(null);
+    setIsScanning(true);
+
+    try {
+      const compressedBase64 = await compressBase64Image(base64Image, 800, 0.75);
+      setScanPreviewUrl(compressedBase64);
+      setCoverImage(compressedBase64);
+
+      const response = await fetch(buildApiUrl('/api/scan-cover'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: compressedBase64,
+          mimeType: 'image/jpeg',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const d = result.data;
+        if (d.title) setTitle(d.title);
+        if (d.issueNumber) setIssueNumber(String(d.issueNumber));
+        if (d.volume) setVolume(d.volume);
+        if (d.publisher) setPublisher(d.publisher);
+        if (d.publicationYear) setPublicationYear(Number(d.publicationYear));
+        if (d.genre) setGenre(d.genre);
+        if (d.writer) setWriter(d.writer);
+        if (d.artist) setArtist(d.artist);
+        if (d.coverArtist) setCoverArtist(d.coverArtist);
+        if (d.format) setFormat(d.format);
+        if (d.sizeThickness) setSizeThickness(Number(d.sizeThickness));
+        if (d.estimatedValue) setEstimatedValue(String(d.estimatedValue));
+        if (d.summary) setNotes(d.summary);
+        if (Array.isArray(d.tags)) setTagsInput(d.tags.join(', '));
+      } else {
+        setScanError(result.error || 'Could not analyze cover image');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setScanError(err.message || 'Error connecting to cover scanner API');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Handle Cover Image Upload from Browser
   const handleImageUploadAndScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setScanError(null);
-    setIsScanning(true);
-
     const reader = new FileReader();
     reader.onload = async () => {
-      const rawBase64 = reader.result as string;
-      const compressedBase64 = await compressBase64Image(rawBase64, 800, 0.75);
-      setScanPreviewUrl(compressedBase64);
-      setCoverImage(compressedBase64);
-
-      try {
-        const response = await fetch('/api/scan-cover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: compressedBase64,
-            mimeType: 'image/jpeg',
-          }),
-        });
-
-        const result = await response.json();
-
-        if (result.success && result.data) {
-          const d = result.data;
-          if (d.title) setTitle(d.title);
-          if (d.issueNumber) setIssueNumber(String(d.issueNumber));
-          if (d.volume) setVolume(d.volume);
-          if (d.publisher) setPublisher(d.publisher);
-          if (d.publicationYear) setPublicationYear(Number(d.publicationYear));
-          if (d.genre) setGenre(d.genre);
-          if (d.writer) setWriter(d.writer);
-          if (d.artist) setArtist(d.artist);
-          if (d.coverArtist) setCoverArtist(d.coverArtist);
-          if (d.format) setFormat(d.format);
-          if (d.sizeThickness) setSizeThickness(Number(d.sizeThickness));
-          if (d.estimatedValue) setEstimatedValue(String(d.estimatedValue));
-          if (d.summary) setNotes(d.summary);
-          if (Array.isArray(d.tags)) setTagsInput(d.tags.join(', '));
-        } else {
-          setScanError(result.error || 'Could not analyze cover image');
-        }
-      } catch (err: any) {
-        console.error(err);
-        setScanError(err.message || 'Error connecting to cover scanner API');
-      } finally {
-        setIsScanning(false);
-      }
+      await processCoverImage(reader.result as string);
     };
-
     reader.readAsDataURL(file);
+  };
+
+  // Native Mobile Camera Capture
+  const handleNativeCamera = async () => {
+    const photo = await capturePhotoNative();
+    if (photo) {
+      await processCoverImage(photo);
+    }
+  };
+
+  // Native Mobile Barcode / UPC Scan
+  const handleNativeBarcode = async () => {
+    const barcode = await scanBarcodeNative();
+    if (barcode) {
+      // Append UPC to notes and tags
+      setNotes((prev) => (prev ? `${prev}\nUPC: ${barcode}` : `UPC: ${barcode}`));
+      setTagsInput((prev) => {
+        const parts = prev ? prev.split(',').map((s) => s.trim()) : [];
+        if (!parts.includes(`UPC:${barcode}`)) {
+          parts.push(`UPC:${barcode}`);
+        }
+        return parts.join(', ');
+      });
+    }
   };
 
   // Format Auto-adjust thickness suggestion
@@ -391,9 +421,40 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                         Gemini AI will scan title, issue #, writer, artist, publisher, publication year, format, and estimated size thickness!
                       </p>
                     </div>
-                    <button className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-xs cursor-pointer">
-                      Choose Cover Image File
-                    </button>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2 z-20 relative">
+                      {isNativeMobile() && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNativeCamera();
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4" />
+                          Take Photo
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold rounded-xl text-xs shadow-xs cursor-pointer"
+                      >
+                        Choose Image File
+                      </button>
+                      {isNativeMobile() && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNativeBarcode();
+                          }}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Barcode className="w-4 h-4" />
+                          Scan Barcode / UPC
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

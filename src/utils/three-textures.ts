@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { ComicBook } from '../types';
 import { getComicCoverUrl, DEFAULT_COVER_IMAGE } from './imageUtils';
+import { buildApiUrl } from '../services/apiConfig';
 
 /**
  * Texture cache to avoid re-loading the same image multiple times
@@ -77,7 +78,7 @@ export async function fetchImageAsTexture(url: string): Promise<THREE.Texture> {
       } else {
         // If direct fetch returns non-200, try server proxy
         try {
-          const proxyRes = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+          const proxyRes = await fetch(buildApiUrl(`/api/proxy-image?url=${encodeURIComponent(url)}`));
           if (proxyRes.ok) {
             const contentType = proxyRes.headers.get('content-type');
             if (contentType && contentType.startsWith('image/')) {
@@ -93,7 +94,7 @@ export async function fetchImageAsTexture(url: string): Promise<THREE.Texture> {
     } catch {
       // Direct fetch failed (e.g. CORS restriction on external host), try server proxy
       try {
-        const proxyRes = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+        const proxyRes = await fetch(buildApiUrl(`/api/proxy-image?url=${encodeURIComponent(url)}`));
         if (proxyRes.ok) {
           const contentType = proxyRes.headers.get('content-type');
           if (contentType && contentType.startsWith('image/')) {

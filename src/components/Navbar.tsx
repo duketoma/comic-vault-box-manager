@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   BookOpen, 
   Boxes, 
@@ -7,13 +7,15 @@ import {
   Database, 
   PlusCircle, 
   Camera, 
-  Search,
-  Cloud,
-  Trash2,
-  Sun,
-  Moon,
-  Trophy,
-  ShoppingCart
+  Search, 
+  Cloud, 
+  Trash2, 
+  Sun, 
+  Moon, 
+  Trophy, 
+  ShoppingCart, 
+  Server,
+  MoreVertical
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -33,6 +35,7 @@ interface NavbarProps {
   totalRunsCount?: number;
   wishlistCount?: number;
   onNavigateToStats?: () => void;
+  onOpenServerSettings?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -52,26 +55,36 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalRunsCount,
   wishlistCount,
   onNavigateToStats,
+  onOpenServerSettings,
 }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
-    <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 sticky top-0 z-40 shadow-xs transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+    <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 sticky top-0 z-40 shadow-xs transition-colors safe-top">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
           
           {/* Logo & Branding */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-lg bg-slate-900 dark:bg-indigo-600 flex items-center justify-center text-white font-black text-base tracking-wider shadow-sm transition-colors">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-slate-900 dark:bg-indigo-600 flex items-center justify-center text-white font-black text-sm sm:text-base tracking-wider shadow-sm transition-colors shrink-0">
               CV
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base text-slate-900 dark:text-white leading-none tracking-tight">Comic Archive Pro</h1>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-md">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-none tracking-tight truncate">
+                  Comic Archive Pro
+                </h1>
+                <button
+                  type="button"
+                  onClick={onOpenServerSettings}
+                  title="Configure backend server connection"
+                  className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-md cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors shrink-0"
+                >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Cloud DB Connected</span>
-                </span>
+                  <span className="hidden sm:inline">Cloud DB Connected</span>
+                </button>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+              <p className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium truncate">
                 Configurable Storage Box & Collection Manager
               </p>
             </div>
@@ -100,11 +113,44 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Drive Covers */}
+            <button
+              onClick={onOpenDriveModal}
+              className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              title="Sync Google Drive Comic Covers folder & NoImage.png"
+              aria-label="Drive Covers"
+            >
+              <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="hidden xl:inline">Drive Covers</span>
+            </button>
+
+            {/* AI Cover Scanner */}
+            <button
+              onClick={onOpenScanModal}
+              className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              title="Scan Comic Cover with Gemini AI"
+              aria-label="AI Cover Scanner"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">AI Cover Scanner</span>
+            </button>
+
+            {/* Add Comic */}
+            <button
+              onClick={onOpenAddModal}
+              className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 lg:px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              title="Add New Comic Manually"
+              aria-label="Add Comic"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Add Comic</span>
+            </button>
+
             {/* Theme Toggle Button */}
             <button
               onClick={onToggleDarkMode}
-              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              className="p-2 sm:p-1.5 xl:px-2.5 xl:py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
               title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label="Toggle dark mode"
             >
@@ -113,15 +159,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               ) : (
                 <Moon className="w-4 h-4 text-slate-700" />
               )}
-              <span className="hidden sm:inline text-xs">
+              <span className="hidden xl:inline text-xs">
                 {darkMode ? 'Light' : 'Dark'}
               </span>
             </button>
 
+            {/* Manage Data (desktop / tablet) */}
             {onOpenDataManagementModal && (
               <button
                 onClick={onOpenDataManagementModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all active:scale-95"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Manage collection data, remove double-imports, or clear data"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
@@ -129,31 +176,68 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            <button
-              onClick={onOpenDriveModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95"
-              title="Sync Google Drive Comic Covers folder & NoImage.png"
-            >
-              <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="hidden sm:inline">Drive Covers</span>
-            </button>
+            {/* Server Settings (desktop) */}
+            {onOpenServerSettings && (
+              <button
+                onClick={onOpenServerSettings}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Configure Backend Server Host (WiFi / Cloud)"
+              >
+                <Server className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden xl:inline">Server</span>
+              </button>
+            )}
 
-            <button
-              onClick={onOpenScanModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95"
-              title="Scan Comic Cover with Gemini AI"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">AI Cover Scanner</span>
-            </button>
-
-            <button
-              onClick={onOpenAddModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Add Comic</span>
-            </button>
+            {/* Mobile More Options Menu */}
+            {(onOpenDataManagementModal || onOpenServerSettings) && (
+              <div className="relative md:hidden shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+                  title="More options"
+                  aria-label="More options"
+                >
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </button>
+                {isMobileMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-1.5 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                      {onOpenDataManagementModal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onOpenDataManagementModal();
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-left transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>Manage Data</span>
+                        </button>
+                      )}
+                      {onOpenServerSettings && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onOpenServerSettings();
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-left transition-colors cursor-pointer"
+                        >
+                          <Server className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span>Server Settings</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

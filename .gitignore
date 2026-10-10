@@ -10,3 +10,4 @@ firebase-applet-config.json
 Troubleshooting/
 test-results/
 playwright-report/
+.idea/
