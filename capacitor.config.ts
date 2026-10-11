@@ -5,10 +5,13 @@ const config: CapacitorConfig = {
   appName: 'Comic Vault',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
     cleartext: true,
   },
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       launchShowDuration: 1200,
       backgroundColor: '#0f172a',
