@@ -6,12 +6,13 @@ import {
   ShoppingCart, 
   Camera, 
   Server,
-  Plus
+  Plus,
+  Trophy
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
-  activeTab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping';
-  setActiveTab: (tab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping') => void;
+  activeTab: 'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping';
+  setActiveTab: (tab: 'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping') => void;
   onOpenScanModal: () => void;
   onOpenAddModal: () => void;
   onOpenServerSettings: () => void;
@@ -83,6 +84,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               {wishlistCount}
             </span>
           )}
+        </button>
+
+        {/* Challenge */}
+        <button
+          onClick={() => setActiveTab('challenge')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'challenge'
+              ? 'text-amber-500 dark:text-amber-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          title="Reading Challenge"
+        >
+          <Trophy className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Challenge</span>
         </button>
 
         {/* Stats */}

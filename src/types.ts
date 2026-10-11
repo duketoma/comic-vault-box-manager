@@ -204,3 +204,5 @@ export interface BoxCapacityAnalysis {
   isOverCapacity: boolean;
   isProposedOverCapacity: boolean;
 }
+
+export * from './types/readingChallenge.types';

@@ -15,13 +15,14 @@ import { DataManagementModal } from './components/DataManagementModal';
 import { GenerateSeriesWishlistModal } from './components/GenerateSeriesWishlistModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ServerSettingsModal } from './components/ServerSettingsModal';
+import { ReadingChallengeView } from './components/reading-challenge/ReadingChallengeView';
 import {
   deleteBox, deleteComic, loadCollection, replaceBoxes, replaceComics, saveBox, saveBoxes, saveComic, saveComicsBatch,
 } from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -556,6 +557,15 @@ export default function App() {
             onUpdateBox={handleUpdateBox}
             onDeleteBox={handleDeleteBox}
             onSelectComic={setSelectedComic}
+          />
+        )}
+
+        {activeTab === 'challenge' && (
+          <ReadingChallengeView
+            comics={inCollectionComics}
+            boxes={boxes}
+            onSelectComic={setSelectedComic}
+            onRefreshCollection={handleRefreshCollection}
           />
         )}
 

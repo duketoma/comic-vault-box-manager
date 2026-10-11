@@ -102,12 +102,16 @@ export function formatDriveImageUrl(urlOrId: string, customFallback?: string): s
 /**
  * Safe image resolver that falls back to NoImage.png placeholder if missing
  */
-export function getComicCoverUrl(coverUrl?: string, customFallback?: string): string {
+export function getComicCoverUrl(coverUrlOrComic?: string | { coverImage?: string; coverImageFull?: string } | null, customFallback?: string): string {
   const fallback = customFallback || getDriveNoImageUrl();
-  if (!coverUrl || !coverUrl.trim() || coverUrl === DEFAULT_COVER_IMAGE || coverUrl.toLowerCase().includes('noimage')) {
+  const rawUrl = typeof coverUrlOrComic === 'object' && coverUrlOrComic !== null
+    ? (coverUrlOrComic.coverImage || coverUrlOrComic.coverImageFull)
+    : coverUrlOrComic;
+
+  if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.trim() || rawUrl === DEFAULT_COVER_IMAGE || rawUrl.toLowerCase().includes('noimage')) {
     return fallback;
   }
-  return formatDriveImageUrl(coverUrl, fallback);
+  return formatDriveImageUrl(rawUrl, fallback);
 }
 
 /**

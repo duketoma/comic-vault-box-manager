@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping';
-  setActiveTab: (tab: 'catalog' | 'boxes' | 'stats' | 'sheets' | 'database' | 'shopping') => void;
+  activeTab: 'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping';
+  setActiveTab: (tab: 'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   darkMode: boolean;
@@ -289,6 +289,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Boxes className="w-4 h-4" />
               <span>Storage Boxes</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('challenge')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'challenge'
+                  ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <span>Reading Challenge</span>
             </button>
 
             <button
