@@ -165,6 +165,50 @@ export interface ChallengeInsightsResponse {
   totalEligible: number;
   readCount: number;
   milestones: ChallengeMilestone[];
+  tbrMilestones?: TBRMilestonesSummary;
+}
+
+export type TBRHighlightCategory =
+  | 'Collection'
+  | 'Publisher'
+  | 'Series'
+  | 'StoryArc'
+  | 'Creator'
+  | 'Character';
+
+export interface TBRHighlight {
+  id: string;
+  comicId: string;
+  challengeItemId: number;
+  sequenceNumber: number;
+  category: TBRHighlightCategory;
+  entityName: string;
+  role?: string;
+  label: string;
+  description: string;
+  releaseDate?: string;
+  collectionCount?: number;
+}
+
+export interface TBRQueueItemHighlights {
+  challengeItemId: number;
+  comicId: string;
+  sequenceNumber: number;
+  title: string;
+  issueNumber: string;
+  seriesName?: string;
+  publisher?: string;
+  coverImage?: string;
+  releaseDate?: string;
+  highlights: TBRHighlight[];
+}
+
+export interface TBRMilestonesSummary {
+  totalTBRComics: number;
+  comicsWithMilestonesCount: number;
+  totalMilestonesCount: number;
+  itemsWithHighlights: TBRQueueItemHighlights[];
+  allHighlights: TBRHighlight[];
 }
 
 export interface ReadingHistoryRecord {

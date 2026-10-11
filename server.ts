@@ -16,7 +16,7 @@ import {
   formatCriteriaSummary, 
   validateCriteria 
 } from './src/utils/challengeCriteriaEngine';
-import { computeChallengeMilestones } from './src/utils/challengeMilestones';
+import { computeChallengeMilestones, computeTBRMilestones } from './src/utils/challengeMilestones';
 import { 
   ReadingChallengeCriteria, 
   ComicMetadataSnapshot, 
@@ -1163,12 +1163,20 @@ const comicUpsertSql = `
       }
       const challenge = challengeRes.rows[0];
 
-      const itemsRes = await pool!.query(`
-        SELECT id, comic_id, sequence_number, status, metadata_snapshot
-        FROM reading_challenge_items
-        WHERE challenge_id = $1
-        ORDER BY sequence_number ASC
-      `, [challengeId]);
+      const [itemsRes, collectionRes] = await Promise.all([
+        pool!.query(`
+          SELECT id, comic_id, sequence_number, status, metadata_snapshot
+          FROM reading_challenge_items
+          WHERE challenge_id = $1
+          ORDER BY sequence_number ASC
+        `, [challengeId]),
+        pool!.query(`
+          SELECT ${comicColumns.join(', ')}
+          FROM comic_books
+          WHERE (reading_status IS NULL OR reading_status != 'Wishlist')
+            AND (copies_owned > 0 OR copies_owned IS NULL)
+        `),
+      ]);
 
       const items = itemsRes.rows.map((r) => ({
         challengeItemId: r.id,
@@ -1181,12 +1189,17 @@ const comicUpsertSql = `
       const milestones = computeChallengeMilestones(items);
       const readCount = items.filter((it) => it.status === 'Read').length;
 
+      const collectionComics = collectionRes.rows.map(rowToComic) as unknown as ComicBook[];
+      const unreadQueue = items.filter((it) => it.status === 'Unread').slice(0, 10);
+      const tbrMilestones = computeTBRMilestones(unreadQueue as unknown as ChallengeQueueItem[], collectionComics);
+
       res.json({
         challengeId: challenge.id,
         challengeName: challenge.name,
         totalEligible: challenge.total_eligible_count,
         readCount,
         milestones,
+        tbrMilestones,
       });
     } catch (error) {
       const detail = databaseErrorMessage(error);

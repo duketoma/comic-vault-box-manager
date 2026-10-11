@@ -30,6 +30,7 @@ import { ChallengeProgressPanel } from './ChallengeProgressPanel';
 import { ChallengeInsightsView } from './ChallengeInsightsView';
 import { ChallengeHistoryList } from './ChallengeHistoryList';
 import { isComicEligibleForChallenge } from '../../utils/challengeCriteriaEngine';
+import { computeTBRMilestones } from '../../utils/challengeMilestones';
 
 interface ReadingChallengeViewProps {
   comics: ComicBook[];
@@ -55,6 +56,11 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
   const inCollectionComics = useMemo(() => {
     return comics.filter(isComicEligibleForChallenge);
   }, [comics]);
+
+  const tbrMilestones = useMemo(() => {
+    if (!activeChallenge?.queue || activeChallenge.queue.length === 0) return null;
+    return computeTBRMilestones(activeChallenge.queue, inCollectionComics);
+  }, [activeChallenge?.queue, inCollectionComics]);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -390,6 +396,7 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
                 onMarkRead={handleMarkRead}
                 onSkip={handleSkip}
                 onSelectComic={onSelectComic}
+                milestonesSummary={tbrMilestones || undefined}
               />
             </div>
           )}
@@ -398,6 +405,8 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
             <ChallengeInsightsView
               challengeId={activeChallenge.challengeId}
               comics={inCollectionComics}
+              queue={activeChallenge.queue}
+              tbrMilestones={tbrMilestones || undefined}
               onSelectComic={onSelectComic}
             />
           )}

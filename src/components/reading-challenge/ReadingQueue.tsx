@@ -12,7 +12,7 @@ import {
   User
 } from 'lucide-react';
 import { ComicBook, StorageBox } from '../../types';
-import { ChallengeQueueItem } from '../../types/readingChallenge.types';
+import { ChallengeQueueItem, TBRMilestonesSummary } from '../../types/readingChallenge.types';
 import { getComicCoverUrl, handleImageError } from '../../utils/imageUtils';
 
 interface ReadingQueueProps {
@@ -21,6 +21,7 @@ interface ReadingQueueProps {
   onMarkRead: (itemId: number) => Promise<void>;
   onSkip: (itemId: number) => Promise<void>;
   onSelectComic?: (comic: ComicBook) => void;
+  milestonesSummary?: TBRMilestonesSummary;
 }
 
 export const ReadingQueue: React.FC<ReadingQueueProps> = ({
@@ -29,6 +30,7 @@ export const ReadingQueue: React.FC<ReadingQueueProps> = ({
   onMarkRead,
   onSkip,
   onSelectComic,
+  milestonesSummary,
 }) => {
   const [pendingItemId, setPendingItemId] = useState<number | null>(null);
 
@@ -73,6 +75,28 @@ export const ReadingQueue: React.FC<ReadingQueueProps> = ({
         </p>
       </div>
 
+      {/* TBR Milestones Spotlight Banner */}
+      {milestonesSummary && milestonesSummary.totalMilestonesCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-purple-500/15 border border-amber-300/60 dark:border-amber-600/50 rounded-2xl p-3.5 px-4 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-xs shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Upcoming Milestones in TBR Queue</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                  {milestonesSummary.totalMilestonesCount} {milestonesSummary.totalMilestonesCount === 1 ? 'Milestone' : 'Milestones'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                {milestonesSummary.comicsWithMilestonesCount} of your upcoming comics feature first appearances, earliest creator work, or collection timeline milestones!
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {queue.map((item, index) => {
           const meta = item.metadata;
@@ -82,12 +106,21 @@ export const ReadingQueue: React.FC<ReadingQueueProps> = ({
           const currentBoxId = item.currentBoxId ?? meta.currentBoxId;
           const box = boxes.find((b) => b.id === currentBoxId);
 
+          // Find TBR highlights for this comic
+          const highlightEntry = milestonesSummary?.itemsWithHighlights.find(
+            (entry) => entry.challengeItemId === item.challengeItemId
+          );
+          const itemHighlights = highlightEntry?.highlights || [];
+          const hasHighlights = itemHighlights.length > 0;
+
           return (
             <div
               key={item.challengeItemId}
               className={`relative bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-xs flex gap-4 transition-all ${
                 index === 0
-                  ? 'border-indigo-500/60 dark:border-indigo-500/60 ring-2 ring-indigo-500/10'
+                  ? 'border-indigo-500/70 dark:border-indigo-500/70 ring-2 ring-indigo-500/15'
+                  : hasHighlights
+                  ? 'border-amber-400/60 dark:border-amber-500/50 bg-gradient-to-br from-amber-50/25 via-white to-white dark:from-amber-950/10 dark:via-slate-900 dark:to-slate-900'
                   : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
               }`}
             >
@@ -173,6 +206,34 @@ export const ReadingQueue: React.FC<ReadingQueueProps> = ({
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 mt-1">
                       <Sparkles className="w-3 h-3 text-amber-500" />
                       <span className="truncate">{meta.event}</span>
+                    </div>
+                  )}
+
+                  {/* TBR Collection Milestone Pills */}
+                  {itemHighlights.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {itemHighlights.map((hl) => (
+                        <div
+                          key={hl.id}
+                          title={hl.description}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black border tracking-tight shadow-2xs ${
+                            hl.category === 'Collection'
+                              ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700'
+                              : hl.category === 'Character'
+                              ? 'bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700'
+                              : hl.category === 'Creator'
+                              ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700'
+                              : hl.category === 'StoryArc'
+                              ? 'bg-orange-100 dark:bg-orange-950 text-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700'
+                              : hl.category === 'Series'
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700'
+                              : 'bg-sky-100 dark:bg-sky-950 text-sky-900 dark:text-sky-200 border-sky-300 dark:border-sky-700'
+                          }`}
+                        >
+                          <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                          <span>{hl.label}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
 

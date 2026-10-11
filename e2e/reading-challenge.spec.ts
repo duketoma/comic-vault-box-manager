@@ -392,6 +392,84 @@ test.describe('Reading Challenge Feature', () => {
     // Verify preview card does NOT show Warlock Chronicles
     await expect(page.getByText('Warlock Chronicles', { exact: true })).not.toBeVisible();
   });
+
+  test('Surfaces collection milestones in current TBR queue and updates when items advance', async ({ page }) => {
+    const activeMock = {
+      challengeId: 42,
+      name: 'Batman 1987 Run',
+      status: 'Active',
+      criteriaSnapshot: { version: 1, root: { type: 'series', ids: ['Batman'] } },
+      criteriaSummary: 'Series: Batman',
+      readingOrder: 'PublicationDate',
+      sortDirection: 'Ascending',
+      batchSize: 10,
+      createdAt: '2026-10-10T00:00:00.000Z',
+      startedAt: '2026-10-10T00:00:00.000Z',
+      totalEligible: 2,
+      readCount: 0,
+      skippedCount: 0,
+      resolvedCount: 0,
+      remainingCount: 2,
+      progressPercent: 0,
+      queue: [
+        {
+          challengeItemId: 101,
+          challengeId: 42,
+          comicId: 'rc-c1',
+          sequenceNumber: 1,
+          status: 'Unread',
+          addedAt: '2026-10-10T00:00:00.000Z',
+          metadata: sampleComics[0],
+          currentBoxId: 2,
+          boxName: 'Box Beta',
+          boxLocation: 'Bottom Shelf Right',
+          boxColorTag: '#10B981',
+        },
+        {
+          challengeItemId: 102,
+          challengeId: 42,
+          comicId: 'rc-c2',
+          sequenceNumber: 2,
+          status: 'Unread',
+          addedAt: '2026-10-10T00:00:00.000Z',
+          metadata: sampleComics[1],
+          currentBoxId: 2,
+          boxName: 'Box Beta',
+          boxLocation: 'Bottom Shelf Right',
+          boxColorTag: '#10B981',
+        },
+      ],
+    };
+
+    await page.route('**/api/reading-challenges/active', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ challenge: activeMock }) });
+    });
+
+    await page.goto('/');
+
+    const challengeTab = page.getByRole('button', { name: /Reading Challenge/i });
+    await challengeTab.click();
+
+    // 1. Verify TBR Queue spotlight banner is visible
+    await expect(page.getByText('Upcoming Milestones in TBR Queue')).toBeVisible();
+
+    // 2. Verify earliest milestone badge on comic #1 card
+    await expect(page.getByText(/Earliest Batman in Collection/i).first()).toBeVisible();
+
+    // 3. Switch to "Milestones" subtab
+    const insightsTab = page.getByRole('button', { name: /^Milestones$/i });
+    await insightsTab.click();
+
+    // 4. Verify TBR Queue Highlights are active by default
+    await expect(page.getByRole('button', { name: /TBR Queue Highlights/i })).toBeVisible();
+    await expect(page.getByText('#1 in TBR')).toBeVisible();
+    await expect(page.getByText(/Earliest Batman in Collection/i).first()).toBeVisible();
+
+    // 5. Test category filter (e.g. Creators)
+    const creatorFilterBtn = page.getByRole('button', { name: 'Creators' });
+    await creatorFilterBtn.click();
+    await expect(page.getByText(/Earliest David Mazzucchelli/i).first()).toBeVisible();
+  });
 });
 
 
