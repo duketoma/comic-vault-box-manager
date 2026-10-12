@@ -362,28 +362,30 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   return (
     <div className="relative w-full h-full bg-slate-100 dark:bg-slate-950 flex flex-col select-none">
       {/* Top Controls Header */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 z-10 shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 py-2 z-10 shadow-xs shrink-0 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer touch-manipulation active:scale-95 shrink-0"
               title="Close 3D View"
+              aria-label="Close 3D View"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
           )}
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-900 dark:text-slate-100 truncate text-sm sm:text-base">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h2 className="font-bold text-slate-900 dark:text-slate-100 truncate text-xs sm:text-base max-w-[120px] sm:max-w-[200px]">
                 {box.name}
               </h2>
               {boxStackRef.current?.isOverCapacity ? (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold shrink-0">
+                <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold shrink-0">
                   Over Capacity
                 </span>
               ) : (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium shrink-0">
+                <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium shrink-0">
                   {comics.length} / {box.maxCapacity} comics
                 </span>
               )}
@@ -395,20 +397,24 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Previous / Next Comic Buttons */}
           {comics.length > 0 && (
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700 mr-1">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
               <button
+                type="button"
                 onClick={handlePrevComic}
-                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                className="min-w-[40px] min-h-[40px] flex items-center justify-center p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-all touch-manipulation active:scale-95 cursor-pointer"
                 title="Previous Comic in Box"
+                aria-label="Previous Comic in Box"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button
+                type="button"
                 onClick={handleNextComic}
-                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                className="min-w-[40px] min-h-[40px] flex items-center justify-center p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-all touch-manipulation active:scale-95 cursor-pointer"
                 title="Next Comic in Box"
+                aria-label="Next Comic in Box"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           )}
@@ -416,23 +422,25 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           {/* Pull / Return Toggle Button */}
           {selectedComicId && (
             <button
+              type="button"
               onClick={handleTogglePull}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`min-h-[40px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all touch-manipulation active:scale-95 cursor-pointer shrink-0 ${
                 isComicPulled
                   ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
               }`}
               title={isComicPulled ? 'Slide back into box' : 'Lift comic out of box to inspect'}
+              aria-label={isComicPulled ? 'Return comic into box' : 'Lift comic out of box to inspect'}
             >
               {isComicPulled ? (
                 <>
-                  <ArrowDownToLine className="w-3.5 h-3.5" />
-                  <span>Return</span>
+                  <ArrowDownToLine className="w-4 h-4" />
+                  <span className="hidden xs:inline">Return</span>
                 </>
               ) : (
                 <>
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Pull Comic</span>
+                  <Zap className="w-4 h-4" />
+                  <span className="hidden xs:inline">Pull Comic</span>
                 </>
               )}
             </button>
@@ -443,34 +451,28 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
             const sc = selectedComicId ? comics.find((c) => c.id === selectedComicId) : null;
             return sc?.coverImageFull && onViewFullArt ? (
               <button
+                type="button"
                 onClick={() => onViewFullArt(sc)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-all cursor-pointer"
+                className="min-h-[40px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-all touch-manipulation active:scale-95 cursor-pointer shrink-0"
                 title="View Full Wraparound Cover Art"
+                aria-label="View Full Wraparound Cover Art"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>Full Art</span>
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span className="hidden xs:inline">Full Art</span>
               </button>
             ) : null;
           })()}
 
           {/* Reset Camera Button */}
           <button
+            type="button"
             onClick={handleResetCamera}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+            className="min-w-[40px] min-h-[40px] flex items-center justify-center p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors touch-manipulation active:scale-95 cursor-pointer shrink-0"
             title="Reset 3D Camera to Default Angle"
+            aria-label="Reset 3D Camera to Default Angle"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors ml-1 cursor-pointer"
-              title="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -496,14 +498,17 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onClick={handleCanvasClick}
-          className="w-full h-full block cursor-grab active:cursor-grabbing"
+          className="w-full h-full block cursor-grab active:cursor-grabbing touch-none"
         />
 
         {/* Floating Hint Overlay */}
-        <div className="absolute bottom-3 left-3 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-xs border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-2 pointer-events-none">
+        <div className="absolute bottom-3 left-3 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-xs border border-slate-200 dark:border-slate-700 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5 sm:gap-2 pointer-events-none">
           <HelpCircle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <span>
+          <span className="hidden sm:inline">
             <strong>Drag</strong> to rotate • <strong>Scroll</strong> to zoom • <strong>Click</strong> to select • <strong>Double-click</strong> to lift comic
+          </span>
+          <span className="sm:hidden">
+            <strong>Drag</strong> to rotate • <strong>Tap</strong> to select
           </span>
         </div>
       </div>
