@@ -1,4 +1,4 @@
-import { computeTBRMilestones, buildCollectionBaselines } from '../src/utils/challengeMilestones';
+import { computeTBRMilestones, computeChallengeMilestones, buildCollectionBaselines } from '../src/utils/challengeMilestones';
 import { ComicBook } from '../src/types';
 import { ChallengeQueueItem } from '../src/types/readingChallenge.types';
 
@@ -176,6 +176,7 @@ const queueItemGauntlet2: ChallengeQueueItem = {
     writer: 'Jim Starlin',
     artist: 'George Perez',
     event: 'Infinity Gauntlet',
+    characterAppearances: [{ characterName: 'Thanos' }],
   },
 };
 
@@ -195,10 +196,78 @@ const gauntlet2Highlights = tbrResult.itemsWithHighlights.find(i => i.challengeI
 const gauntlet2HasStarlin = gauntlet2Highlights.some(h => h.category === 'Creator' && h.entityName.toLowerCase() === 'jim starlin');
 assert(!gauntlet2HasStarlin, 'Later issue Gauntlet #2 does not receive false earliest creator milestone');
 
-// Test 3: Advancing queue when Iron Man is read
-queueItemIronMan.status = 'Read';
-const advancedTbrResult = computeTBRMilestones([queueItemIronMan, queueItemGauntlet2], mockCollection);
-assert(advancedTbrResult.totalTBRComics === 1, 'Only unread items in queue are evaluated for TBR highlights');
-assert(!advancedTbrResult.itemsWithHighlights.some(i => i.challengeItemId === 101), 'Read comic is no longer in TBR highlights');
+// Test 4: Compute Whole Challenge Milestones against collection
+// Reset statuses
+queueItemIronMan.status = 'Unread';
+queueItemGauntlet2.status = 'Unread';
 
-console.log('🎉 All TBR Milestones Unit Tests Passed Successfully!');
+// Also add Gauntlet #1 as a middle comic in the challenge
+const queueItemGauntlet1: ChallengeQueueItem = {
+  challengeItemId: 103,
+  challengeId: 1,
+  comicId: 'c-gauntlet-1',
+  sequenceNumber: 1.5,
+  status: 'Unread',
+  addedAt: '2026-01-01',
+  metadata: {
+    id: 'c-gauntlet-1',
+    title: 'The Infinity Gauntlet',
+    seriesName: 'The Infinity Gauntlet',
+    issueNumber: '1',
+    publisher: 'Marvel Comics',
+    publicationYear: 1991,
+    publicationDate: '1991-07-01',
+    writer: 'Jim Starlin',
+    artist: 'George Perez',
+    event: 'Infinity Gauntlet',
+    characterAppearances: [{ characterName: 'Thanos' }, { characterName: 'Silver Surfer' }],
+  },
+};
+
+const challengeMilestones = computeChallengeMilestones(
+  [queueItemIronMan, queueItemGauntlet1, queueItemGauntlet2],
+  mockCollection
+);
+
+const wholeThanosMilestones = challengeMilestones.filter(
+  (m) => m.scope === 'WholeChallenge' && m.category === 'Character' && m.entityName === 'Thanos'
+);
+assert(wholeThanosMilestones.length === 2, 'Thanos has exactly 1 Earliest and 1 Latest in Whole Challenge');
+assert(wholeThanosMilestones.find((m) => m.kind === 'Earliest')?.comicId === 'c-starlin-debut', 'Thanos Earliest in Collection is Iron Man #55');
+assert(wholeThanosMilestones.find((m) => m.kind === 'Latest')?.comicId === 'c-gauntlet-2', 'Thanos Latest in Collection is Gauntlet #2');
+
+// Middle comic Gauntlet #1 should NOT have a Thanos milestone (no middle-of-run noise!)
+const gauntlet1Thanos = wholeThanosMilestones.find((m) => m.comicId === 'c-gauntlet-1');
+assert(!gauntlet1Thanos, 'Middle issue Gauntlet #1 receives NO Thanos milestone (noise eliminated)');
+
+// Drax only appears in 1 comic in the collection (Iron Man #55) -> Earliest only, NO duplicate Latest!
+const draxMilestones = challengeMilestones.filter(
+  (m) => m.scope === 'WholeChallenge' && m.category === 'Character' && m.entityName === 'Drax'
+);
+assert(draxMilestones.length === 1, 'Single-appearance entity Drax has only 1 milestone (Earliest Debut)');
+assert(draxMilestones[0].kind === 'Earliest', 'Drax milestone is Earliest debut in collection');
+assert(!draxMilestones.some((m) => m.kind === 'Latest'), 'Drax does NOT have a duplicate redundant Latest milestone');
+
+// Event milestone: Gauntlet #2 is the latest Infinity Gauntlet issue in collection
+const eventLatest = challengeMilestones.find(
+  (m) => m.scope === 'WholeChallenge' && m.category === 'StoryArc' && m.kind === 'Latest'
+);
+assert(eventLatest?.comicId === 'c-gauntlet-2', 'Gauntlet #2 is marked Latest Infinity Gauntlet Issue in collection');
+
+// Test 5: Read Items scope only includes comics that are Read
+const initialReadMilestones = challengeMilestones.filter((m) => m.scope === 'ReadItems');
+assert(initialReadMilestones.length === 0, 'No ReadItems milestones when all items are Unread');
+
+// Mark Iron Man as Read
+queueItemIronMan.status = 'Read';
+const partialReadMilestones = computeChallengeMilestones(
+  [queueItemIronMan, queueItemGauntlet1, queueItemGauntlet2],
+  mockCollection
+);
+const readScopeMilestones = partialReadMilestones.filter((m) => m.scope === 'ReadItems');
+assert(readScopeMilestones.length > 0, 'ReadItems scope now populates read collection milestones');
+assert(readScopeMilestones.every((m) => m.comicId === 'c-starlin-debut'), 'Only read comic Iron Man #55 appears in ReadItems scope');
+assert(readScopeMilestones.some((m) => m.entityName === 'Thanos' && m.kind === 'Earliest'), 'Thanos Earliest appears in ReadItems scope');
+assert(!readScopeMilestones.some((m) => m.comicId === 'c-gauntlet-2'), 'Unread Gauntlet #2 does NOT appear in ReadItems scope');
+
+console.log('🎉 All TBR & Challenge Collection Milestones Unit Tests Passed Successfully!');

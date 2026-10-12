@@ -43,7 +43,9 @@ export const ChallengeInsightsView: React.FC<ChallengeInsightsViewProps> = ({
   queue,
   tbrMilestones: propTbrMilestones,
 }) => {
-  const [activeScope, setActiveScope] = useState<InsightsScope>('TBRQueue');
+  const [activeScope, setActiveScope] = useState<InsightsScope>(
+    queue && queue.some((q) => q.status === 'Unread') ? 'TBRQueue' : 'WholeChallenge'
+  );
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [milestones, setMilestones] = useState<ChallengeMilestone[]>([]);
   const [serverTbrMilestones, setServerTbrMilestones] = useState<TBRMilestonesSummary | null>(null);
@@ -117,11 +119,11 @@ export const ChallengeInsightsView: React.FC<ChallengeInsightsViewProps> = ({
   const challengeCategories: Array<{ id: string; label: string }> = [
     { id: 'All', label: 'All Categories' },
     { id: 'Collection', label: 'Collection' },
-    { id: 'Publisher', label: 'Publisher' },
+    { id: 'Publisher', label: 'Publishers' },
     { id: 'Series', label: 'Series' },
     { id: 'StoryArc', label: 'Story Arc / Event' },
-    { id: 'Creator', label: 'Creator' },
-    { id: 'Character', label: 'Character' },
+    { id: 'Creator', label: 'Creators' },
+    { id: 'Character', label: 'Characters' },
   ];
 
   const categoryIcon = (cat: TBRHighlightCategory) => {
@@ -147,7 +149,9 @@ export const ChallengeInsightsView: React.FC<ChallengeInsightsViewProps> = ({
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {activeScope === 'TBRQueue'
               ? 'Collection-wide chronological milestones and firsts in your upcoming TBR queue (up to 10 comics).'
-              : 'Compare the earliest & latest publications across the entire challenge snapshot.'}
+              : activeScope === 'WholeChallenge'
+              ? 'Collection-wide firsts and lasts featured across this challenge.'
+              : 'Collection-wide firsts and lasts among the comics you have read in this challenge.'}
           </p>
         </div>
 
@@ -355,8 +359,10 @@ export const ChallengeInsightsView: React.FC<ChallengeInsightsViewProps> = ({
           ) : filteredMilestones.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400 dark:text-slate-500">
               {activeScope === 'ReadItems'
-                ? 'No milestones in the Read Items scope yet. Mark comics as read to unlock your reading milestones!'
-                : 'No milestones found for this category.'}
+                ? 'No collection milestones among your read items yet. Read comics representing collection firsts or lasts to unlock them here!'
+                : selectedCategory === 'All'
+                ? 'No collection-wide firsts or lasts found for this challenge snapshot.'
+                : `No collection milestones found in the "${challengeCategories.find((c) => c.id === selectedCategory)?.label || selectedCategory}" category for this challenge snapshot.`}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -377,7 +383,7 @@ export const ChallengeInsightsView: React.FC<ChallengeInsightsViewProps> = ({
                             : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                         }`}
                       >
-                        {m.kind} in {activeScope === 'WholeChallenge' ? 'Challenge' : 'Read'}
+                        {m.kind} in Collection
                       </span>
                     </div>
 
@@ -405,12 +411,19 @@ export const ChallengeInsightsView: React.FC<ChallengeInsightsViewProps> = ({
 
                     {/* Details */}
                     <div className="flex-1 min-w-0 pr-14">
-                      <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                        {m.category} {m.role ? `• ${m.role}` : ''}
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        {categoryIcon(m.category)}
+                        <span>{m.category} {m.role ? `• ${m.role}` : ''}</span>
                       </div>
                       <div className="text-xs font-black text-slate-900 dark:text-white truncate">
-                        {m.entityName}
+                        {m.label || m.entityName}
                       </div>
+
+                      {m.description && (
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
+                          {m.description}
+                        </p>
+                      )}
 
                       <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate mt-1">
                         {m.title} #{m.issueNumber}

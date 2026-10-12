@@ -327,6 +327,80 @@ test.describe('Reading Challenge Feature', () => {
     await expect(page.getByRole('button', { name: /Skip/i }).first()).toBeVisible();
   });
 
+  test('Clicking comic thumbnail or title in Reading Queue opens comic detail modal without crashing', async ({ page }) => {
+    const activeMock = {
+      challengeId: 42,
+      name: 'Batman 1987 Run',
+      status: 'Active',
+      criteriaSnapshot: { version: 1, root: { type: 'series', ids: ['Batman'] } },
+      criteriaSummary: 'Series is Batman',
+      readingOrder: 'PublicationDate',
+      sortDirection: 'Ascending',
+      batchSize: 10,
+      createdAt: '2026-10-10T00:00:00.000Z',
+      startedAt: '2026-10-10T00:00:00.000Z',
+      totalEligible: 2,
+      readCount: 0,
+      skippedCount: 0,
+      resolvedCount: 0,
+      remainingCount: 2,
+      progressPercent: 0,
+      queue: [
+        {
+          challengeItemId: 101,
+          challengeId: 42,
+          comicId: 'rc-c1',
+          sequenceNumber: 1,
+          status: 'Unread',
+          addedAt: '2026-10-10T00:00:00.000Z',
+          metadata: sampleComics[0],
+          currentBoxId: 2,
+          boxName: 'Box Beta',
+          boxLocation: 'Bottom Shelf Right',
+          boxColorTag: '#10B981',
+        },
+      ],
+    };
+
+    await page.route('**/api/reading-challenges/active', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ challenge: activeMock }) });
+    });
+
+    await page.goto('/');
+
+    const challengeTab = page.getByRole('button', { name: /Reading Challenge/i });
+    await challengeTab.click();
+
+    // Verify queue displays comic item
+    await expect(page.getByText('Batman: Year One #404')).toBeVisible();
+
+    // Click the comic cover thumbnail
+    const comicThumbnail = page.locator('div[title="Click to view comic details"]').first();
+    await expect(comicThumbnail).toBeVisible();
+    await comicThumbnail.click();
+
+    // Verify Comic Detail Modal opened and is visible
+    const closeBtn = page.getByTitle('Close (Esc)');
+    await expect(closeBtn).toBeVisible();
+    await expect(page.getByText('DC Comics').first()).toBeVisible();
+
+    // Verify Error Boundary fallback was NOT triggered
+    await expect(page.getByText('Something went wrong')).not.toBeVisible();
+
+    // Close the modal
+    await closeBtn.click();
+    await expect(closeBtn).not.toBeVisible();
+
+    // Click the comic title heading to verify clicking title also opens modal
+    const comicTitleHeading = page.getByRole('heading', { name: 'Batman: Year One #404' });
+    await expect(comicTitleHeading).toBeVisible();
+    await comicTitleHeading.click();
+
+    // Verify modal is open again
+    await expect(page.getByTitle('Close (Esc)')).toBeVisible();
+    await expect(page.getByText('Something went wrong')).not.toBeVisible();
+  });
+
   test('Creator dropdown lists only individual creator names and splits compound creator fields', async ({ page }) => {
     await page.route('**/api/reading-challenges/active', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ challenge: null }) });
@@ -469,6 +543,106 @@ test.describe('Reading Challenge Feature', () => {
     const creatorFilterBtn = page.getByRole('button', { name: 'Creators' });
     await creatorFilterBtn.click();
     await expect(page.getByText(/Earliest David Mazzucchelli/i).first()).toBeVisible();
+  });
+
+  test('Historical challenge insights opens Whole Challenge by default and displays collection milestones', async ({ page }) => {
+    const historicalChallengeMock = {
+      id: 99,
+      name: 'Spider-Man Vintage Run',
+      status: 'Completed',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      startedAt: '2026-09-01T00:00:00.000Z',
+      completedAt: '2026-09-15T00:00:00.000Z',
+      endedAt: '2026-09-15T00:00:00.000Z',
+      totalEligible: 2,
+      criteriaSummary: 'Series: The Amazing Spider-Man',
+      readCount: 2,
+      skippedCount: 0,
+      completionPercent: 100,
+    };
+
+    const historicalInsightsMock = {
+      challengeId: 99,
+      challengeName: 'Spider-Man Vintage Run',
+      totalEligible: 2,
+      readCount: 2,
+      milestones: [
+        {
+          category: 'Character',
+          entityName: 'Spider-Man',
+          kind: 'Earliest',
+          scope: 'WholeChallenge',
+          challengeItemId: 201,
+          comicId: 'rc-c3',
+          title: 'The Amazing Spider-Man',
+          issueNumber: '300',
+          releaseDate: '1988-05-01',
+          dateKnown: true,
+          sequenceNumber: 1,
+          isRead: true,
+          label: 'First Appearance of Spider-Man',
+          description: 'The earliest appearance of Spider-Man in your entire collection (15 owned)',
+          collectionCount: 15,
+        },
+        {
+          category: 'Character',
+          entityName: 'Spider-Man',
+          kind: 'Earliest',
+          scope: 'ReadItems',
+          challengeItemId: 201,
+          comicId: 'rc-c3',
+          title: 'The Amazing Spider-Man',
+          issueNumber: '300',
+          releaseDate: '1988-05-01',
+          dateKnown: true,
+          sequenceNumber: 1,
+          isRead: true,
+          label: 'First Appearance of Spider-Man',
+          description: 'The earliest appearance of Spider-Man in your entire collection (15 owned)',
+          collectionCount: 15,
+        },
+      ],
+      tbrMilestones: null,
+    };
+
+    await page.route('**/api/reading-challenges/active', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ challenge: null }) });
+    });
+
+    await page.route('**/api/reading-challenges/history', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ history: [historicalChallengeMock] }) });
+    });
+
+    await page.route('**/api/reading-challenges/99/insights', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(historicalInsightsMock) });
+    });
+
+    await page.goto('/');
+
+    const challengeTab = page.getByRole('button', { name: /Reading Challenge/i });
+    await challengeTab.click();
+
+    // Navigate to Challenge History
+    const historySubTab = page.getByRole('button', { name: /Challenge History/i });
+    await historySubTab.click();
+
+    // Click View Insights on past challenge
+    const viewInsightsBtn = page.getByRole('button', { name: /View Insights/i });
+    await viewInsightsBtn.click();
+
+    // Verify header indicates historical challenge
+    await expect(page.getByText('Viewing Historical Challenge #99')).toBeVisible();
+
+    // Verify Whole Challenge is the selected scope and badge displays "Earliest in Collection"
+    await expect(page.getByText('Earliest in Collection').first()).toBeVisible();
+    await expect(page.getByText('First Appearance of Spider-Man').first()).toBeVisible();
+
+    // Click Read Items scope pill
+    const readItemsPill = page.getByRole('button', { name: /Read Items/i });
+    await readItemsPill.click();
+
+    // Verify Read Items shows milestone card
+    await expect(page.getByText('First Appearance of Spider-Man').first()).toBeVisible();
   });
 });
 

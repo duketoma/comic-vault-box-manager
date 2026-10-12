@@ -361,7 +361,7 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
 
           <ChallengeInsightsView
             challengeId={inspectingHistoryChallengeId}
-            comics={comics}
+            comics={inCollectionComics}
             onSelectComic={onSelectComic}
           />
         </div>
@@ -393,6 +393,7 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
               <ReadingQueue
                 queue={activeChallenge.queue}
                 boxes={boxes}
+                comics={comics}
                 onMarkRead={handleMarkRead}
                 onSkip={handleSkip}
                 onSelectComic={onSelectComic}

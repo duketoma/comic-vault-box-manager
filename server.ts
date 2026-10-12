@@ -1186,10 +1186,10 @@ const comicUpsertSql = `
         metadata: r.metadata_snapshot,
       }));
 
-      const milestones = computeChallengeMilestones(items);
+      const collectionComics = collectionRes.rows.map(rowToComic) as unknown as ComicBook[];
+      const milestones = computeChallengeMilestones(items, collectionComics);
       const readCount = items.filter((it) => it.status === 'Read').length;
 
-      const collectionComics = collectionRes.rows.map(rowToComic) as unknown as ComicBook[];
       const unreadQueue = items.filter((it) => it.status === 'Unread').slice(0, 10);
       const tbrMilestones = computeTBRMilestones(unreadQueue as unknown as ChallengeQueueItem[], collectionComics);
 

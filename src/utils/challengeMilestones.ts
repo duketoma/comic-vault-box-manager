@@ -30,9 +30,19 @@ interface MilestoneCandidate {
 
 /**
  * Computes milestones for both 'WholeChallenge' and 'ReadItems' scopes.
+ * Evaluates candidate comics against the whole collection baseline so only true
+ * collection-wide firsts and lasts are surfaced.
  */
-export function computeChallengeMilestones(items: ItemEntry[]): ChallengeMilestone[] {
+export function computeChallengeMilestones(
+  items: ItemEntry[],
+  collection?: ComicBook[]
+): ChallengeMilestone[] {
   const milestones: ChallengeMilestone[] = [];
+
+  // Build baselines from the entire collection (or fallback to items if collection is omitted)
+  const baselines = collection && collection.length > 0
+    ? buildCollectionBaselines(collection)
+    : buildCollectionBaselines(items.map((it) => it.metadata as unknown as ComicBook));
 
   // 1. Whole Challenge Candidates vs. Read Items Candidates
   const wholeChallengeCandidates: MilestoneCandidate[] = items.map((item) => {
@@ -42,189 +52,433 @@ export function computeChallengeMilestones(items: ItemEntry[]): ChallengeMilesto
 
   const readCandidates = wholeChallengeCandidates.filter((c) => c.item.status === 'Read');
 
+  const categoryPriority: Record<MilestoneCategory, number> = {
+    Collection: 1,
+    Character: 2,
+    Creator: 3,
+    StoryArc: 4,
+    Series: 5,
+    Publisher: 6,
+  };
+
   function calculateForScope(candidates: MilestoneCandidate[], scope: MilestoneScope) {
     if (candidates.length === 0) return;
 
-    // Helper to find earliest and latest from a candidate subset
-    function pickMilestones(
-      subset: MilestoneCandidate[],
+    // Filter to candidates with valid dates and sortValues
+    const datedCandidates = candidates.filter(
+      (c) => c.dateStr !== null && c.sortValue !== Number.MAX_SAFE_INTEGER
+    );
+    if (datedCandidates.length === 0) return;
+
+    const seenMilestoneKeys = new Set<string>();
+
+    function addMilestone(
+      cand: MilestoneCandidate,
       category: MilestoneCategory,
       entityName: string,
+      kind: MilestoneKind,
+      label: string,
+      description: string,
       entityId?: string,
-      role?: string
+      role?: string,
+      collectionCount?: number
     ) {
-      if (subset.length === 0) return;
+      const key = `${scope}__${category}__${entityName.toLowerCase()}__${role || ''}__${kind}`;
+      if (seenMilestoneKeys.has(key)) return;
+      seenMilestoneKeys.add(key);
 
-      // Filter known dates first
-      const knownDates = subset.filter((c) => c.dateStr !== null);
+      milestones.push({
+        category,
+        entityId,
+        entityName,
+        role,
+        kind,
+        scope,
+        challengeItemId: cand.item.challengeItemId,
+        comicId: cand.item.comicId,
+        title: cand.item.metadata.title,
+        fullTitle: cand.item.metadata.fullTitle,
+        seriesName: cand.item.metadata.seriesName,
+        issueNumber: cand.item.metadata.issueNumber,
+        releaseDate: cand.dateStr || undefined,
+        dateKnown: cand.dateStr !== null,
+        coverImage: cand.item.metadata.coverImage || cand.item.metadata.coverImageFull,
+        sequenceNumber: cand.item.sequenceNumber,
+        isRead: cand.item.status === 'Read',
+        label,
+        description,
+        collectionCount,
+      });
+    }
 
-      let earliestCandidate: MilestoneCandidate;
-      let latestCandidate: MilestoneCandidate;
+    // A. Collection Overall Oldest / Newest
+    if (baselines.overallEarliest) {
+      const earliestCand = [...datedCandidates].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
 
-      if (knownDates.length > 0) {
-        // Earliest: lowest sortValue, tie-breaker: lowest sequenceNumber
-        earliestCandidate = [...knownDates].sort((a, b) => {
-          if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
-          return a.item.sequenceNumber - b.item.sequenceNumber;
-        })[0];
-
-        // Latest: highest sortValue, tie-breaker: lowest sequenceNumber
-        latestCandidate = [...knownDates].sort((a, b) => {
-          if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
-          return a.item.sequenceNumber - b.item.sequenceNumber;
-        })[0];
-      } else {
-        // All dates unknown; fallback to sequence numbers
-        earliestCandidate = [...subset].sort((a, b) => a.item.sequenceNumber - b.item.sequenceNumber)[0];
-        latestCandidate = [...subset].sort((a, b) => b.item.sequenceNumber - a.item.sequenceNumber)[0];
-      }
-
-      function buildMilestone(cand: MilestoneCandidate, kind: MilestoneKind): ChallengeMilestone {
-        return {
-          category,
-          entityId,
-          entityName,
-          role,
-          kind,
-          scope,
-          challengeItemId: cand.item.challengeItemId,
-          comicId: cand.item.comicId,
-          title: cand.item.metadata.title,
-          fullTitle: cand.item.metadata.fullTitle,
-          seriesName: cand.item.metadata.seriesName,
-          issueNumber: cand.item.metadata.issueNumber,
-          releaseDate: cand.dateStr || undefined,
-          dateKnown: cand.dateStr !== null,
-          coverImage: cand.item.metadata.coverImage,
-          sequenceNumber: cand.item.sequenceNumber,
-          isRead: cand.item.status === 'Read',
-        };
-      }
-
-      milestones.push(buildMilestone(earliestCandidate, 'Earliest'));
-
-      // If more than 1 item, or if earliest and latest are different
-      if (subset.length > 1 && earliestCandidate.item.challengeItemId !== latestCandidate.item.challengeItemId) {
-        milestones.push(buildMilestone(latestCandidate, 'Latest'));
-      } else if (subset.length === 1) {
-        // Single item is both earliest and latest
-        milestones.push(buildMilestone(earliestCandidate, 'Latest'));
+      if (earliestCand && earliestCand.sortValue <= baselines.overallEarliest.minSortValue) {
+        addMilestone(
+          earliestCand,
+          'Collection',
+          'Entire Collection',
+          'Earliest',
+          'Oldest Comic in Collection',
+          `The earliest published comic in your entire collection (${earliestCand.dateStr})`
+        );
       }
     }
 
-    // A. Collection overall
-    pickMilestones(candidates, 'Collection', 'Challenge Collection');
+    if (baselines.overallLatest && baselines.overallEarliest && baselines.overallLatest.maxSortValue > baselines.overallEarliest.minSortValue) {
+      const latestCand = [...datedCandidates].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (latestCand && latestCand.sortValue >= baselines.overallLatest.maxSortValue) {
+        addMilestone(
+          latestCand,
+          'Collection',
+          'Entire Collection',
+          'Latest',
+          'Newest Comic in Collection',
+          `The most recently published comic in your entire collection (${latestCand.dateStr})`
+        );
+      }
+    }
 
     // B. Group by Publisher
-    const publisherMap = new Map<string, MilestoneCandidate[]>();
-    candidates.forEach((c) => {
-      const pub = (c.item.metadata.publisher || 'Unknown Publisher').trim();
-      if (!publisherMap.has(pub)) publisherMap.set(pub, []);
-      publisherMap.get(pub)!.push(c);
-    });
-    publisherMap.forEach((subset, pub) => {
-      pickMilestones(subset, 'Publisher', pub);
-    });
+    baselines.publishers.forEach((base, pubKey) => {
+      const matching = datedCandidates.filter((c) => {
+        const pub = (c.item.metadata.publisher || '').trim().toLowerCase();
+        return pub === pubKey;
+      });
+      if (matching.length === 0) return;
 
-    // C. Group by Series
-    const seriesMap = new Map<string, MilestoneCandidate[]>();
-    candidates.forEach((c) => {
-      const ser = (c.item.metadata.seriesName || c.item.metadata.title || '').trim();
-      if (ser) {
-        if (!seriesMap.has(ser)) seriesMap.set(ser, []);
-        seriesMap.get(ser)!.push(c);
+      const earliest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      const latest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (earliest && earliest.sortValue <= base.minSortValue) {
+        addMilestone(
+          earliest,
+          'Publisher',
+          base.name,
+          'Earliest',
+          `Earliest ${base.name} Issue`,
+          `The earliest published ${base.name} comic in your collection (${base.count} owned)`,
+          undefined,
+          undefined,
+          base.count
+        );
+      }
+
+      if (base.count >= 2 && latest && latest.sortValue >= base.maxSortValue) {
+        if (latest.item.challengeItemId !== earliest.item.challengeItemId || earliest.sortValue > base.minSortValue) {
+          addMilestone(
+            latest,
+            'Publisher',
+            base.name,
+            'Latest',
+            `Latest ${base.name} Issue`,
+            `The most recently published ${base.name} comic in your collection (${base.count} owned)`,
+            undefined,
+            undefined,
+            base.count
+          );
+        }
       }
     });
-    seriesMap.forEach((subset, ser) => {
-      // Show series milestones if series has at least 2 comics or significant
-      if (subset.length >= 2 || candidates.length <= 5) {
-        pickMilestones(subset, 'Series', ser);
+
+    // C. Group by Series (at least 2 owned in collection to be notable)
+    baselines.series.forEach((base, serKey) => {
+      if (base.count < 2) return;
+
+      const matching = datedCandidates.filter((c) => {
+        const ser = (c.item.metadata.seriesName || c.item.metadata.title || '').trim().toLowerCase();
+        return ser === serKey;
+      });
+      if (matching.length === 0) return;
+
+      const earliest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      const latest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (earliest && earliest.sortValue <= base.minSortValue) {
+        addMilestone(
+          earliest,
+          'Series',
+          base.name,
+          'Earliest',
+          `Earliest ${base.name} in Collection`,
+          `The earliest owned issue of ${base.name} in your collection (1 of ${base.count} owned)`,
+          undefined,
+          undefined,
+          base.count
+        );
+      }
+
+      if (latest && latest.sortValue >= base.maxSortValue) {
+        if (latest.item.challengeItemId !== earliest.item.challengeItemId || earliest.sortValue > base.minSortValue) {
+          addMilestone(
+            latest,
+            'Series',
+            base.name,
+            'Latest',
+            `Latest ${base.name} in Collection`,
+            `The latest owned issue of ${base.name} in your collection (${base.count} owned)`,
+            undefined,
+            undefined,
+            base.count
+          );
+        }
       }
     });
 
     // D. Group by Story Arc / Event
-    const eventMap = new Map<string, MilestoneCandidate[]>();
-    candidates.forEach((c) => {
-      const ev = (c.item.metadata.event || '').trim();
-      if (ev) {
-        if (!eventMap.has(ev)) eventMap.set(ev, []);
-        eventMap.get(ev)!.push(c);
+    baselines.events.forEach((base, evKey) => {
+      const matching = datedCandidates.filter((c) => {
+        const ev = (c.item.metadata.event || '').trim().toLowerCase();
+        return ev === evKey;
+      });
+      if (matching.length === 0) return;
+
+      const earliest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      const latest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (earliest && earliest.sortValue <= base.minSortValue) {
+        addMilestone(
+          earliest,
+          'StoryArc',
+          base.name,
+          'Earliest',
+          `Earliest ${base.name} Issue`,
+          `The earliest chronological issue of the ${base.name} storyline in your collection (${base.count} owned)`,
+          undefined,
+          undefined,
+          base.count
+        );
+      }
+
+      if (base.count >= 2 && latest && latest.sortValue >= base.maxSortValue) {
+        if (latest.item.challengeItemId !== earliest.item.challengeItemId || earliest.sortValue > base.minSortValue) {
+          addMilestone(
+            latest,
+            'StoryArc',
+            base.name,
+            'Latest',
+            `Latest ${base.name} Issue`,
+            `The concluding chronological issue of the ${base.name} storyline in your collection (${base.count} owned)`,
+            undefined,
+            undefined,
+            base.count
+          );
+        }
       }
     });
-    eventMap.forEach((subset, ev) => {
-      pickMilestones(subset, 'StoryArc', ev);
-    });
 
-    // E. Group by Creator + Role
-    const creatorRoleMap = new Map<string, { name: string; role: string; list: MilestoneCandidate[] }>();
-    const addCreatorCredit = (rawName: string | undefined | null, role: string, candidate: MilestoneCandidate) => {
-      if (!rawName) return;
-      const parsed = splitCreatorNames(rawName);
-      parsed.forEach((singleName) => {
-        const key = `${singleName.toLowerCase()}__${role.toLowerCase()}`;
-        if (!creatorRoleMap.has(key)) {
-          creatorRoleMap.set(key, { name: singleName, role, list: [] });
+    // E. Group by Creator & Creator Roles
+    const candidateHasCreator = (c: MilestoneCandidate, creatorKey: string, role?: string) => {
+      const m = c.item.metadata;
+      if (role) {
+        const targetRole = role.toLowerCase();
+        if (m.creatorContributions && Array.isArray(m.creatorContributions)) {
+          if (m.creatorContributions.some((cb) => cb.creatorName && splitCreatorNames(cb.creatorName).some(n => n.toLowerCase() === creatorKey) && (cb.roleName || 'Creator').toLowerCase() === targetRole)) {
+            return true;
+          }
         }
-        const entry = creatorRoleMap.get(key)!;
-        if (!entry.list.includes(candidate)) {
-          entry.list.push(candidate);
+        if (targetRole === 'writer' && m.writer && splitCreatorNames(m.writer).some(n => n.toLowerCase() === creatorKey)) return true;
+        if (targetRole === 'artist' && m.artist && splitCreatorNames(m.artist).some(n => n.toLowerCase() === creatorKey)) return true;
+        if (targetRole === 'cover artist' && m.coverArtist && splitCreatorNames(m.coverArtist).some(n => n.toLowerCase() === creatorKey)) return true;
+        return false;
+      }
+
+      // Any role
+      if (m.writer && splitCreatorNames(m.writer).some(n => n.toLowerCase() === creatorKey)) return true;
+      if (m.artist && splitCreatorNames(m.artist).some(n => n.toLowerCase() === creatorKey)) return true;
+      if (m.coverArtist && splitCreatorNames(m.coverArtist).some(n => n.toLowerCase() === creatorKey)) return true;
+      if (m.creatorContributions && Array.isArray(m.creatorContributions)) {
+        if (m.creatorContributions.some((cb) => cb.creatorName && splitCreatorNames(cb.creatorName).some(n => n.toLowerCase() === creatorKey))) {
+          return true;
         }
-      });
+      }
+      return false;
     };
 
-    candidates.forEach((c) => {
-      const m = c.item.metadata;
-      // Detailed contributions
-      if (m.creatorContributions && Array.isArray(m.creatorContributions)) {
-        m.creatorContributions.forEach((contrib) => {
-          if (contrib.creatorName) {
-            addCreatorCredit(contrib.creatorName, contrib.roleName || 'Creator', c);
-          }
-        });
+    baselines.creators.forEach((base, creatorKey) => {
+      const matching = datedCandidates.filter((c) => candidateHasCreator(c, creatorKey));
+      if (matching.length === 0) return;
+
+      const earliest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      const latest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (earliest && earliest.sortValue <= base.minSortValue) {
+        addMilestone(
+          earliest,
+          'Creator',
+          base.name,
+          'Earliest',
+          `Earliest ${base.name} Contribution`,
+          `First comic in your collection featuring ${base.name} (${base.count} owned)`,
+          undefined,
+          undefined,
+          base.count
+        );
       }
-      // Direct fields fallback
-      if (m.writer) {
-        addCreatorCredit(m.writer, 'Writer', c);
-      }
-      if (m.artist) {
-        addCreatorCredit(m.artist, 'Artist', c);
-      }
-      if (m.coverArtist) {
-        addCreatorCredit(m.coverArtist, 'Cover Artist', c);
+
+      if (base.count >= 2 && latest && latest.sortValue >= base.maxSortValue) {
+        if (latest.item.challengeItemId !== earliest.item.challengeItemId || earliest.sortValue > base.minSortValue) {
+          addMilestone(
+            latest,
+            'Creator',
+            base.name,
+            'Latest',
+            `Latest ${base.name} Contribution`,
+            `Most recent comic in your collection featuring ${base.name} (${base.count} owned)`,
+            undefined,
+            undefined,
+            base.count
+          );
+        }
       }
     });
-    creatorRoleMap.forEach(({ name, role, list }) => {
-      if (list.length >= 2 || candidates.length <= 10) {
-        pickMilestones(list, 'Creator', name, undefined, role);
+
+    // Also check creator specific roles if count >= 2
+    baselines.creatorRoles.forEach((roleBase, roleKey) => {
+      if (roleBase.count < 2) return;
+      const [creatorKey] = roleKey.split('__');
+      if (!creatorKey || !roleBase.role) return;
+
+      const matching = datedCandidates.filter((c) => candidateHasCreator(c, creatorKey, roleBase.role));
+      if (matching.length === 0) return;
+
+      const earliest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      const latest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (earliest && earliest.sortValue <= roleBase.minSortValue) {
+        addMilestone(
+          earliest,
+          'Creator',
+          roleBase.name,
+          'Earliest',
+          `Earliest ${roleBase.name} (${roleBase.role})`,
+          `Earliest comic in your collection where ${roleBase.name} contributed as ${roleBase.role} (${roleBase.count} owned)`,
+          undefined,
+          roleBase.role,
+          roleBase.count
+        );
+      }
+
+      if (latest && latest.sortValue >= roleBase.maxSortValue) {
+        if (latest.item.challengeItemId !== earliest.item.challengeItemId || earliest.sortValue > roleBase.minSortValue) {
+          addMilestone(
+            latest,
+            'Creator',
+            roleBase.name,
+            'Latest',
+            `Latest ${roleBase.name} (${roleBase.role})`,
+            `Most recent comic in your collection where ${roleBase.name} contributed as ${roleBase.role} (${roleBase.count} owned)`,
+            undefined,
+            roleBase.role,
+            roleBase.count
+          );
+        }
       }
     });
 
     // F. Group by Character
-    const characterMap = new Map<string, MilestoneCandidate[]>();
-    candidates.forEach((c) => {
-      const m = c.item.metadata;
-      if (m.characterAppearances && Array.isArray(m.characterAppearances)) {
-        m.characterAppearances.forEach((app) => {
-          if (app.characterName) {
-            const char = app.characterName.trim();
-            if (!characterMap.has(char)) characterMap.set(char, []);
-            if (!characterMap.get(char)!.includes(c)) characterMap.get(char)!.push(c);
-          }
-        });
+    baselines.characters.forEach((base, charKey) => {
+      const matching = datedCandidates.filter((c) => {
+        const apps = c.item.metadata.characterAppearances;
+        if (!apps || !Array.isArray(apps)) return false;
+        return apps.some((app) => app.characterName && app.characterName.trim().toLowerCase() === charKey);
+      });
+      if (matching.length === 0) return;
+
+      const earliest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return a.sortValue - b.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      const latest = [...matching].sort((a, b) => {
+        if (a.sortValue !== b.sortValue) return b.sortValue - a.sortValue;
+        return a.item.sequenceNumber - b.item.sequenceNumber;
+      })[0];
+
+      if (earliest && earliest.sortValue <= base.minSortValue) {
+        addMilestone(
+          earliest,
+          'Character',
+          base.name,
+          'Earliest',
+          `First Appearance of ${base.name}`,
+          `The earliest appearance of ${base.name} in your entire collection (${base.count} owned)`,
+          undefined,
+          undefined,
+          base.count
+        );
       }
-    });
-    characterMap.forEach((subset, char) => {
-      if (subset.length >= 2 || candidates.length <= 10) {
-        pickMilestones(subset, 'Character', char);
+
+      if (base.count >= 2 && latest && latest.sortValue >= base.maxSortValue) {
+        if (latest.item.challengeItemId !== earliest.item.challengeItemId || earliest.sortValue > base.minSortValue) {
+          addMilestone(
+            latest,
+            'Character',
+            base.name,
+            'Latest',
+            `Latest Appearance of ${base.name}`,
+            `The most recent appearance of ${base.name} in your entire collection (${base.count} owned)`,
+            undefined,
+            undefined,
+            base.count
+          );
+        }
       }
     });
   }
 
-  // Calculate Whole Challenge scope
   calculateForScope(wholeChallengeCandidates, 'WholeChallenge');
-
-  // Calculate Read Items scope
   calculateForScope(readCandidates, 'ReadItems');
+
+  milestones.sort((a, b) => {
+    if (a.scope !== b.scope) return a.scope.localeCompare(b.scope);
+    if (a.sequenceNumber !== b.sequenceNumber) return a.sequenceNumber - b.sequenceNumber;
+    return categoryPriority[a.category] - categoryPriority[b.category];
+  });
 
   return milestones;
 }
@@ -234,12 +488,16 @@ export interface EntityBaseline {
   minSortValue: number;
   earliestDateStr: string | null;
   earliestComicId: string;
+  maxSortValue: number;
+  latestDateStr: string | null;
+  latestComicId: string;
   count: number;
   role?: string;
 }
 
 export interface CollectionBaselines {
   overallEarliest: { minSortValue: number; earliestDateStr: string | null; earliestComicId: string } | null;
+  overallLatest: { maxSortValue: number; latestDateStr: string | null; latestComicId: string } | null;
   publishers: Map<string, EntityBaseline>;
   series: Map<string, EntityBaseline>;
   events: Map<string, EntityBaseline>;
@@ -249,16 +507,54 @@ export interface CollectionBaselines {
 }
 
 /**
- * Computes baseline earliest dates and item counts across the entire owned collection (excluding wishlists).
+ * Computes baseline earliest and latest dates and item counts across the entire owned collection (excluding wishlists).
  */
 export function buildCollectionBaselines(collection: ComicBook[]): CollectionBaselines {
   let overallEarliest: { minSortValue: number; earliestDateStr: string | null; earliestComicId: string } | null = null;
+  let overallLatest: { maxSortValue: number; latestDateStr: string | null; latestComicId: string } | null = null;
   const publishers = new Map<string, EntityBaseline>();
   const series = new Map<string, EntityBaseline>();
   const events = new Map<string, EntityBaseline>();
   const creators = new Map<string, EntityBaseline>();
   const creatorRoles = new Map<string, EntityBaseline>();
   const characters = new Map<string, EntityBaseline>();
+
+  const recordEntity = (
+    map: Map<string, EntityBaseline>,
+    key: string,
+    name: string,
+    sortValue: number,
+    dateStr: string,
+    comicId: string,
+    role?: string
+  ) => {
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, {
+        name,
+        minSortValue: sortValue,
+        earliestDateStr: dateStr,
+        earliestComicId: comicId,
+        maxSortValue: sortValue,
+        latestDateStr: dateStr,
+        latestComicId: comicId,
+        count: 1,
+        role,
+      });
+    } else {
+      existing.count += 1;
+      if (sortValue < existing.minSortValue) {
+        existing.minSortValue = sortValue;
+        existing.earliestDateStr = dateStr;
+        existing.earliestComicId = comicId;
+      }
+      if (sortValue > existing.maxSortValue) {
+        existing.maxSortValue = sortValue;
+        existing.latestDateStr = dateStr;
+        existing.latestComicId = comicId;
+      }
+    }
+  };
 
   for (const comic of collection) {
     if (!isComicEligibleForChallenge(comic)) continue;
@@ -270,56 +566,26 @@ export function buildCollectionBaselines(collection: ComicBook[]): CollectionBas
     if (!overallEarliest || sortValue < overallEarliest.minSortValue) {
       overallEarliest = { minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id };
     }
+    if (!overallLatest || sortValue > overallLatest.maxSortValue) {
+      overallLatest = { maxSortValue: sortValue, latestDateStr: dateStr, latestComicId: comic.id };
+    }
 
     // 2. Publisher
     if (comic.publisher && comic.publisher.trim()) {
       const pubName = comic.publisher.trim();
-      const key = pubName.toLowerCase();
-      const existing = publishers.get(key);
-      if (!existing) {
-        publishers.set(key, { name: pubName, minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id, count: 1 });
-      } else {
-        existing.count += 1;
-        if (sortValue < existing.minSortValue) {
-          existing.minSortValue = sortValue;
-          existing.earliestDateStr = dateStr;
-          existing.earliestComicId = comic.id;
-        }
-      }
+      recordEntity(publishers, pubName.toLowerCase(), pubName, sortValue, dateStr, comic.id);
     }
 
     // 3. Series
     const seriesName = (comic.seriesName || comic.title || '').trim();
     if (seriesName) {
-      const key = seriesName.toLowerCase();
-      const existing = series.get(key);
-      if (!existing) {
-        series.set(key, { name: seriesName, minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id, count: 1 });
-      } else {
-        existing.count += 1;
-        if (sortValue < existing.minSortValue) {
-          existing.minSortValue = sortValue;
-          existing.earliestDateStr = dateStr;
-          existing.earliestComicId = comic.id;
-        }
-      }
+      recordEntity(series, seriesName.toLowerCase(), seriesName, sortValue, dateStr, comic.id);
     }
 
     // 4. Story Arc / Event
     if (comic.event && comic.event.trim()) {
       const evName = comic.event.trim();
-      const key = evName.toLowerCase();
-      const existing = events.get(key);
-      if (!existing) {
-        events.set(key, { name: evName, minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id, count: 1 });
-      } else {
-        existing.count += 1;
-        if (sortValue < existing.minSortValue) {
-          existing.minSortValue = sortValue;
-          existing.earliestDateStr = dateStr;
-          existing.earliestComicId = comic.id;
-        }
-      }
+      recordEntity(events, evName.toLowerCase(), evName, sortValue, dateStr, comic.id);
     }
 
     // 5. Creators
@@ -334,17 +600,7 @@ export function buildCollectionBaselines(collection: ComicBook[]): CollectionBas
         // Overall creator
         if (!seenCreatorsForComic.has(creatorKey)) {
           seenCreatorsForComic.add(creatorKey);
-          const existing = creators.get(creatorKey);
-          if (!existing) {
-            creators.set(creatorKey, { name, minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id, count: 1 });
-          } else {
-            existing.count += 1;
-            if (sortValue < existing.minSortValue) {
-              existing.minSortValue = sortValue;
-              existing.earliestDateStr = dateStr;
-              existing.earliestComicId = comic.id;
-            }
-          }
+          recordEntity(creators, creatorKey, name, sortValue, dateStr, comic.id);
         }
 
         // Creator by specific role
@@ -352,17 +608,7 @@ export function buildCollectionBaselines(collection: ComicBook[]): CollectionBas
           const roleKey = `${creatorKey}__${role.toLowerCase()}`;
           if (!seenCreatorsForComic.has(roleKey)) {
             seenCreatorsForComic.add(roleKey);
-            const existingRole = creatorRoles.get(roleKey);
-            if (!existingRole) {
-              creatorRoles.set(roleKey, { name, role, minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id, count: 1 });
-            } else {
-              existingRole.count += 1;
-              if (sortValue < existingRole.minSortValue) {
-                existingRole.minSortValue = sortValue;
-                existingRole.earliestDateStr = dateStr;
-                existingRole.earliestComicId = comic.id;
-              }
-            }
+            recordEntity(creatorRoles, roleKey, name, sortValue, dateStr, comic.id, role);
           }
         }
       });
@@ -386,24 +632,14 @@ export function buildCollectionBaselines(collection: ComicBook[]): CollectionBas
         const charKey = charName.toLowerCase();
         if (seenCharsForComic.has(charKey)) return;
         seenCharsForComic.add(charKey);
-
-        const existing = characters.get(charKey);
-        if (!existing) {
-          characters.set(charKey, { name: charName, minSortValue: sortValue, earliestDateStr: dateStr, earliestComicId: comic.id, count: 1 });
-        } else {
-          existing.count += 1;
-          if (sortValue < existing.minSortValue) {
-            existing.minSortValue = sortValue;
-            existing.earliestDateStr = dateStr;
-            existing.earliestComicId = comic.id;
-          }
-        }
+        recordEntity(characters, charKey, charName, sortValue, dateStr, comic.id);
       });
     }
   }
 
   return {
     overallEarliest,
+    overallLatest,
     publishers,
     series,
     events,

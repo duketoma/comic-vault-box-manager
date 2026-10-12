@@ -61,18 +61,18 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(comic.title || '');
   const [issueNumber, setIssueNumber] = useState(comic.issueNumber || '1');
-  const [readingStatus, setReadingStatus] = useState(comic.readingStatus);
+  const [readingStatus, setReadingStatus] = useState(comic.readingStatus || 'Unread');
   const [userRating, setUserRating] = useState(comic.userRating || 0);
-  const [boxId, setBoxId] = useState(comic.currentBoxId);
+  const [boxId, setBoxId] = useState(comic.currentBoxId || 0);
   const [notes, setNotes] = useState(comic.notes || '');
-  const [thickness, setThickness] = useState(comic.sizeThickness);
+  const [thickness, setThickness] = useState(comic.sizeThickness ?? 1.0);
   const [coverImage, setCoverImage] = useState(comic.coverImage || '');
   const [coverImageFull, setCoverImageFull] = useState(comic.coverImageFull || '');
   const [showFullArtModal, setShowFullArtModal] = useState(false);
   const [heroViewMode, setHeroViewMode] = useState<'front' | 'full'>('front');
   const [volume, setVolume] = useState(comic.volume || '');
   const [event, setEvent] = useState(comic.event || '');
-  const [publicationYear, setPublicationYear] = useState<number>(comic.publicationYear);
+  const [publicationYear, setPublicationYear] = useState<number>(comic.publicationYear || 0);
   const [publicationMonth, setPublicationMonth] = useState<string>(comic.publicationMonth || '');
   const initialCopies = comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1);
   const [copiesOwned, setCopiesOwned] = useState(initialCopies);
@@ -81,17 +81,17 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   useEffect(() => {
     setTitle(comic.title || '');
     setIssueNumber(comic.issueNumber || '1');
-    setReadingStatus(comic.readingStatus);
+    setReadingStatus(comic.readingStatus || 'Unread');
     setUserRating(comic.userRating || 0);
-    setBoxId(comic.currentBoxId);
+    setBoxId(comic.currentBoxId || 0);
     setNotes(comic.notes || '');
-    setThickness(comic.sizeThickness);
+    setThickness(comic.sizeThickness ?? 1.0);
     setCoverImage(comic.coverImage || '');
     setCoverImageFull(comic.coverImageFull || '');
     setHeroViewMode('front');
     setVolume(comic.volume || '');
     setEvent(comic.event || '');
-    setPublicationYear(comic.publicationYear);
+    setPublicationYear(comic.publicationYear || 0);
     setPublicationMonth(comic.publicationMonth || '');
     setCopiesOwned(comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1));
   }, [comic]);
@@ -550,7 +550,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
               <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5" />
-                {comic.sizeThickness.toFixed(1)}x Thickness Units
+                {(comic.sizeThickness ?? 1.0).toFixed(1)}x Thickness Units
               </span>
 
               {comic.event && (
@@ -570,7 +570,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               </span>
 
               <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold px-2.5 py-1 rounded-lg">
-                {comic.format}
+                {comic.format || 'Single Issue'}
               </span>
             </div>
           </div>
@@ -1063,11 +1063,11 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
             <div>
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Condition</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition || 'Near Mint'}</span>
             </div>
             <div>
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Format</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format || 'Single Issue'}</span>
             </div>
             <div>
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Purchase Price</span>
@@ -1084,10 +1084,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           </div>
 
           {/* Tags */}
-          {comic.tags.length > 0 && (
+          {(comic.tags || []).length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Tags:</span>
-              {comic.tags.map((t) => (
+              {(comic.tags || []).map((t) => (
                 <span
                   key={t}
                   className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] border border-slate-200 dark:border-slate-700"

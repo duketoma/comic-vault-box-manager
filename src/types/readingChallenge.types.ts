@@ -157,6 +157,9 @@ export interface ChallengeMilestone {
   coverImage?: string;
   sequenceNumber: number;
   isRead: boolean;
+  label?: string;
+  description?: string;
+  collectionCount?: number;
 }
 
 export interface ChallengeInsightsResponse {

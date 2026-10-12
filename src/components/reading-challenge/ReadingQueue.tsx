@@ -18,6 +18,7 @@ import { getComicCoverUrl, handleImageError } from '../../utils/imageUtils';
 interface ReadingQueueProps {
   queue: ChallengeQueueItem[];
   boxes: StorageBox[];
+  comics?: ComicBook[];
   onMarkRead: (itemId: number) => Promise<void>;
   onSkip: (itemId: number) => Promise<void>;
   onSelectComic?: (comic: ComicBook) => void;
@@ -27,12 +28,55 @@ interface ReadingQueueProps {
 export const ReadingQueue: React.FC<ReadingQueueProps> = ({
   queue,
   boxes,
+  comics,
   onMarkRead,
   onSkip,
   onSelectComic,
   milestonesSummary,
 }) => {
   const [pendingItemId, setPendingItemId] = useState<number | null>(null);
+
+  const handleSelectComic = (item: ChallengeQueueItem) => {
+    if (!onSelectComic) return;
+    const fullComic = comics?.find((c) => c.id === item.comicId);
+    if (fullComic) {
+      onSelectComic(fullComic);
+      return;
+    }
+    // Defensive fallback: synthesize a complete ComicBook object if not in list
+    const meta = item.metadata;
+    const fallbackComic: ComicBook = {
+      id: item.comicId,
+      title: meta.title || 'Untitled',
+      issueNumber: meta.issueNumber || '',
+      volume: meta.volume,
+      seriesName: meta.seriesName,
+      fullTitle: meta.fullTitle,
+      publisher: meta.publisher || 'Unknown',
+      publicationYear: meta.publicationYear || (meta.publicationDate ? parseInt(meta.publicationDate.slice(0, 4), 10) || 0 : 0),
+      publicationMonth: meta.publicationMonth,
+      publicationDate: meta.publicationDate,
+      genre: meta.genre || '',
+      writer: meta.writer || '',
+      artist: meta.artist || '',
+      coverArtist: meta.coverArtist,
+      creatorContributions: (meta.creatorContributions as any) || [],
+      characterAppearances: (meta.characterAppearances as any) || [],
+      event: meta.event,
+      coverImage: meta.coverImage || meta.coverImageFull || '',
+      coverImageFull: meta.coverImageFull || meta.coverImage,
+      currentBoxId: item.currentBoxId ?? meta.currentBoxId ?? 0,
+      readingStatus: item.status === 'Read' ? 'Read' : 'Unread',
+      readCount: item.status === 'Read' ? 1 : 0,
+      tags: [],
+      sizeThickness: meta.sizeThickness ?? 1.0,
+      condition: 'Near Mint',
+      format: (meta.format as any) || 'Single Issue',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    onSelectComic(fallbackComic);
+  };
 
   const handleAction = async (itemId: number, action: (id: number) => Promise<void>) => {
     setPendingItemId(itemId);
@@ -138,11 +182,7 @@ export const ReadingQueue: React.FC<ReadingQueueProps> = ({
               {/* Cover Thumbnail */}
               <div 
                 className="w-24 sm:w-28 aspect-2/3 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden shrink-0 shadow-sm relative group cursor-pointer"
-                onClick={() => {
-                  if (onSelectComic) {
-                    onSelectComic(meta as unknown as ComicBook);
-                  }
-                }}
+                onClick={() => handleSelectComic(item)}
                 title="Click to view comic details"
               >
                 <img
@@ -177,7 +217,7 @@ export const ReadingQueue: React.FC<ReadingQueueProps> = ({
                   </div>
 
                   <h4 
-                    onClick={() => onSelectComic && onSelectComic(meta as unknown as ComicBook)}
+                    onClick={() => handleSelectComic(item)}
                     className="font-bold text-sm text-slate-900 dark:text-white leading-tight line-clamp-2 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors"
                   >
                     {meta.title} #{meta.issueNumber}
