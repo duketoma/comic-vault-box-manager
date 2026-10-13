@@ -1,6 +1,8 @@
 import type { SyntheticEvent } from 'react';
-import noImageAsset from '../../assets/NoImage.png';
+const noImageAsset = new URL('../../assets/NoImage.png', import.meta.url).href;
 import { buildApiUrl } from '../services/apiConfig';
+import { isAnnualComic, extractAnnualNumber, parseIssueNumber } from './comicSortUtils';
+import type { ComicBook } from '../types';
 
 // Utility functions for comic cover images, Google Drive image links, and NoImage.png placeholder
 
@@ -373,10 +375,237 @@ export function doesFullCoverMatchComic(
 }
 
 /**
+ * Checks whether a filename indicates an Annual publication.
+ */
+export function isAnnualFileName(fileName: string): boolean {
+  if (!fileName) return false;
+  const baseName = fileName.replace(/\.[^/.]+$/, '').trim();
+  return /\bannual\b/i.test(baseName);
+}
+
+/**
+ * Common cover variant and edition descriptors that can appear in filenames
+ * (e.g. "Cover A", "Variant", "Foil", "Direct Edition", "Newsstand", "Cvr").
+ */
+const COVER_VARIANT_DESCRIPTORS_REGEX =
+  /\b(cover\s*[a-z0-9]?|cvr\s*[a-z0-9]?|variant\s*(?:cover)?|foil|direct\s*(?:edition)?|newsstand|(?:\d+(?:st|nd|rd|th)\s*)?print(?:ing)?|facsimile|sketch|incentive|virgin|wraparound|trifold)\b/gi;
+
+/**
+ * Computes a precision match score (0 to 100) between a Google Drive filename and a comic book.
+ * 
+ * Score breakdown:
+ * - 0: Ineligible mismatch (Annual discrepancy, issue mismatch, full cover mismatch, year conflict, or distinct subseries)
+ * - 100: Exact title & exact issue number match
+ * - 95: Exact title match ignoring leading article ("The") or punctuation dense-match
+ * - 90: Exact title match with volume/year disambiguation matching comic
+ * - 85: Exact title match after stripping cover variant descriptors (e.g. Cover A, Variant, Cvr)
+ * - 80: Year-designated annual match
+ * 
+ * Returns score >= 70 for high-confidence matches, or 0 for mismatches.
+ */
+export function scoreFileNameMatch(
+  driveFileName: string,
+  comic: Partial<ComicBook>
+): number {
+  if (!driveFileName || !comic) return 0;
+
+  // 1. Strict Full Cover Check
+  if (hasFullCoverWord(driveFileName)) {
+    return 0;
+  }
+
+  // 2. Strict Annual Consistency: Annual files MUST NOT match baseline issues, and vice-versa
+  const fileIsAnnual = isAnnualFileName(driveFileName);
+  const comicIsAnnual = isAnnualComic(comic);
+  if (fileIsAnnual !== comicIsAnnual) {
+    return 0;
+  }
+
+  // 3. Strip file extension and normalize "X of Y"
+  let baseFileName = driveFileName.replace(/\.[^/.]+$/, '').trim();
+  if (!baseFileName) return 0;
+  baseFileName = baseFileName.replace(/\b(\d+)\s+of\s+\d+\b/gi, '$1');
+
+  // 4. Year conflict check: if file contains a 4-digit year and comic has a known year
+  const fileYearMatch = baseFileName.match(/\b(19\d\d|20\d\d)\b/);
+  if (fileYearMatch) {
+    const fileYear = parseInt(fileYearMatch[1], 10);
+    let comicYear = comic.publicationYear ? Number(comic.publicationYear) : undefined;
+    if (!comicYear && comic.seriesName) {
+      const seriesYearMatch = String(comic.seriesName).match(/\b(19\d\d|20\d\d)\b/);
+      if (seriesYearMatch) comicYear = parseInt(seriesYearMatch[1], 10);
+    }
+    if (comicYear && Math.abs(comicYear - fileYear) > 1) {
+      return 0;
+    }
+  }
+
+  // 5. Issue Number Matching
+  let issueMatched = false;
+  let isYearDesignatedMatch = false;
+
+  if (comicIsAnnual) {
+    // For Annuals:
+    // Try numeric annual issue number (e.g. #2, Annual 2)
+    const parsed = parseIssueNumber(comic.issueNumber);
+    const annNum = extractAnnualNumber(comic) ?? (parsed.major > 0 ? parsed.major : null);
+    if (annNum !== null) {
+      const annRegex = buildIssueRegex(String(annNum));
+      if (annRegex && annRegex.test(baseFileName)) {
+        issueMatched = true;
+      }
+    }
+
+    // Try year-designated annuals (e.g. Generation X Annual '97 or Annual 1997)
+    if (!issueMatched && comic.publicationYear) {
+      const fullYearStr = String(comic.publicationYear);
+      const shortYearStr = fullYearStr.slice(-2);
+      if (
+        baseFileName.includes(fullYearStr) ||
+        new RegExp(`['’\`]${shortYearStr}\\b`).test(baseFileName) ||
+        new RegExp(`\\b${shortYearStr}\\b`).test(baseFileName)
+      ) {
+        issueMatched = true;
+        isYearDesignatedMatch = true;
+      }
+    }
+  } else {
+    // For regular issues:
+    const cleanIssueNumber = String(comic.issueNumber ?? '').replace(/^#/, '').trim();
+    if (cleanIssueNumber) {
+      const issueRegex = buildIssueRegex(cleanIssueNumber);
+      if (!issueRegex || !issueRegex.test(baseFileName)) {
+        return 0;
+      }
+      issueMatched = true;
+    } else {
+      issueMatched = true;
+    }
+  }
+
+  if (!issueMatched) {
+    return 0;
+  }
+
+  // 6. Title Extraction from File Name
+  let fileTitleRaw = baseFileName;
+
+  // Strip issue number from fileTitleRaw to isolate the title portion
+  if (comicIsAnnual) {
+    const parsed = parseIssueNumber(comic.issueNumber);
+    const annNum = extractAnnualNumber(comic) ?? (parsed.major > 0 ? parsed.major : null);
+    if (annNum !== null) {
+      const annRegex = buildIssueRegex(String(annNum));
+      if (annRegex) fileTitleRaw = fileTitleRaw.replace(annRegex, ' ');
+    }
+    // Also strip standalone year designations (e.g. '97, 1997)
+    fileTitleRaw = fileTitleRaw.replace(/\b(?:19|20)?\d{2}\b/g, ' ');
+    fileTitleRaw = fileTitleRaw.replace(/['’`]\d{2}\b/g, ' ');
+  } else {
+    const cleanIssueNumber = String(comic.issueNumber ?? '').replace(/^#/, '').trim();
+    if (cleanIssueNumber) {
+      const issueRegex = buildIssueRegex(cleanIssueNumber);
+      if (issueRegex) fileTitleRaw = fileTitleRaw.replace(issueRegex, ' ');
+    }
+  }
+
+  const normFileTitle = normalizeText(fileTitleRaw);
+  const normFileTitleNoVariant = normalizeText(fileTitleRaw.replace(COVER_VARIANT_DESCRIPTORS_REGEX, ' '));
+  const normFileTitleNoYear = normalizeText(stripYear(normFileTitleNoVariant));
+  const denseFile = denseText(normFileTitleNoVariant);
+
+  // 7. Candidate Titles from Comic
+  const candidateTitles = new Set<string>();
+
+  const addCandidate = (val?: string) => {
+    if (!val) return;
+    const n = normalizeText(val);
+    const s = normalizeText(stripYear(val));
+    if (n) candidateTitles.add(n);
+    if (s) candidateTitles.add(s);
+  };
+
+  addCandidate(comic.title);
+  addCandidate(comic.seriesName);
+  if (comic.fullTitle) {
+    addCandidate(comic.fullTitle.replace(/#\s*\S+.*$/, ''));
+  }
+
+  // For Annuals: ensure both "Title Annual" and "Title" (if Annual is in format/series) are available
+  if (comicIsAnnual) {
+    if (comic.title && !/\bannual\b/i.test(comic.title)) {
+      addCandidate(`${comic.title} Annual`);
+    }
+    if (comic.seriesName && !/\bannual\b/i.test(comic.seriesName)) {
+      addCandidate(`${comic.seriesName} Annual`);
+    }
+    if (comic.title && /\bannual\b/i.test(comic.title)) {
+      addCandidate(comic.title.replace(/\bannual\b/gi, ' '));
+    }
+  }
+
+  // Add volume variations if volume is known
+  const cleanVol = comic.volume ? String(comic.volume).replace(/[^0-9]/g, '') : '';
+  if (cleanVol && comic.title) {
+    addCandidate(`${comic.title} v${cleanVol}`);
+    addCandidate(`${comic.title} vol ${cleanVol}`);
+    addCandidate(`${comic.title} volume ${cleanVol}`);
+  }
+
+  // 8. Title Scoring
+  let bestScore = 0;
+
+  for (const cand of candidateTitles) {
+    if (!cand) continue;
+    const denseCand = denseText(cand);
+
+    const noTheCand = cand.replace(/^the\s+/, '');
+    const noTheFile = normFileTitle.replace(/^the\s+/, '');
+    const noTheFileNoVariant = normFileTitleNoVariant.replace(/^the\s+/, '');
+    const noTheFileNoYear = normFileTitleNoYear.replace(/^the\s+/, '');
+
+    // Tier 1: Exact Match (Score 100)
+    if (normFileTitle === cand || normFileTitleNoVariant === cand) {
+      bestScore = Math.max(bestScore, 100);
+      break;
+    }
+
+    // Tier 2: Exact Match ignoring leading "The" (Score 95)
+    if (noTheFile === noTheCand || noTheFileNoVariant === noTheCand) {
+      bestScore = Math.max(bestScore, 95);
+      continue;
+    }
+
+    // Tier 3: Dense text match for hyphenated / punctuated titles (Score 95)
+    // e.g. "G.I. Joe" vs "GI Joe", "Spider-Man" vs "Spider Man"
+    if (denseFile === denseCand && denseFile.length >= 3) {
+      bestScore = Math.max(bestScore, 95);
+      continue;
+    }
+
+    // Tier 4: Exact Match with Volume / Publication Year in filename (Score 90)
+    if (normFileTitleNoYear === cand || noTheFileNoYear === noTheCand) {
+      bestScore = Math.max(bestScore, 90);
+      continue;
+    }
+
+    // Tier 5: Year-designated Annual Match (Score 80)
+    if (comicIsAnnual && isYearDesignatedMatch) {
+      const candNoAnnual = cand.replace(/\bannual\b/gi, '').trim();
+      const fileNoAnnual = normFileTitleNoYear.replace(/\bannual\b/gi, '').trim();
+      if (candNoAnnual === fileNoAnnual || candNoAnnual.replace(/^the\s+/, '') === fileNoAnnual.replace(/^the\s+/, '')) {
+        bestScore = Math.max(bestScore, 80);
+        continue;
+      }
+    }
+  }
+
+  return bestScore;
+}
+
+/**
  * Matches a Google Drive file name against a comic book's title, issue number, and volume.
- * Concatenates Title + Issue Number (e.g. "Amazing Spider-Man 300" or "Amazing Spider-Man #300"),
- * normalizing separators, handling file extensions, zero-padded issue numbers (02, #02),
- * years (e.g. "1995"), and ensuring precise word-boundary matching.
+ * Requires a high-confidence match (score >= 70) with strict Annual and title alignment.
  */
 export function doesFileNameMatchComic(
   driveFileName: string,
@@ -385,119 +614,58 @@ export function doesFileNameMatchComic(
   volume?: string | number,
   seriesName?: string,
   fullTitle?: string,
-  publicationYear?: number
+  publicationYear?: number,
+  comicObj?: Partial<ComicBook>
 ): boolean {
-  if (!driveFileName || !comicTitle) return false;
-
-  // Strict check: if filename contains standalone "Full", it must not match standard cover art
-  if (hasFullCoverWord(driveFileName)) {
-    return false;
-  }
-
-  // 1. Strip file extension
-  let baseFileName = driveFileName.replace(/\.[^/.]+$/, '').trim();
-  if (!baseFileName) return false;
-
-  // Normalize "X of Y" (e.g. "Generation Next 2 of 4" -> "Generation Next 2")
-  baseFileName = baseFileName.replace(/\b(\d+)\s+of\s+\d+\b/gi, '$1');
-
-  const issueStr = String(issueNumber ?? '').trim();
-  const cleanIssueNumber = issueStr.replace(/^#/, '').trim();
-
-  // 2. Check year conflict if file contains a 4-digit year and comic has a year
-  const fileYearMatch = baseFileName.match(/\b(19\d\d|20\d\d)\b/);
-  if (fileYearMatch) {
-    const fileYear = parseInt(fileYearMatch[1], 10);
-    let comicYear = publicationYear ? Number(publicationYear) : undefined;
-    if (!comicYear) {
-      const seriesYearMatch = String(seriesName || '').match(/\b(19\d\d|20\d\d)\b/);
-      if (seriesYearMatch) comicYear = parseInt(seriesYearMatch[1], 10);
-    }
-    // If comic has a known year and file has a known year, but they differ by more than 1 year (publishing lag), reject
-    if (comicYear && Math.abs(comicYear - fileYear) > 1) {
-      return false;
-    }
-  }
-
-  // 3. Issue Number Matching
-  if (cleanIssueNumber) {
-    const issueRegex = buildIssueRegex(cleanIssueNumber);
-    if (!issueRegex || !issueRegex.test(baseFileName)) {
-      return false;
-    }
-  }
-
-  // 4. Title Matching
-  // Prepare title candidates from comicTitle, seriesName, fullTitle, and volume variations
-  const cleanVol = volume ? String(volume).replace(/[^0-9]/g, '') : '';
-  const rawCandidates: Array<string | undefined> = [
-    comicTitle,
+  const comic: Partial<ComicBook> = comicObj || {
+    title: comicTitle,
+    issueNumber: String(issueNumber ?? ''),
+    volume: volume !== undefined ? String(volume) : undefined,
     seriesName,
-    fullTitle ? fullTitle.replace(/#\s*\S+.*$/, '') : undefined,
-    cleanVol ? `${comicTitle} v${cleanVol}` : undefined,
-    cleanVol ? `${comicTitle} vol ${cleanVol}` : undefined,
-    cleanVol ? `${comicTitle} volume ${cleanVol}` : undefined,
-  ];
+    fullTitle,
+    publicationYear: publicationYear ? Number(publicationYear) : undefined,
+  };
 
-  const titleVariants = new Set<string>();
-  for (const cand of rawCandidates) {
-    if (!cand) continue;
-    const n = normalizeText(cand);
-    const s = normalizeText(stripYear(cand));
-    const noTheN = n.replace(/^the\s+/, '');
-    const noTheS = s.replace(/^the\s+/, '');
+  const score = scoreFileNameMatch(driveFileName, comic);
+  return score >= 70;
+}
 
-    if (n) titleVariants.add(n);
-    if (s) titleVariants.add(s);
-    if (noTheN) titleVariants.add(noTheN);
-    if (noTheS) titleVariants.add(noTheS);
-  }
+/**
+ * Evaluates candidate comics for a Google Drive file name and returns
+ * the best matching comic book, scoring exact matches first and strictly rejecting
+ * mismatches (such as Annuals vs baseline issues or unrelated sub-series).
+ */
+export function findBestMatchingComic(
+  driveFileName: string,
+  candidateComics: ComicBook[],
+  assignedSet?: Set<string>,
+  minScore: number = 70
+): ComicBook | null {
+  if (!driveFileName || !candidateComics || candidateComics.length === 0) return null;
 
-  // Prepare file representations
-  const normFile = normalizeText(baseFileName);
-  const normFileNoYear = normalizeText(stripYear(baseFileName));
-  const denseFile = denseText(baseFileName);
-  const denseFileNoYear = denseText(stripYear(baseFileName));
+  let bestComic: ComicBook | null = null;
+  let bestScore = 0;
+  let bestIsUnassigned = false;
 
-  // If issue is present, also strip the issue from the file to isolate the title portion
-  let normFileNoIssue = normFile;
-  if (cleanIssueNumber) {
-    const issueRegex = buildIssueRegex(cleanIssueNumber);
-    if (issueRegex) {
-      normFileNoIssue = normalizeText(normFile.replace(issueRegex, ' '));
-    }
-  }
-  const normFileNoIssueNoYear = normalizeText(stripYear(normFileNoIssue));
+  for (const comic of candidateComics) {
+    const score = scoreFileNameMatch(driveFileName, comic);
+    if (score < minScore) continue;
 
-  for (const t of titleVariants) {
-    if (!t) continue;
-    const denseT = denseText(t);
+    const isUnassigned = assignedSet ? !assignedSet.has(comic.id) : true;
 
-    // Exact matches
+    // 1. Higher score always wins
+    // 2. If scores are equal, unassigned comic wins over assigned comic
     if (
-      normFile === t ||
-      normFileNoYear === t ||
-      normFileNoIssue === t ||
-      normFileNoIssueNoYear === t ||
-      denseFile === denseT ||
-      denseFileNoYear === denseT
+      score > bestScore ||
+      (score === bestScore && isUnassigned && !bestIsUnassigned)
     ) {
-      return true;
-    }
-
-    // Title contained in file name
-    if (
-      normFile.includes(t) ||
-      normFileNoYear.includes(t) ||
-      normFileNoIssue.includes(t) ||
-      denseFile.includes(denseT) ||
-      denseFileNoYear.includes(denseT)
-    ) {
-      return true;
+      bestScore = score;
+      bestComic = comic;
+      bestIsUnassigned = isUnassigned;
     }
   }
 
-  return false;
+  return bestComic;
 }
 
 /**

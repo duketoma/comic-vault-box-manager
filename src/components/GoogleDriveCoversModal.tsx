@@ -28,11 +28,13 @@ import {
   isComicAlreadyLinked, 
   isComicFullCoverLinked,
   doesFileNameMatchComic, 
+  findBestMatchingComic,
   extractDriveFileId,
   hasFullCoverWord,
   parseStrictFullCoverFileName,
   doesFullCoverMatchComic
 } from '../utils/imageUtils';
+import { isAnnualComic, extractAnnualNumber, parseIssueNumber } from '../utils/comicSortUtils';
 
 interface GoogleDriveCoversModalProps {
   isOpen: boolean;
@@ -105,98 +107,129 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       const updated = { ...prev };
       const assignedSet = new Set(Object.values(updated));
 
-      // Pre-index comics by numeric/clean issue number for fast candidate lookup
+      // Pre-index comics by numeric/clean issue number and annual designations for fast candidate lookup
       const comicsByIssue = new Map<string, ComicBook[]>();
+      const addIndex = (key: string, comic: ComicBook) => {
+        if (!key) return;
+        const k = key.toLowerCase().trim();
+        if (!comicsByIssue.has(k)) comicsByIssue.set(k, []);
+        if (!comicsByIssue.get(k)!.includes(comic)) {
+          comicsByIssue.get(k)!.push(comic);
+        }
+      };
+
       for (const c of comics) {
-        const clean = String(c.issueNumber ?? '').replace(/^#/, '').trim();
-        const num = clean.match(/^\d+$/) ? String(parseInt(clean, 10)) : clean.toLowerCase();
-        if (!comicsByIssue.has(num)) comicsByIssue.set(num, []);
-        comicsByIssue.get(num)!.push(c);
+        const rawIssue = String(c.issueNumber ?? '').replace(/^#/, '').trim();
+        addIndex(rawIssue, c);
+
+        const parsed = parseIssueNumber(c.issueNumber);
+        if (parsed.major > 0) {
+          addIndex(String(parsed.major), c);
+        }
+        if (parsed.isRange) {
+          addIndex(String(parsed.minor), c);
+        }
+
+        if (isAnnualComic(c)) {
+          const annNum = extractAnnualNumber(c);
+          if (annNum !== null) {
+            addIndex(String(annNum), c);
+            addIndex(`annual ${annNum}`, c);
+          }
+          if (c.publicationYear) {
+            addIndex(String(c.publicationYear), c);
+            addIndex(String(c.publicationYear).slice(-2), c);
+          }
+        }
       }
 
+      // Helper to fetch candidates for a given file
+      const getCandidatesForFile = (file: DriveFileItem): ComicBook[] => {
+        const base = file.name.replace(/\.[^/.]+$/, '').trim();
+        const numMatches = base.match(/(?:#|\b)(\d+)\b/g) || [];
+        const candidateSet = new Set<ComicBook>();
+
+        for (const m of numMatches) {
+          const cleanM = String(parseInt(m.replace(/^#/, ''), 10));
+          const list = comicsByIssue.get(cleanM);
+          if (list) {
+            for (const c of list) candidateSet.add(c);
+          }
+        }
+
+        const year2Match = base.match(/['’`](\d{2})\b/);
+        if (year2Match) {
+          const list = comicsByIssue.get(year2Match[1]);
+          if (list) {
+            for (const c of list) candidateSet.add(c);
+          }
+        }
+
+        if (candidateSet.size === 0) {
+          return comics;
+        }
+        return Array.from(candidateSet);
+      };
+
+      // Step 1: Retain manual assignments and check already linked items in vault
       syncResult.coverFiles.forEach((file) => {
-        // If already assigned and matches an existing comic in vault, keep it
         const currentAssignedId = updated[file.id];
         if (currentAssignedId && comics.some((c) => c.id === currentAssignedId)) {
           return;
         }
 
-        // Check if already linked to a comic in the vault
         const alreadyLinked = comics.find((c) => isFileLinkedToComic(file, c));
         if (alreadyLinked) {
           updated[file.id] = alreadyLinked.id;
           assignedSet.add(alreadyLinked.id);
-          return;
         }
+      });
 
-        const isFull = hasFullCoverWord(file.name);
+      // Step 2: Handle Full Covers strictly
+      syncResult.coverFiles.forEach((file) => {
+        if (updated[file.id]) return;
+        if (!hasFullCoverWord(file.name)) return;
 
-        if (isFull) {
-          // Strictly parse full cover filename
-          const parsed = parseStrictFullCoverFileName(file.name);
-          if (!parsed.isStrictFullCover) {
-            // Does not follow strict placement (<Title> Full #<Issue> or <Title> Annual Full <Year/Issue>) -> Do not auto-match
-            return;
-          }
+        const parsed = parseStrictFullCoverFileName(file.name);
+        if (!parsed.isStrictFullCover) return;
 
-          const suggested =
-            comics.find((c) => !assignedSet.has(c.id) && doesFullCoverMatchComic(parsed, c)) ||
-            comics.find((c) => doesFullCoverMatchComic(parsed, c));
-
-          if (suggested) {
-            updated[file.id] = suggested.id;
-            assignedSet.add(suggested.id);
-          }
-          return;
-        }
-
-        // Standard covers
-        // Extract candidate numbers from filename
-        const base = file.name.replace(/\.[^/.]+$/, '').trim();
-        const numMatches = base.match(/(?:#|\b)(\d+)\b/g) || [];
-        let candidateComics: ComicBook[] = [];
-        for (const m of numMatches) {
-          const cleanM = String(parseInt(m.replace(/^#/, ''), 10));
-          if (comicsByIssue.has(cleanM)) {
-            candidateComics.push(...comicsByIssue.get(cleanM)!);
-          }
-        }
-        if (candidateComics.length === 0) {
-          candidateComics = comics;
-        }
-
-        // Otherwise find a matching comic by filename prioritizing unassigned
         const suggested =
-          candidateComics.find(
-            (c) =>
-              !assignedSet.has(c.id) &&
-              doesFileNameMatchComic(
-                file.name,
-                c.title,
-                c.issueNumber,
-                c.volume,
-                c.seriesName,
-                c.fullTitle,
-                c.publicationYear
-              )
-          ) ||
-          candidateComics.find((c) =>
-            doesFileNameMatchComic(
-              file.name,
-              c.title,
-              c.issueNumber,
-              c.volume,
-              c.seriesName,
-              c.fullTitle,
-              c.publicationYear
-            )
-          );
+          comics.find((c) => !assignedSet.has(c.id) && doesFullCoverMatchComic(parsed, c)) ||
+          comics.find((c) => doesFullCoverMatchComic(parsed, c));
 
         if (suggested) {
           updated[file.id] = suggested.id;
           assignedSet.add(suggested.id);
         }
       });
+
+      // Step 3 (PASS 1): Exact Matches (Score >= 90) across all standard files
+      // Guarantees exact matches lock in first across the entire batch
+      syncResult.coverFiles.forEach((file) => {
+        if (updated[file.id]) return;
+        if (hasFullCoverWord(file.name)) return;
+
+        const candidateComics = getCandidatesForFile(file);
+        const match = findBestMatchingComic(file.name, candidateComics, assignedSet, 90);
+        if (match) {
+          updated[file.id] = match.id;
+          assignedSet.add(match.id);
+        }
+      });
+
+      // Step 4 (PASS 2): High-confidence fallback matches (Score >= 70) for remaining unassigned files
+      syncResult.coverFiles.forEach((file) => {
+        if (updated[file.id]) return;
+        if (hasFullCoverWord(file.name)) return;
+
+        const candidateComics = getCandidatesForFile(file);
+        const match = findBestMatchingComic(file.name, candidateComics, assignedSet, 70);
+        if (match) {
+          updated[file.id] = match.id;
+          assignedSet.add(match.id);
+        }
+      });
+
       return updated;
     });
   }, [syncResult, comics]);
@@ -317,11 +350,17 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
 
   // Memoize comic options so React doesn't allocate thousands of option elements per card
   const comicOptions = useMemo(() => {
-    return comics.map((c) => (
-      <option key={c.id} value={c.id}>
-        {c.title} #{c.issueNumber}
-      </option>
-    ));
+    return comics.map((c) => {
+      const issueLabel = String(c.issueNumber ?? '').trim();
+      const formattedIssue = issueLabel.startsWith('#') || issueLabel.toLowerCase().startsWith('annual')
+        ? issueLabel
+        : `#${issueLabel}`;
+      return (
+        <option key={c.id} value={c.id}>
+          {c.title} {formattedIssue}
+        </option>
+      );
+    });
   }, [comics]);
 
   const handleScanDrive = async (tokenToUse?: string) => {

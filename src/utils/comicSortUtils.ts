@@ -125,6 +125,11 @@ export function isAnnualComic(comic?: Partial<ComicBook> | null): boolean {
     return true;
   }
 
+  // 6. Format
+  if ((comic as any).format && /\bannual\b/i.test(String((comic as any).format))) {
+    return true;
+  }
+
   return false;
 }
 
