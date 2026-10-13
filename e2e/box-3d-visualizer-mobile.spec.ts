@@ -44,6 +44,36 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
         });
       });
 
+      await page.route('**/api/boxes/*/comics', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            box: { id: 1, name: 'Box 01' },
+            comics: [
+              {
+                id: 'c1',
+                title: 'Batman',
+                issueNumber: '404',
+                publisher: 'DC',
+                publicationYear: 1987,
+                genre: 'Superhero',
+                writer: 'Frank Miller',
+                artist: 'David Mazzucchelli',
+                coverImage: 'NoImage.png',
+                format: 'Single Issue',
+                sizeThickness: 1.0,
+                currentBoxId: 1,
+                readingStatus: 'Unread',
+                condition: 'Near Mint',
+                tags: [],
+              },
+            ],
+            count: 1,
+          }),
+        });
+      });
+
       await page.goto('/');
 
       // Navigate to Storage Boxes

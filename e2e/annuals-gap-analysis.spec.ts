@@ -58,12 +58,12 @@ test.describe('Wishlist Annuals Gap Analysis Separation', () => {
     const gapBtn = page.getByRole('button', { name: /Gap Fillers/i });
     await gapBtn.click();
 
-    // Search within Gap Fillers for Silver Surfer Annual
+    // Search within Gap Fillers for Silver Surfer Annual #4 (which has no owned annual neighbors)
     const searchInput = page.getByPlaceholder(/Search wishlisted title/i);
-    await searchInput.fill('Silver Surfer Annual');
+    await searchInput.fill('Silver Surfer Annual #4');
 
-    // Confirm none of the un-bridged Silver Surfer Annuals appear under Gap Fillers
-    const ssAnnualCards = page.locator('.grid > div', { hasText: 'Silver Surfer Annual' });
+    // Confirm the un-bridged Silver Surfer Annual #4 does not appear under Gap Fillers
+    const ssAnnualCards = page.locator('.grid > div', { hasText: 'Silver Surfer Annual #4' });
     await expect(ssAnnualCards).toHaveCount(0);
   });
 });

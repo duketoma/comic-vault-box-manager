@@ -6,6 +6,7 @@
   "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "tsx watch server.ts",
+    "db:migrate": "node scripts/migrate.mjs",
     "import:collection": "node scripts/import-comic-csv.mjs",
     "import:series-totals": "node scripts/import-series-totals.mjs",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",

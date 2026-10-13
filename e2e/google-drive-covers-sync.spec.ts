@@ -106,6 +106,23 @@ test.describe('Google Drive Comic Covers Sync & Matching', () => {
       }
     });
 
+    // Mock image requests to Google Drive content server with valid 1x1 PNG to prevent onerror image fallback
+    const pixelPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    await page.route(/.*googleusercontent\.com.*/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: pixelPng,
+      });
+    });
+    await page.route('**/api/proxy-image*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: pixelPng,
+      });
+    });
+
     // Seed mock auth and initial comics
     await page.addInitScript((comics) => {
       (window as any).__MOCK_AUTH__ = {

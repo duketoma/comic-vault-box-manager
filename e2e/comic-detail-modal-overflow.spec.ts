@@ -134,7 +134,7 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     await expect(expandCharactersBtn).toBeVisible();
 
     // 6. Sticky bottom footer should be docked and visible on screen
-    const stickyFooter = page.locator('.border-t.bg-white\\/95, .border-t.dark\\:bg-slate-900\\/95').last();
+    const stickyFooter = modal.locator('.border-t.bg-white\\/95, .border-t.dark\\:bg-slate-900\\/95');
     await expect(stickyFooter).toBeVisible();
     await expect(stickyFooter.getByRole('button', { name: /Delete Comic/i })).toBeVisible();
     await expect(stickyFooter.getByRole('button', { name: 'Save Changes' })).toBeVisible();

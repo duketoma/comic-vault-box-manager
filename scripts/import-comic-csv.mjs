@@ -157,6 +157,21 @@ try {
   await client.query('BEGIN');
   await client.query(`INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes) VALUES
     (0, 'Box 00 - Unassigned / Wishlist', 'Internal', 1, '#94A3B8', 'Hidden internal box for unassigned wishlist comics'),
+    (1, 'Box 01 - Amazing Spider-Man & Marvel Silver Age', 'Top Shelf - Left', 150, '#EF4444', 'Silver & Bronze Age Marvel keys'),
+    (2, 'Box 02 - X-Men & Mutants (1980s-1990s)', 'Top Shelf - Center', 150, '#F59E0B', 'Uncanny X-Men, X-Force, Wolverine'),
+    (3, 'Box 03 - Batman & Gotham Detective Run', 'Top Shelf - Right', 150, '#3B82F6', 'Batman Vol. 1 & 2, Detective Comics'),
+    (4, 'Box 04 - Superman & Justice League', 'Middle Rack - Shelf 1', 150, '#10B981', 'Action Comics, JLA, Flash'),
+    (5, 'Box 05 - Image Comics & Creator Owned', 'Middle Rack - Shelf 2', 150, '#8B5CF6', 'Saga, Spawn, Invincible'),
+    (6, 'Box 06 - Vertigo & Dark Horse Favorites', 'Middle Rack - Shelf 3', 150, '#EC4899', 'Sandman, Preacher, Hellboy'),
+    (7, 'Box 07 - Trade Paperbacks & Graphic Novels A-M', 'Bottom Storage - Bay A', 150, '#6366F1', 'Thicker TPB volumes'),
+    (8, 'Box 08 - Trade Paperbacks & Hardcovers N-Z', 'Bottom Storage - Bay B', 150, '#14B8A6', 'Collected hardcovers'),
+    (9, 'Box 09 - Modern Marvel Era (2000-2015)', 'Bottom Storage - Bay C', 150, '#F97316', 'New Avengers, Civil War, Daredevil'),
+    (10, 'Box 10 - Modern DC & Black Label', 'Closet - Shelf 1', 150, '#06B6D4', 'Batman White Knight, Watchmen, Doomsday Clock'),
+    (11, 'Box 11 - Sci-Fi & Space Opera', 'Closet - Shelf 2', 150, '#84CC16', 'Star Wars, Guardians of the Galaxy, East of West'),
+    (12, 'Box 12 - Horror, Crime & Mystery', 'Closet - Shelf 3', 150, '#64748B', 'Department of Truth, Criminal, Something is Killing the Children'),
+    (13, 'Box 13 - Indie Publishers & Zines', 'Office Desk Cabinet', 150, '#A855F7', 'BOOM! Studios, IDW, AWA, Vault'),
+    (14, 'Box 14 - Oversized Omnibuses & Hardcovers', 'Display Stand Base', 150, '#E11D48', 'Heavy omnibus volumes'),
+    (15, 'Box 15 - Overflow & Unsorted Back issues', 'Worktable Staging Area', 150, '#F43F5E', 'Recent pick-ups waiting for cataloging'),
     (16, 'Box 16 - Planned', 'Planned Expansion', 150, '#64748B', 'Created from collection import'),
     (17, 'Box 17 - Planned', 'Planned Expansion', 150, '#64748B', 'Created from collection import'),
     (18, 'Box 18 - Planned', 'Planned Expansion', 150, '#64748B', 'Created from collection import')

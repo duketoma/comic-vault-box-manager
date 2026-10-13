@@ -8,6 +8,8 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/comic_vault
     services:
       postgres:
         image: postgres:15
@@ -41,9 +43,13 @@ jobs:
           for i in {1..20}; do
             pg_isready -h localhost -p 5432 -U postgres && break || sleep 1
           done
+      - name: Migrate database and seed collection
+        run: |
+          npm run db:migrate
+          npm run import:collection
+          npm run import:series-totals
       - name: Start server
         run: |
-          export DATABASE_URL='postgres://postgres:postgres@localhost:5432/comic_vault'
           export PORT=3000
           NODE_ENV=production node dist/server.cjs &
       - name: Run Playwright tests

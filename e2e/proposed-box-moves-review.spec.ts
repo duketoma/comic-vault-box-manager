@@ -5,17 +5,59 @@ import { Pool } from 'pg';
 dotenv.config({ path: ['.env.local', '.env'] });
 
 test.describe('Storage Boxes - Proposed Moves Review', () => {
-  const restoreDb = async () => {
+  let targetIds: string[] = [];
+
+  const setupDb = async () => {
     if (process.env.DATABASE_URL) {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       try {
         await pool.query(`
           UPDATE comic_books 
-          SET current_box_id = 1, proposed_box_id = 0 
-          WHERE id IN ('imported-1790007670336-1218', 'imported-1790007670339-1681');
+          SET proposed_box_id = current_box_id 
+          WHERE proposed_box_id IS NOT NULL AND proposed_box_id != current_box_id;
+        `);
+        const selectRes = await pool.query(`
+          SELECT id FROM comic_books 
+          WHERE id IN ('imported-1790007670336-1218', 'imported-1790007670339-1681')
+             OR (title ILIKE '%Silver Surfer%' AND issue_number = '1')
+             OR (title ILIKE '%The New Mutants Annual%' AND issue_number = '1')
+          ORDER BY CASE WHEN id IN ('imported-1790007670336-1218', 'imported-1790007670339-1681') THEN 0 ELSE 1 END
+          LIMIT 2;
+        `);
+        targetIds = selectRes.rows.map((r: { id: string }) => r.id);
+        if (targetIds.length > 0) {
+          await pool.query(`
+            UPDATE comic_books 
+            SET current_box_id = 1, proposed_box_id = 0, reading_status = 'Unread'
+            WHERE id = ANY($1);
+          `, [targetIds]);
+        }
+      } catch (e) {
+        console.error('Failed to setup test data:', e);
+      } finally {
+        await pool.end();
+      }
+    }
+  };
+
+  const cleanupDb = async () => {
+    if (process.env.DATABASE_URL) {
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      try {
+        if (targetIds.length > 0) {
+          await pool.query(`
+            UPDATE comic_books 
+            SET proposed_box_id = 1, reading_status = 'Wishlist'
+            WHERE id = ANY($1);
+          `, [targetIds]);
+        }
+        await pool.query(`
+          UPDATE comic_books 
+          SET proposed_box_id = current_box_id 
+          WHERE proposed_box_id IS NOT NULL AND proposed_box_id != current_box_id;
         `);
       } catch (e) {
-        console.error('Failed to restore test data:', e);
+        console.error('Failed to cleanup test data:', e);
       } finally {
         await pool.end();
       }
@@ -23,11 +65,11 @@ test.describe('Storage Boxes - Proposed Moves Review', () => {
   };
 
   test.beforeEach(async () => {
-    await restoreDb();
+    await setupDb();
   });
 
   test.afterAll(async () => {
-    await restoreDb();
+    await cleanupDb();
   });
 
   test('displays proposed moves banner and allows viewing, adjusting, and committing moves', async ({ page }) => {
@@ -35,6 +77,7 @@ test.describe('Storage Boxes - Proposed Moves Review', () => {
 
     // Wait for the app and collection to load
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('text=Showing').first()).toBeVisible({ timeout: 15000 });
 
     // Navigate to Storage Boxes tab
     const storageBoxesTab = page.getByRole('button', { name: /Storage Boxes/i });

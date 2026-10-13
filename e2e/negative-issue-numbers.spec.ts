@@ -80,6 +80,7 @@ test.describe('Negative Comic Issue Numbers Handling (e.g. #-1)', () => {
 
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible();
+    await expect(page.locator('text=Showing').first()).toBeVisible({ timeout: 15000 });
 
     // Click on the first comic card to open modal
     const comicCard = page.locator('div.cursor-pointer.group').first();
@@ -89,7 +90,7 @@ test.describe('Negative Comic Issue Numbers Handling (e.g. #-1)', () => {
     // Verify modal opened and click Edit Values
     const editBtn = page.getByRole('button', { name: /Edit Values/i });
     await expect(editBtn).toBeVisible();
-    await editBtn.click();
+    await editBtn.click({ noWaitAfter: true });
 
     // Verify Issue # input exists and change value to -1
     const issueInput = page.getByPlaceholder('e.g. 1, -1, 300, 1A');

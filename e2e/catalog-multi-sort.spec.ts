@@ -162,6 +162,25 @@ test.describe('Catalog View Multi-Sort and Annuals Separation', () => {
     },
   ];
 
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/collection*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: sampleComics,
+          boxes: [
+            { id: 1, name: 'Box 1', capacity: 300, currentCount: 5, boxNumber: 1 },
+            { id: 3, name: 'Box 3', capacity: 300, currentCount: 1, boxNumber: 3 },
+            { id: 9, name: 'Box 9', capacity: 300, currentCount: 1, boxNumber: 9 },
+          ],
+          seriesTotals: [],
+          creatorTypes: [],
+        }),
+      });
+    });
+  });
+
   test('Catalog View renders multi-sort UI and separates Annuals from normal titles', async ({ page }) => {
     await page.addInitScript((comics) => {
       window.localStorage.setItem('comic_vault_comics', JSON.stringify(comics));

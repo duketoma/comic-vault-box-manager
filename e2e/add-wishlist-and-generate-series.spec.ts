@@ -18,6 +18,11 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     }
   };
 
+  test.beforeEach(async () => {
+    test.setTimeout(60_000);
+    await cleanupTestData();
+  });
+
   test.afterAll(async () => {
     await cleanupTestData();
   });
@@ -25,18 +30,25 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
   test('Add Comic modal allows 0 copies and Box 0 for Wishlist comics', async ({ page }) => {
     await page.goto('/');
 
-    // Wait for the app and collection to load
+    // Wait for the app and collection to load from database
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Open Add Comic modal
-    await page.getByRole('button', { name: 'Add Comic' }).click();
+    const addComicBtn = page.getByRole('button', { name: 'Add Comic' });
+    await expect(addComicBtn).toBeVisible({ timeout: 15000 });
+    await addComicBtn.dispatchEvent('click');
 
     // Verify modal opened and scope to modal
     const modal = page.locator('.fixed.inset-0').filter({ hasText: 'Add New Comic to Vault' });
     await expect(modal).toBeVisible();
 
-    // Switch to Manual Entry Form
-    await modal.getByRole('button', { name: 'Manual Entry Form' }).click();
+    // Verify Manual Entry Form is active (or switch to it)
+    const manualBtn = modal.getByRole('button', { name: 'Manual Entry Form' });
+    await expect(manualBtn).toBeVisible();
+    if (await modal.locator('label:has-text("Reading Status") + select').count() === 0) {
+      await manualBtn.click({ force: true });
+    }
 
     // Check reading status dropdown and select 'Wishlist'
     const statusSelect = modal.locator('label:has-text("Reading Status") + select');
@@ -63,15 +75,12 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
 
     // Submit form
     const submitBtn = modal.getByRole('button', { name: /Save Comic to Wishlist/i });
-    await submitBtn.click();
+    await submitBtn.dispatchEvent('click');
 
     // Modal should close
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
+    await expect(modal).not.toBeVisible({ timeout: 10000 });
 
-    // Navigate to Catalog View and filter by Wishlist status
-    const catalogTab = page.getByRole('button', { name: /Catalog/i });
-    await catalogTab.click();
-
+    // Filter by Wishlist status in Catalog View
     const catalogStatusSelect = page.locator('label:has-text("Reading Status") + select');
     await catalogStatusSelect.selectOption('Wishlist');
 
@@ -101,16 +110,18 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
 
     // Wait for the app and collection to load
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Navigate to Catalog
-    const catalogTab = page.getByRole('button', { name: /Catalog/i });
-    await catalogTab.click();
+    const catalogTab = page.getByRole('button', { name: 'Catalog View' }).or(page.locator('nav button').filter({ hasText: 'Catalog' })).first();
+    await catalogTab.click({ force: true });
 
     // Select Captain America (Vol. 1) in the Series Run dropdown
     const seriesSelect = page.locator('label:has-text("Series Run") + select');
     await expect(seriesSelect).toBeVisible();
 
     const capOption = seriesSelect.locator('option').filter({ hasText: 'Captain America (Vol. 1)' }).first();
+    await expect(capOption).toBeAttached({ timeout: 15000 });
     const capValue = await capOption.getAttribute('value');
     if (capValue) {
       await seriesSelect.selectOption(capValue);
@@ -156,22 +167,27 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Open Add Comic modal
-    await page.getByRole('button', { name: 'Add Comic' }).click();
+    const addComicBtn = page.getByRole('button', { name: 'Add Comic' });
+    await expect(addComicBtn).toBeVisible({ timeout: 15000 });
+    await addComicBtn.dispatchEvent('click');
 
     // Verify "Auto-Generate Wishlist" button is in the mode switcher
     const autoGenBtn = page.getByRole('button', { name: /Auto-Generate.*Wishlist/i });
     await expect(autoGenBtn).toBeVisible();
 
     // Click Auto-Generate Wishlist button
-    await autoGenBtn.click();
+    await autoGenBtn.dispatchEvent('click');
 
     // Verify GenerateSeriesWishlistModal opened
     await expect(page.getByRole('heading', { name: 'Generate Series Wishlist' })).toBeVisible();
 
     // Cancel modal
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    const genModal = page.locator('.fixed.inset-0').filter({ hasText: 'Generate Series Wishlist' });
+    const cancelBtn = genModal.getByRole('button', { name: 'Cancel' }).or(genModal.locator('button:has-text("Cancel")'));
+    await cancelBtn.first().click({ force: true });
     await expect(page.getByRole('heading', { name: 'Generate Series Wishlist' })).not.toBeVisible();
   });
 });

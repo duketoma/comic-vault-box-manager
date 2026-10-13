@@ -89,6 +89,23 @@ test.describe('Comic Issue Ordering within Title', () => {
     },
   ];
 
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/collection*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: testComics,
+          boxes: [
+            { id: 1, name: 'Box 1', capacity: 300, currentCount: 4, boxNumber: 1 },
+          ],
+          seriesTotals: [],
+          creatorTypes: [],
+        }),
+      });
+    });
+  });
+
   test('Catalog View orders comics of the same title by issue number', async ({ page }) => {
     // Seed localStorage with test comics
     await page.addInitScript((comics) => {
