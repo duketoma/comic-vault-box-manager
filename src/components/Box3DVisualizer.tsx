@@ -340,6 +340,24 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
     sceneContext.controls.update();
   };
 
+  // Keyboard arrow keys for flipping through comics
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevComic();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextComic();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [comics, selectedComicId]);
+
   if (error) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
@@ -419,48 +437,73 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
             </div>
           )}
 
-          {/* Pull / Return Toggle Button */}
-          {selectedComicId && (
-            <button
-              type="button"
-              onClick={handleTogglePull}
-              className={`min-h-[40px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all touch-manipulation active:scale-95 cursor-pointer shrink-0 ${
-                isComicPulled
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
-              }`}
-              title={isComicPulled ? 'Slide back into box' : 'Lift comic out of box to inspect'}
-              aria-label={isComicPulled ? 'Return comic into box' : 'Lift comic out of box to inspect'}
-            >
-              {isComicPulled ? (
-                <>
-                  <ArrowDownToLine className="w-4 h-4" />
-                  <span className="hidden xs:inline">Return</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4" />
-                  <span className="hidden xs:inline">Pull Comic</span>
-                </>
-              )}
-            </button>
-          )}
+          {/* Pull / Return Toggle Button - fixed width to prevent layout shifts */}
+          <button
+            type="button"
+            disabled={!selectedComicId}
+            onClick={handleTogglePull}
+            className={`min-h-[40px] min-w-[40px] sm:min-w-[105px] justify-center flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-all touch-manipulation shrink-0 ${
+              !selectedComicId
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700/60 cursor-not-allowed opacity-60'
+                : isComicPulled
+                ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs active:scale-95 cursor-pointer'
+                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-95 cursor-pointer'
+            }`}
+            title={
+              !selectedComicId
+                ? 'Select a comic to pull'
+                : isComicPulled
+                ? 'Slide back into box'
+                : 'Lift comic out of box to inspect'
+            }
+            aria-label={
+              !selectedComicId
+                ? 'Select a comic to pull'
+                : isComicPulled
+                ? 'Return comic into box'
+                : 'Lift comic out of box to inspect'
+            }
+          >
+            {isComicPulled ? (
+              <>
+                <ArrowDownToLine className="w-4 h-4" />
+                <span className="hidden sm:inline">Return</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4" />
+                <span className="hidden sm:inline">Pull Comic</span>
+              </>
+            )}
+          </button>
 
-          {/* Full Art Button */}
-          {(() => {
+          {/* Full Art Button - always rendered with fixed width, disabled when comic lacks full art */}
+          {onViewFullArt && (() => {
             const sc = selectedComicId ? comics.find((c) => c.id === selectedComicId) : null;
-            return sc?.coverImageFull && onViewFullArt ? (
+            const hasFullArt = Boolean(sc?.coverImageFull);
+            return hasFullArt ? (
               <button
                 type="button"
-                onClick={() => onViewFullArt(sc)}
-                className="min-h-[40px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-all touch-manipulation active:scale-95 cursor-pointer shrink-0"
+                onClick={() => sc && onViewFullArt(sc)}
+                className="min-h-[40px] min-w-[40px] sm:min-w-[88px] justify-center flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-all touch-manipulation active:scale-95 cursor-pointer shrink-0"
                 title="View Full Wraparound Cover Art"
                 aria-label="View Full Wraparound Cover Art"
               >
                 <Sparkles className="w-4 h-4 text-amber-300" />
-                <span className="hidden xs:inline">Full Art</span>
+                <span className="hidden sm:inline">Full Art</span>
               </button>
-            ) : null;
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="min-h-[40px] min-w-[40px] sm:min-w-[88px] justify-center flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700/60 transition-none shrink-0 cursor-not-allowed opacity-50"
+                title="No full wraparound cover art for this comic"
+                aria-label="No full wraparound cover art for this comic"
+              >
+                <Sparkles className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <span className="hidden sm:inline">Full Art</span>
+              </button>
+            );
           })()}
 
           {/* Reset Camera Button */}

@@ -48,7 +48,7 @@ Featuring an **interactive 3D box visualizer**, a **multi-subsheet Google Sheets
 - **Overview Metrics**: Total issues, total boxes, reading completion percentage, and estimated collection value.
 - **Storyline & Event Tracker**: Track progress across major crossover events (e.g., *Secret Wars*, *Infinity Gauntlet*, *Civil War*).
 - **Series Completion Progress**: Monitor completion bars across ongoing and limited series.
-- **Creators & Characters Spotlight**: Deep breakdowns of top writers, pencilers, inkers, colorists, and character appearances with interactive detail drawers.
+- **Creators & Characters Spotlight**: Deep breakdowns of top writers, pencillers, inkers, colorists, and character appearances with interactive detail drawers.
 - **100% Achievements & Badges**: Unlock badges for milestone achievements (e.g., century milestones, full runs, pristine preservation).
 
 ### 🔄 Multi-Subsheet Google Sheets Importer

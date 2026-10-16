@@ -52,8 +52,8 @@ function getInitialContributions(comic: ComicBook | null): CreatorContribution[]
   }
   return [
     ...(comic.writer ? [{ creatorName: comic.writer, roleName: 'Writer' }] : []),
-    ...(comic.artist ? [{ creatorName: comic.artist, roleName: 'Penciler' }] : []),
-    ...(comic.coverArtist ? [{ creatorName: comic.coverArtist, roleName: 'Cover Penciler' }] : []),
+    ...(comic.artist ? [{ creatorName: comic.artist, roleName: 'Penciller' }] : []),
+    ...(comic.coverArtist ? [{ creatorName: comic.coverArtist, roleName: 'Cover Penciller' }] : []),
   ];
 }
 
@@ -252,7 +252,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const handleSaveQuickEdits = () => {
     // Derive primary writer and artist for backwards compatibility
     const writerContrib = contributions.find((c) => c.roleName.toLowerCase() === 'writer');
-    const artistContrib = contributions.find((c) => ['penciler', 'penciller', 'artist'].includes(c.roleName.toLowerCase()));
+    const artistContrib = contributions.find((c) => ['penciller', 'artist'].includes(c.roleName.toLowerCase()));
 
     const cleanTitle = title.trim() || comic.title;
     const cleanIssue = issueNumber.trim() || comic.issueNumber;

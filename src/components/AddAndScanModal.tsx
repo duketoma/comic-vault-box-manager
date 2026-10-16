@@ -212,8 +212,8 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     const newContribs = [];
     if (writer.trim()) newContribs.push({ creatorName: writer.trim(), roleName: 'Writer' });
-    if (artist.trim()) newContribs.push({ creatorName: artist.trim(), roleName: 'Penciler' });
-    if (coverArtist.trim()) newContribs.push({ creatorName: coverArtist.trim(), roleName: 'Cover Penciler' });
+    if (artist.trim()) newContribs.push({ creatorName: artist.trim(), roleName: 'Penciller' });
+    if (coverArtist.trim()) newContribs.push({ creatorName: coverArtist.trim(), roleName: 'Cover Penciller' });
 
     const existingContribs = duplicateMatch.creatorContributions || [];
     const mergedContribs = [...existingContribs];
@@ -269,8 +269,8 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     const creatorContribs = [];
     if (writer.trim()) creatorContribs.push({ creatorName: writer.trim(), roleName: 'Writer' });
-    if (artist.trim()) creatorContribs.push({ creatorName: artist.trim(), roleName: 'Penciler' });
-    if (coverArtist.trim()) creatorContribs.push({ creatorName: coverArtist.trim(), roleName: 'Cover Penciler' });
+    if (artist.trim()) creatorContribs.push({ creatorName: artist.trim(), roleName: 'Penciller' });
+    if (coverArtist.trim()) creatorContribs.push({ creatorName: coverArtist.trim(), roleName: 'Cover Penciller' });
 
     const isWishlist = readingStatus === 'Wishlist';
     const finalCopies = isWishlist ? 0 : (Number(copiesOwned) > 0 ? Number(copiesOwned) : 1);

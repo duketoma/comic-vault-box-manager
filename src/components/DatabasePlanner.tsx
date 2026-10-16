@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS creators (
 )
 ''')
 
-# 4. Creator Types Table (roles: writer, penciler, inker, letterer, colorist, assistant editor, editor, editor-in-chief, cover penciler, cover inker, cover letterer, cover colorer)
+# 4. Creator Types Table (roles: writer, penciller, inker, letterer, colorist, assistant editor, editor, editor-in-chief, cover penciller, cover inker, cover letterer, cover colorist)
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS creator_types (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,9 +133,9 @@ CREATE TABLE IF NOT EXISTS creator_types (
 ''')
 
 roles = [
-    'writer', 'penciler', 'inker', 'letterer', 'colorist', 
+    'writer', 'penciller', 'inker', 'letterer', 'colorist', 
     'assistant editor', 'editor', 'editor-in-chief', 
-    'cover penciler', 'cover inker', 'cover letterer', 'cover colorer'
+    'cover penciller', 'cover inker', 'cover letterer', 'cover colorist'
 ]
 for role in roles:
     cursor.execute("INSERT OR IGNORE INTO creator_types (role_name) VALUES (?)", (role,))

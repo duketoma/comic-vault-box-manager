@@ -148,7 +148,7 @@ export function evaluateCriterionNode(comic: ComicBook, node: CriterionNode): bo
         const rLower = role.trim().toLowerCase();
         return roleFilters.some((rf) => {
           if (rf === 'writer' && isWritingRole(rLower)) return true;
-          if ((rf === 'artist' || rf === 'penciller' || rf === 'penciler') && isArtRole(rLower)) return true;
+          if ((rf === 'artist' || rf === 'penciller') && isArtRole(rLower)) return true;
           if (rf.includes('cover') && rLower.includes('cover')) return true;
           if (rf === 'inker' && rLower.includes('ink')) return true;
           if (rf === 'colorist' && rLower.includes('color')) return true;

@@ -44,7 +44,6 @@ test.describe('Comic Detail Modal - Comprehensive Creator Role Types Dropdown', 
     expect(options).toContain('Cover Artist');
     expect(options).toContain('Variant Cover Artist');
     expect(options).toContain('Penciller');
-    expect(options).toContain('Penciler');
     expect(options).toContain('Designer');
     expect(options).toContain('Associate Editor');
     expect(options).toContain('Executive Editor');

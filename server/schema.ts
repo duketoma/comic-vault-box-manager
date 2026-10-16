@@ -365,17 +365,17 @@ export function getExportDdlSql(dialect: 'sqlite' | 'postgres'): string {
 
 const DEFAULT_CREATOR_TYPE_ROLES = [
   'writer',
-  'penciler',
+  'penciller',
   'inker',
   'letterer',
   'colorist',
   'assistant editor',
   'editor',
   'editor-in-chief',
-  'cover penciler',
+  'cover penciller',
   'cover inker',
   'cover letterer',
-  'cover colorer',
+  'cover colorist',
 ];
 
 export function generateSqlExportScript({
@@ -494,7 +494,7 @@ export function generateSqlExportScript({
         sql += `INSERT INTO comic_creator_contributions (comic_id, title, creator_name, role_name) VALUES (${escId}, ${escTitle}, ${sqlStr(c.writer)}, 'writer');\n`;
       }
       if (c.artist && c.artist !== c.writer) {
-        sql += `INSERT INTO comic_creator_contributions (comic_id, title, creator_name, role_name) VALUES (${escId}, ${escTitle}, ${sqlStr(c.artist)}, 'penciler');\n`;
+        sql += `INSERT INTO comic_creator_contributions (comic_id, title, creator_name, role_name) VALUES (${escId}, ${escTitle}, ${sqlStr(c.artist)}, 'penciller');\n`;
       }
       if (Array.isArray(c.creatorContributions)) {
         c.creatorContributions.forEach((cc: any) => {

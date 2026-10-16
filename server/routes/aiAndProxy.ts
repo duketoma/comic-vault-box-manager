@@ -237,7 +237,7 @@ Analyze this comic book cover photo carefully and extract or estimate all detail
   "publicationYear": 1988 (number year estimate or exact),
   "genre": "Main Genre (e.g. Superhero, Sci-Fi, Horror, Fantasy, Crime, Mystery)",
   "writer": "Primary writer(s)",
-  "artist": "Primary artist(s) or penciler/inker",
+  "artist": "Primary artist(s) or penciller/inker",
   "coverArtist": "Cover artist if known",
   "format": "Single Issue" | "Trade Paperback" | "Hardcover" | "Omnibus" | "Graphic Novel",
   "sizeThickness": 1.0 (number: 1.0 for single issue, 3.5 for trade paperback, 6.0 for hardcover, 12.0 for omnibus/compendium),

@@ -12,7 +12,7 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
   const manyCreators = Array.from({ length: 12 }, (_, i) => ({
     id: `creator-test-${i + 1}`,
     creatorName: `Creator Person ${i + 1}`,
-    roleName: i === 0 ? 'Writer' : i === 1 ? 'Penciler' : 'Inker',
+    roleName: i === 0 ? 'Writer' : i === 1 ? 'Penciller' : 'Inker',
   }));
 
   const testComicWithManyCharacters: ComicBook = {

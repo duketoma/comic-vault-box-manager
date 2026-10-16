@@ -42,7 +42,7 @@ const PLACEHOLDER_NAMES = new Set([
 function cleanRoleAnnotation(name: string): string {
   // Remove trailing parenthetical or bracketed role annotations
   let cleaned = name
-    .replace(/\s*[\(\[]\s*(writer|artist|penciller|penciler|inker|colorist|letterer|cover|story|script|plot|editor|various|co-writer|co-artist|art|pencils|inks|colors|letters)\b[^\)\]]*[\)\]]/gi, '')
+    .replace(/\s*[\(\[]\s*(writer|artist|penciller|inker|colorist|letterer|cover|story|script|plot|editor|various|co-writer|co-artist|art|pencils|inks|colors|letters)\b[^\)\]]*[\)\]]/gi, '')
     // Also remove generic trailing parentheticals if they appear to be roles
     .replace(/\s*[\(\[][^\)\]]+[\)\]]$/, '')
     .trim();
