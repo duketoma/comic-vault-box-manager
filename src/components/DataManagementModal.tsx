@@ -8,7 +8,6 @@ interface DataManagementModalProps {
   comics: ComicBook[];
   onRemoveDuplicates: () => number;
   onClearAllComics: () => void;
-  onResetSampleData: () => void;
 }
 
 export const DataManagementModal: React.FC<DataManagementModalProps> = ({
@@ -17,7 +16,6 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   comics,
   onRemoveDuplicates,
   onClearAllComics,
-  onResetSampleData,
 }) => {
   const [notification, setNotification] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState<boolean>(false);
@@ -57,17 +55,6 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
     }, 1500);
   };
 
-  const handleReset = () => {
-    if (window.confirm('Reset collection to the initial sample data? This will replace your current comics.')) {
-      onResetSampleData();
-      setNotification('Collection reset to default sample data.');
-      setTimeout(() => {
-        setNotification(null);
-        onClose();
-      }, 1500);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative overflow-hidden text-slate-900 dark:text-slate-100">
@@ -88,7 +75,7 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Manage & Reset Data</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Clean up double imports, wipe collection, or restore sample data
+              Clean up double imports or wipe collection data
             </p>
           </div>
         </div>
@@ -188,29 +175,6 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                 </button>
               </div>
             )}
-          </div>
-
-          {/* Option 3: Reset to Default Starter Collection */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/40">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  Option 3: Reset to Default Sample Collection
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Restores the original 14 starter sample comic issues and resets the 15 storage box configurations.
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-lg shadow-xs border border-slate-300 dark:border-slate-700 cursor-pointer"
-              >
-                Reset to Sample Collection
-              </button>
-            </div>
           </div>
 
         </div>

@@ -51,6 +51,11 @@ import {
   Check,
   ExternalLink
 } from 'lucide-react';
+import { 
+  isAnnualComic
+} from '../utils/comicSortUtils';
+import { computeSeriesCompletionMap } from '../utils/seriesUtils';
+import { isWritingRole, isArtRole } from '../utils/creatorParser';
 
 interface ReadingStatsProps {
   comics: ComicBook[];
@@ -203,145 +208,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // -------------------------------------------------------------
   // 2. COMIC SERIES / TITLE COLLECTION GRAPH & DATA
   // -------------------------------------------------------------
-  const totalsMap = useMemo(() => {
-    const map = new Map<string, number>();
-    (seriesTotals || []).forEach((st) => {
-      if (st.seriesName) {
-        map.set(st.seriesName.trim().toLowerCase(), st.issueCount);
-      }
-    });
-    return map;
-  }, [seriesTotals]);
-
   const seriesSummary = useMemo(() => {
-    interface SeriesEntry {
-      title: string;
-      seriesName: string;
-      publisher: string;
-      volume?: string;
-      totalIssues: number;
-      hasKnownTotal: boolean;
-      ownedCount: number;
-      readCount: number;
-      unreadCount: number;
-      readingCount: number;
-      wishlistCount: number;
-      totalValue: number;
-      collectionPct: number;
-      remainingIssues: number;
-      isRunComplete: boolean;
-      readPct: number;
-      is100PercentRead: boolean;
-      comics: ComicBook[];
-      ownedIssueNumbers: number[];
-      wishlistIssueNumbers: number[];
-      missingIssueNumbers: number[];
-    }
-
-    const map: Record<string, SeriesEntry> = {};
-
-    comics.forEach((c) => {
-      const sName = c.seriesName?.trim();
-      const t = c.title?.trim() || 'Untitled Comic';
-      const seriesKey = sName || t;
-
-      if (!map[seriesKey]) {
-        let totalCount = 0;
-        let hasKnown = false;
-
-        if (sName && totalsMap.has(sName.toLowerCase())) {
-          totalCount = totalsMap.get(sName.toLowerCase())!;
-          hasKnown = true;
-        } else if (totalsMap.has(t.toLowerCase())) {
-          totalCount = totalsMap.get(t.toLowerCase())!;
-          hasKnown = true;
-        }
-
-        map[seriesKey] = {
-          title: t,
-          seriesName: seriesKey,
-          publisher: c.publisher || 'Unknown',
-          volume: c.volume,
-          totalIssues: totalCount,
-          hasKnownTotal: hasKnown,
-          ownedCount: 0,
-          readCount: 0,
-          unreadCount: 0,
-          readingCount: 0,
-          wishlistCount: 0,
-          totalValue: 0,
-          collectionPct: 0,
-          remainingIssues: 0,
-          isRunComplete: false,
-          readPct: 0,
-          is100PercentRead: false,
-          comics: [],
-          ownedIssueNumbers: [],
-          wishlistIssueNumbers: [],
-          missingIssueNumbers: [],
-        };
-      }
-
-      map[seriesKey].comics.push(c);
-
-      if (c.readingStatus === 'Wishlist') {
-        map[seriesKey].wishlistCount += 1;
-      } else {
-        map[seriesKey].ownedCount += 1;
-        map[seriesKey].totalValue += (c.estimatedValue || 0);
-        if (c.readingStatus === 'Read') {
-          map[seriesKey].readCount += 1;
-        } else if (c.readingStatus === 'Reading') {
-          map[seriesKey].readingCount += 1;
-        } else {
-          map[seriesKey].unreadCount += 1;
-        }
-      }
-    });
-
-    let list = Object.values(map).map((s) => {
-      const effectiveTotal = s.hasKnownTotal ? s.totalIssues : Math.max(s.ownedCount, s.ownedCount + s.wishlistCount);
-      const collectionPct = effectiveTotal > 0 ? Math.min(100, Math.round((s.ownedCount / effectiveTotal) * 100)) : 0;
-      const remainingIssues = Math.max(0, effectiveTotal - s.ownedCount);
-      const isRunComplete = s.hasKnownTotal && s.ownedCount >= s.totalIssues && s.totalIssues > 0;
-      const readPct = s.ownedCount > 0 ? Math.round((s.readCount / s.ownedCount) * 100) : 0;
-      const is100PercentRead = s.ownedCount > 0 && s.readCount === s.ownedCount;
-
-      const ownedNums: number[] = [];
-      const wishlistNums: number[] = [];
-      s.comics.forEach(c => {
-        const num = parseInt(c.issueNumber, 10);
-        if (!isNaN(num)) {
-          if (c.readingStatus === 'Wishlist') {
-            if (!wishlistNums.includes(num)) wishlistNums.push(num);
-          } else {
-            if (!ownedNums.includes(num)) ownedNums.push(num);
-          }
-        }
-      });
-      ownedNums.sort((a, b) => a - b);
-      wishlistNums.sort((a, b) => a - b);
-      const ownedSet = new Set(ownedNums);
-      const missingIssues: number[] = [];
-      for (let i = 1; i <= Math.min(effectiveTotal, 300); i++) {
-        if (!ownedSet.has(i)) {
-          missingIssues.push(i);
-        }
-      }
-
-      return {
-        ...s,
-        totalIssues: effectiveTotal,
-        collectionPct,
-        remainingIssues,
-        isRunComplete,
-        readPct,
-        is100PercentRead,
-        ownedIssueNumbers: ownedNums,
-        wishlistIssueNumbers: wishlistNums,
-        missingIssueNumbers: missingIssues,
-      };
-    });
+    const completionMap = computeSeriesCompletionMap(comics, seriesTotals);
+    const list = Array.from(completionMap.values()).map((entry) => ({
+      ...entry,
+      totalIssues: entry.effectiveTotalIssues,
+    }));
 
     if (seriesSortBy === 'owned') {
       list.sort((a, b) => b.ownedCount - a.ownedCount);
@@ -370,7 +242,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     }
 
     return list;
-  }, [comics, totalsMap, seriesSortBy]);
+  }, [comics, seriesTotals, seriesSortBy]);
 
   // Filtered series list based on run filter and search
   const filteredSeries = useMemo(() => {
@@ -534,16 +406,6 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     const roleCountMap: Record<string, number> = {};
     const charMap: Record<string, { name: string; total: number; main: number; supporting: number; cameo: number }> = {};
     let totalCredits = 0;
-
-    const isWritingRole = (role: string): boolean => {
-      const r = role.toLowerCase();
-      return r.includes('writ') || r.includes('story') || r.includes('script') || r.includes('plot') || r.includes('author');
-    };
-
-    const isArtRole = (role: string): boolean => {
-      const r = role.toLowerCase();
-      return r.includes('pencil') || r.includes('artist') || r.includes('illustrat') || r.includes('draw') || r.includes('art');
-    };
 
     comics.forEach((comic) => {
       // Gather contributors for this comic

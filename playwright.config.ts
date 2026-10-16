@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
   expect: { timeout: 10_000 },
+  workers: 1,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report' }]],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
@@ -21,7 +22,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'node dist/server.cjs',
+    command: 'node dist-server/server.cjs',
     port: 3000,
     reuseExistingServer: true,
     timeout: 60_000,

@@ -17,6 +17,7 @@ import {
   getSortFieldLabel,
   getSortDirectionLabel,
 } from '../utils/comicSortUtils';
+import { computeSeriesCompletionMap, buildSeriesTotalsMap } from '../utils/seriesUtils';
 import { CatalogSortModal } from './CatalogSortModal';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { 
@@ -70,6 +71,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   onSelectSeries: onSelectSeriesProp,
   onOpenGenerateWishlist,
 }) => {
+  const MAX_PUBLISH_YEAR = Math.max(new Date().getFullYear() + 2, 2026);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [internalSelectedSeries, setInternalSelectedSeries] = useState<string>('all');
   const selectedSeries = controlledSelectedSeries !== undefined ? controlledSelectedSeries : internalSelectedSeries;
@@ -90,7 +92,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   const [selectedEvent, setSelectedEvent] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [yearRange, setYearRange] = useState<[number, number]>([1930, 2026]);
+  const [yearRange, setYearRange] = useState<[number, number]>([1930, MAX_PUBLISH_YEAR]);
   const [onlyFullArt, setOnlyFullArt] = useState<boolean>(false);
   const [fullArtComic, setFullArtComic] = useState<ComicBook | null>(null);
   const [multiSortOptions, setMultiSortOptions] = useState<MultiSortOptions>(() => {
@@ -182,104 +184,15 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [comics]);
 
-  const seriesTotalsMap = useMemo(() => {
-    const map = new Map<string, SeriesIssueTotal>();
-    if (seriesTotals) {
-      seriesTotals.forEach(st => {
-        if (st.seriesName) {
-          map.set(st.seriesName.toLowerCase().trim(), st);
-        }
-      });
-    }
-    return map;
-  }, [seriesTotals]);
+  const seriesTotalsMap = useMemo(
+    () => buildSeriesTotalsMap(seriesTotals),
+    [seriesTotals]
+  );
 
-  const seriesStatsMap = useMemo(() => {
-    interface SeriesStat {
-      seriesName: string;
-      owned: number;
-      wishlist: number;
-      totalIssues: number;
-      pct: number;
-      isComplete: boolean;
-      remaining: number;
-      ownedIssueNumbers: number[];
-      wishlistIssueNumbers: number[];
-      missingIssueNumbers: number[];
-      publisher?: string;
-      volume?: string;
-    }
-
-    const map = new Map<string, SeriesStat>();
-
-    comics.forEach(c => {
-      const sKey = (c.seriesName || c.title || '').trim().toLowerCase();
-      if (!sKey) return;
-      let stat = map.get(sKey);
-      if (!stat) {
-        stat = {
-          seriesName: c.seriesName || c.title || '',
-          owned: 0,
-          wishlist: 0,
-          totalIssues: 0,
-          pct: 0,
-          isComplete: false,
-          remaining: 0,
-          ownedIssueNumbers: [],
-          wishlistIssueNumbers: [],
-          missingIssueNumbers: [],
-          publisher: c.publisher,
-          volume: c.volume,
-        };
-        map.set(sKey, stat);
-      }
-
-      const num = parseIntegerIssueNumber(c.issueNumber);
-      const isAnnual = isAnnualComic(c);
-      if (c.readingStatus === 'Wishlist') {
-        stat.wishlist += 1;
-        if (!isAnnual && !isNaN(num) && !stat.wishlistIssueNumbers.includes(num)) {
-          stat.wishlistIssueNumbers.push(num);
-        }
-      } else {
-        stat.owned += 1;
-        if (!isAnnual && !isNaN(num) && !stat.ownedIssueNumbers.includes(num)) {
-          stat.ownedIssueNumbers.push(num);
-        }
-      }
-    });
-
-    map.forEach((stat, key) => {
-      const totalInfo = seriesTotalsMap.get(key);
-      const totalCount = totalInfo?.issueCount || 0;
-      stat.totalIssues = totalCount;
-      if (totalInfo?.publisher) stat.publisher = totalInfo.publisher;
-      if (totalInfo?.volume) stat.volume = totalInfo.volume;
-
-      if (totalCount > 0) {
-        stat.pct = Math.round((stat.owned / totalCount) * 100);
-        stat.isComplete = stat.owned >= totalCount;
-        stat.remaining = Math.max(0, totalCount - stat.owned);
-
-        stat.ownedIssueNumbers.sort((a, b) => a - b);
-        stat.wishlistIssueNumbers.sort((a, b) => a - b);
-        const ownedSet = new Set(stat.ownedIssueNumbers);
-        const missing: number[] = [];
-        for (let i = 1; i <= Math.min(totalCount, 300); i++) {
-          if (!ownedSet.has(i)) {
-            missing.push(i);
-          }
-        }
-        stat.missingIssueNumbers = missing;
-      } else {
-        stat.pct = 0;
-        stat.isComplete = false;
-        stat.remaining = 0;
-      }
-    });
-
-    return map;
-  }, [comics, seriesTotalsMap]);
+  const seriesStatsMap = useMemo(
+    () => computeSeriesCompletionMap(comics, seriesTotals),
+    [comics, seriesTotals]
+  );
 
   const seriesRunCounts = useMemo(() => {
     let complete = 0;
@@ -449,7 +362,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     setOnlyFullArt(false);
     setStartDate('');
     setEndDate('');
-    setYearRange([1930, 2026]);
+    setYearRange([1930, MAX_PUBLISH_YEAR]);
   };
 
   const hasActiveFilters = selectedSeries !== 'all' || selectedRunProgress !== 'all' || selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || onlyFullArt || startDate !== '' || endDate !== '';

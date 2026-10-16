@@ -4,12 +4,12 @@ service cloud.firestore {
     
     // Comics collection
     match /comics/{comicId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
     // Boxes collection
     match /boxes/{boxId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
     // Default catch-all

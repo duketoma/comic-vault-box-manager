@@ -3,6 +3,7 @@ import { ComicBook, SeriesIssueTotal, StorageBox, CREATOR_ROLES, CreatorContribu
 import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
+import { getComicSeriesInfo } from '../utils/seriesUtils';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { 
   X, 
@@ -44,6 +45,18 @@ interface ComicDetailModalProps {
   onOpenGenerateWishlist?: (seriesName?: string) => void;
 }
 
+function getInitialContributions(comic: ComicBook | null): CreatorContribution[] {
+  if (!comic) return [];
+  if (comic.creatorContributions && comic.creatorContributions.length > 0) {
+    return comic.creatorContributions;
+  }
+  return [
+    ...(comic.writer ? [{ creatorName: comic.writer, roleName: 'Writer' }] : []),
+    ...(comic.artist ? [{ creatorName: comic.artist, roleName: 'Penciler' }] : []),
+    ...(comic.coverArtist ? [{ creatorName: comic.coverArtist, roleName: 'Cover Penciler' }] : []),
+  ];
+}
+
 export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   comic,
   onClose,
@@ -56,29 +69,42 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   onViewSeriesInCatalog,
   onOpenGenerateWishlist,
 }) => {
-  if (!comic) return null;
-
   const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(comic.title || '');
-  const [issueNumber, setIssueNumber] = useState(comic.issueNumber || '1');
-  const [readingStatus, setReadingStatus] = useState(comic.readingStatus || 'Unread');
-  const [userRating, setUserRating] = useState(comic.userRating || 0);
-  const [boxId, setBoxId] = useState(comic.currentBoxId || 0);
-  const [notes, setNotes] = useState(comic.notes || '');
-  const [thickness, setThickness] = useState(comic.sizeThickness ?? 1.0);
-  const [coverImage, setCoverImage] = useState(comic.coverImage || '');
-  const [coverImageFull, setCoverImageFull] = useState(comic.coverImageFull || '');
+  const [title, setTitle] = useState(comic?.title || '');
+  const [issueNumber, setIssueNumber] = useState(comic?.issueNumber || '1');
+  const [readingStatus, setReadingStatus] = useState(comic?.readingStatus || 'Unread');
+  const [userRating, setUserRating] = useState(comic?.userRating || 0);
+  const [boxId, setBoxId] = useState(comic?.currentBoxId || 0);
+  const [notes, setNotes] = useState(comic?.notes || '');
+  const [thickness, setThickness] = useState(comic?.sizeThickness ?? 1.0);
+  const [coverImage, setCoverImage] = useState(comic?.coverImage || '');
+  const [coverImageFull, setCoverImageFull] = useState(comic?.coverImageFull || '');
   const [showFullArtModal, setShowFullArtModal] = useState(false);
   const [heroViewMode, setHeroViewMode] = useState<'front' | 'full'>('front');
-  const [volume, setVolume] = useState(comic.volume || '');
-  const [event, setEvent] = useState(comic.event || '');
-  const [publicationYear, setPublicationYear] = useState<number>(comic.publicationYear || 0);
-  const [publicationMonth, setPublicationMonth] = useState<string>(comic.publicationMonth || '');
-  const initialCopies = comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1);
+  const [volume, setVolume] = useState(comic?.volume || '');
+  const [event, setEvent] = useState(comic?.event || '');
+  const [publicationYear, setPublicationYear] = useState<number>(comic?.publicationYear || 0);
+  const [publicationMonth, setPublicationMonth] = useState<string>(comic?.publicationMonth || '');
+  const initialCopies = comic?.readingStatus === 'Wishlist' ? 0 : (comic?.copiesOwned !== undefined ? comic.copiesOwned : 1);
   const [copiesOwned, setCopiesOwned] = useState(initialCopies);
+
+  // Creator Contributions State
+  const [contributions, setContributions] = useState<CreatorContribution[]>(() => getInitialContributions(comic));
+  const [newCreatorName, setNewCreatorName] = useState('');
+  const [newRoleName, setNewRoleName] = useState<string>('Writer');
+  const [customRoleName, setCustomRoleName] = useState<string>('');
+
+  // Character Appearances State
+  const [characters, setCharacters] = useState<CharacterAppearance[]>(comic?.characterAppearances || []);
+  const [newCharName, setNewCharName] = useState('');
+  const [newCharType, setNewCharType] = useState('Main');
+  const [charSearch, setCharSearch] = useState('');
+  const [expandAllCharacters, setExpandAllCharacters] = useState(false);
+  const [expandAllCreators, setExpandAllCreators] = useState(false);
 
   // Sync state when selected comic changes
   useEffect(() => {
+    if (!comic) return;
     setTitle(comic.title || '');
     setIssueNumber(comic.issueNumber || '1');
     setReadingStatus(comic.readingStatus || 'Unread');
@@ -94,21 +120,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setPublicationYear(comic.publicationYear || 0);
     setPublicationMonth(comic.publicationMonth || '');
     setCopiesOwned(comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1));
+    setContributions(getInitialContributions(comic));
+    setCharacters(comic.characterAppearances || []);
+    setIsEditing(false);
   }, [comic]);
-
-  // Creator Contributions State
-  const [contributions, setContributions] = useState<CreatorContribution[]>(
-    comic.creatorContributions && comic.creatorContributions.length > 0
-      ? comic.creatorContributions
-      : [
-          ...(comic.writer ? [{ creatorName: comic.writer, roleName: 'Writer' }] : []),
-          ...(comic.artist ? [{ creatorName: comic.artist, roleName: 'Penciler' }] : []),
-          ...(comic.coverArtist ? [{ creatorName: comic.coverArtist, roleName: 'Cover Penciler' }] : []),
-        ]
-  );
-  const [newCreatorName, setNewCreatorName] = useState('');
-  const [newRoleName, setNewRoleName] = useState<string>('Writer');
-  const [customRoleName, setCustomRoleName] = useState<string>('');
 
   const availableRoles = useMemo(() => {
     const roleMap = new Map<string, string>();
@@ -158,14 +173,6 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     return Array.from(roleMap.values()).sort((a, b) => a.localeCompare(b));
   }, [creatorTypes, allComics, contributions]);
 
-  // Character Appearances State
-  const [characters, setCharacters] = useState<CharacterAppearance[]>(comic.characterAppearances || []);
-  const [newCharName, setNewCharName] = useState('');
-  const [newCharType, setNewCharType] = useState('Main');
-  const [charSearch, setCharSearch] = useState('');
-  const [expandAllCharacters, setExpandAllCharacters] = useState(false);
-  const [expandAllCreators, setExpandAllCreators] = useState(false);
-
   // Close modal on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -187,46 +194,14 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     );
   }, [characters, charSearch]);
 
+  const seriesInfo = useMemo(
+    () => getComicSeriesInfo(comic, allComics, seriesTotals),
+    [comic, seriesTotals, allComics]
+  );
+
+  if (!comic) return null;
+
   const currentBox = boxes.find((b) => b.id === comic.currentBoxId);
-
-  const seriesInfo = useMemo(() => {
-    if (!comic) return null;
-    const seriesKey = comic.seriesName?.trim() || comic.title?.trim();
-    if (!seriesKey) return null;
-
-    let totalPublished = 0;
-    const match = (seriesTotals || []).find((st) =>
-      st.seriesName.toLowerCase() === seriesKey.toLowerCase() ||
-      (comic.title && st.seriesName.toLowerCase() === comic.title.trim().toLowerCase())
-    );
-    if (match) totalPublished = match.issueCount;
-
-    const ownedInSeries = (allComics || []).filter((c) => {
-      const cSeries = c.seriesName?.trim() || c.title?.trim();
-      return cSeries && cSeries.toLowerCase() === seriesKey.toLowerCase() && c.readingStatus !== 'Wishlist';
-    }).length;
-
-    const wishlistInSeries = (allComics || []).filter((c) => {
-      const cSeries = c.seriesName?.trim() || c.title?.trim();
-      return cSeries && cSeries.toLowerCase() === seriesKey.toLowerCase() && c.readingStatus === 'Wishlist';
-    }).length;
-
-    const effectiveTotal = totalPublished > 0 ? totalPublished : Math.max(ownedInSeries, ownedInSeries + wishlistInSeries);
-    const pct = effectiveTotal > 0 ? Math.min(100, Math.round((ownedInSeries / effectiveTotal) * 100)) : 0;
-    const remaining = Math.max(0, effectiveTotal - ownedInSeries);
-    const isComplete = totalPublished > 0 && ownedInSeries >= totalPublished;
-
-    return {
-      seriesName: seriesKey,
-      totalPublished: effectiveTotal,
-      hasVerifiedTotal: totalPublished > 0,
-      ownedInSeries,
-      wishlistInSeries,
-      pct,
-      remaining,
-      isComplete,
-    };
-  }, [comic, seriesTotals, allComics]);
 
   const handleAddContribution = () => {
     if (!newCreatorName.trim()) return;

@@ -57,7 +57,6 @@ export interface BoxStack {
     height: number;
   };
   comics: ComicGeometry[];
-  group: THREE.Group;
   totalThickness: number;
   isOverCapacity: boolean;
 }
@@ -175,13 +174,6 @@ export function buildStorageBoxMesh(
     metalness: 0.1,
   });
 
-  // Inner material (clean off-white cardboard interior)
-  const innerMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf8fafc,
-    roughness: 0.9,
-    metalness: 0.05,
-  });
-
   const wallMat = outerMaterial;
 
   // 1. Bottom Floor
@@ -248,7 +240,6 @@ export function createBoxStack(
   comics: ComicBook[],
   highlightedComicId?: string
 ): BoxStack {
-  const group = new THREE.Group();
   const innerDimensions = calculateBoxInnerDimensions(box.maxCapacity);
 
   const comicGeometries: ComicGeometry[] = [];
@@ -306,7 +297,6 @@ export function createBoxStack(
     boxName: box.name,
     innerDimensions,
     comics: comicGeometries,
-    group,
     totalThickness,
     isOverCapacity,
   };

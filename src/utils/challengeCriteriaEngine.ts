@@ -5,7 +5,7 @@ import {
 } from '../types/readingChallenge.types';
 import { parseIssueNumber } from './comicSortUtils';
 import { MONTH_NAMES } from './dateUtils';
-import { splitCreatorNames } from './creatorParser';
+import { splitCreatorNames, isWritingRole, isArtRole } from './creatorParser';
 
 const MONTH_INDEX_MAP: Record<string, number> = {};
 MONTH_NAMES.forEach((m, idx) => {
@@ -147,9 +147,8 @@ export function evaluateCriterionNode(comic: ComicBook, node: CriterionNode): bo
         if (!role) return false;
         const rLower = role.trim().toLowerCase();
         return roleFilters.some((rf) => {
-          if (rf === 'writer' && (rLower.includes('writer') || rLower.includes('story'))) return true;
-          if ((rf === 'artist' || rf === 'penciller' || rf === 'penciler') &&
-              (rLower.includes('artist') || rLower.includes('pencil') || rLower.includes('illustrat'))) return true;
+          if (rf === 'writer' && isWritingRole(rLower)) return true;
+          if ((rf === 'artist' || rf === 'penciller' || rf === 'penciler') && isArtRole(rLower)) return true;
           if (rf.includes('cover') && rLower.includes('cover')) return true;
           if (rf === 'inker' && rLower.includes('ink')) return true;
           if (rf === 'colorist' && rLower.includes('color')) return true;

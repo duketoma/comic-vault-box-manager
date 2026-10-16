@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ComicBook, StorageBox, SeriesIssueTotal } from './types';
-import { DEFAULT_BOXES, INITIAL_COMICS } from './data/initialData';
+import { DEFAULT_BOXES, INITIAL_COMICS, isSampleComicId } from './data/initialData';
 import { Navbar } from './components/Navbar';
 import { CollectionCatalog } from './components/CollectionCatalog';
 import { BoxManager } from './components/BoxManager';
@@ -20,6 +20,7 @@ import {
   deleteBox, deleteComic, loadCollection, replaceBoxes, replaceComics, saveBox, saveBoxes, saveComic, saveComicsBatch,
 } from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
+import { getSeriesOverviewSummary } from './utils/seriesUtils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
@@ -54,9 +55,8 @@ export default function App() {
   const [comics, setComics] = useState<ComicBook[]>(() => {
     const saved = localStorage.getItem('comic_vault_comics');
     const parsed: ComicBook[] = saved ? JSON.parse(saved) : INITIAL_COMICS;
-    // Auto-clean sample items c-013 & c-014 if present and ensure Wishlist comics have 0 copies owned
     return parsed
-      .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
+      .filter((c) => !isSampleComicId(c.id))
       .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
   });
 
@@ -128,14 +128,13 @@ export default function App() {
         if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
         if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
         if (storedComics.length > 0) {
-          setComics(storedComics
-            .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
-            .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c)));
+          setComics(
+            storedComics
+              .filter((c) => !isSampleComicId(c.id))
+              .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c))
+          );
         } else if (storedBoxes.length === 0) {
-          // First local run: move the browser's existing collection into it.
-          saveBoxes(boxes)
-            .then(() => replaceComics(comics))
-            .catch((error) => setDatabaseError(error.message));
+          saveBoxes(boxes).catch((error) => setDatabaseError(error.message));
         }
         setDatabaseError(null);
       })
@@ -204,42 +203,36 @@ export default function App() {
   };
 
   const handleQuickStatusChange = (comicId: string, newStatus: ComicBook['readingStatus']) => {
-    setComics((prev) => {
-      const updated = prev.map((c) => {
-        if (c.id === comicId) {
-          const newCopies = newStatus === 'Wishlist' ? 0 : ((c.copiesOwned && c.copiesOwned > 0) ? c.copiesOwned : 1);
-          return { ...c, readingStatus: newStatus, copiesOwned: newCopies };
-        }
-        return c;
-      });
-      const target = updated.find((c) => c.id === comicId);
-      if (target) dbCall(saveComic(target));
-      return updated;
-    });
+    const existing = comics.find((c) => c.id === comicId);
+    if (!existing) return;
+    const newCopies = newStatus === 'Wishlist' ? 0 : ((existing.copiesOwned && existing.copiesOwned > 0) ? existing.copiesOwned : 1);
+    const updatedComic: ComicBook = { ...existing, readingStatus: newStatus, copiesOwned: newCopies };
+    setComics((prev) => prev.map((c) => (c.id === comicId ? updatedComic : c)));
+    dbCall(saveComic(updatedComic));
   };
 
   const handlePurchaseWishlistComics = async (comicIds: string[], targetBoxId?: number) => {
-    let updatedComicsToPersist: ComicBook[] = [];
-    setComics((prev) => {
-      const updated = prev.map((c) => {
-        if (comicIds.includes(c.id)) {
-          const updatedComic: ComicBook = {
-            ...c,
-            readingStatus: 'Unread' as const,
-            copiesOwned: c.copiesOwned && c.copiesOwned > 0 ? c.copiesOwned : 1,
-            currentBoxId: targetBoxId !== undefined ? targetBoxId : (c.currentBoxId || 1),
-          };
-          updatedComicsToPersist.push(updatedComic);
-          return updatedComic;
-        }
-        return c;
-      });
-      return updated;
+    const idSet = new Set(comicIds);
+    const updatedComicsToPersist: ComicBook[] = [];
+    const updatedList = comics.map((c) => {
+      if (idSet.has(c.id)) {
+        const updatedComic: ComicBook = {
+          ...c,
+          readingStatus: 'Unread' as const,
+          copiesOwned: c.copiesOwned && c.copiesOwned > 0 ? c.copiesOwned : 1,
+          currentBoxId: targetBoxId !== undefined ? targetBoxId : (c.currentBoxId || 1),
+        };
+        updatedComicsToPersist.push(updatedComic);
+        return updatedComic;
+      }
+      return c;
     });
+
+    setComics(updatedList);
 
     if (updatedComicsToPersist.length > 0) {
       try {
-        await Promise.all(updatedComicsToPersist.map((c) => saveComic(c)));
+        await saveComicsBatch(updatedComicsToPersist);
       } catch (err: any) {
         console.error('Failed to persist purchased comics:', err);
         setDatabaseError(err.message || 'Failed to update purchased comics in database');
@@ -249,28 +242,25 @@ export default function App() {
 
   const handleUpdateBoxCapacity = (boxId: number, newCapacity: number) => {
     const clampedCapacity = Math.min(150, Math.max(10, newCapacity));
-    setBoxes((prev) => {
-      const updated = prev.map((b) => (b.id === boxId ? { ...b, maxCapacity: clampedCapacity } : b));
-      const target = updated.find((b) => b.id === boxId);
-      if (target) dbCall(saveBox(target));
-      return updated;
-    });
+    const existing = boxes.find((b) => b.id === boxId);
+    setBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, maxCapacity: clampedCapacity } : b)));
+    if (existing) {
+      dbCall(saveBox({ ...existing, maxCapacity: clampedCapacity }));
+    }
   };
 
   const handleAddBox = (newBoxData?: Partial<StorageBox>) => {
-    setBoxes((prev) => {
-      const nextId = prev.length > 0 ? Math.max(...prev.map((b) => b.id)) + 1 : 1;
-      const newBox: StorageBox = {
-        id: nextId,
-        name: newBoxData?.name || `Box ${nextId.toString().padStart(2, '0')} - New Short Box`,
-        location: newBoxData?.location || 'Storage Shelf',
-        maxCapacity: Math.min(150, Math.max(10, newBoxData?.maxCapacity || 150)),
-        colorTag: newBoxData?.colorTag || '#3B82F6',
-        notes: newBoxData?.notes || 'Custom added storage box',
-      };
-      dbCall(saveBox(newBox));
-      return sortBoxes([...prev, newBox]);
-    });
+    const nextId = boxes.length > 0 ? Math.max(...boxes.map((b) => b.id)) + 1 : 1;
+    const newBox: StorageBox = {
+      id: nextId,
+      name: newBoxData?.name || `Box ${nextId.toString().padStart(2, '0')} - New Short Box`,
+      location: newBoxData?.location || 'Storage Shelf',
+      maxCapacity: Math.min(150, Math.max(10, newBoxData?.maxCapacity || 150)),
+      colorTag: newBoxData?.colorTag || '#3B82F6',
+      notes: newBoxData?.notes || 'Custom added storage box',
+    };
+    setBoxes((prev) => sortBoxes([...prev, newBox]));
+    dbCall(saveBox(newBox));
   };
 
   const handleUpdateBox = (updatedBox: StorageBox) => {
@@ -280,17 +270,25 @@ export default function App() {
   };
 
   const handleDeleteBox = (boxId: number) => {
-    // Reassign any comics in this box to Box 1 or remaining first box
-    setBoxes((prev) => {
-      const remaining = prev.filter((b) => b.id !== boxId);
-      const fallbackBoxId = remaining.length > 0 ? remaining[0].id : 1;
-      setComics((comicList) => {
-        const updatedList = comicList.map((c) => (c.currentBoxId === boxId ? { ...c, currentBoxId: fallbackBoxId } : c));
-        dbCall(replaceComics(updatedList).then(() => deleteBox(boxId)));
-        return updatedList;
-      });
-      return remaining;
+    const remaining = boxes.filter((b) => b.id !== boxId);
+    const fallbackBoxId = remaining.length > 0 ? remaining[0].id : 1;
+    const reassignedComics: ComicBook[] = [];
+    const updatedComics = comics.map((c) => {
+      if (c.currentBoxId === boxId) {
+        const updated = { ...c, currentBoxId: fallbackBoxId };
+        reassignedComics.push(updated);
+        return updated;
+      }
+      return c;
     });
+
+    setBoxes(remaining);
+    setComics(updatedComics);
+
+    const persistPromise = reassignedComics.length > 0
+      ? saveComicsBatch(reassignedComics).then(() => deleteBox(boxId))
+      : deleteBox(boxId);
+    dbCall(persistPromise);
   };
 
   const handleImportComics = async (
@@ -305,12 +303,8 @@ export default function App() {
       setComics(sanitizedImports);
       await dbCall(replaceComics(sanitizedImports));
     } else {
-      let combined: ComicBook[] = [];
-      setComics((prev) => {
-        combined = [...sanitizedImports, ...prev];
-        return combined;
-      });
-      await dbCall(replaceComics(combined));
+      setComics((prev) => [...sanitizedImports, ...prev]);
+      await dbCall(saveComicsBatch(sanitizedImports));
     }
     if (navigate) {
       setActiveTab('catalog');
@@ -324,9 +318,11 @@ export default function App() {
       if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
       if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
       if (storedComics.length > 0) {
-        setComics(storedComics
-          .filter((c) => c.id !== 'c-013' && c.id !== 'c-014')
-          .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c)));
+        setComics(
+          storedComics
+            .filter((c) => !isSampleComicId(c.id))
+            .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c))
+        );
       }
     } catch (err) {
       console.warn('Failed to refresh collection:', err);
@@ -334,23 +330,25 @@ export default function App() {
   };
 
   const handleRemoveDuplicates = (): number => {
+    const seen = new Set<string>();
+    const unique: ComicBook[] = [];
     let removedCount = 0;
-    setComics((prev) => {
-      const seen = new Set<string>();
-      const unique: ComicBook[] = [];
-      for (const comic of prev) {
-        const titleKey = (comic.title || comic.fullTitle || comic.seriesName || '').trim().toLowerCase();
-        const key = `${titleKey}|${comic.issueNumber.trim().toLowerCase()}|${comic.publisher.trim().toLowerCase()}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push(comic);
-        } else {
-          removedCount++;
-        }
+
+    for (const comic of comics) {
+      const titleKey = (comic.title || comic.fullTitle || comic.seriesName || '').trim().toLowerCase();
+      const key = `${titleKey}|${comic.issueNumber.trim().toLowerCase()}|${comic.publisher.trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(comic);
+      } else {
+        removedCount++;
       }
+    }
+
+    if (removedCount > 0) {
+      setComics(unique);
       dbCall(replaceComics(unique));
-      return unique;
-    });
+    }
     return removedCount;
   };
 
@@ -360,40 +358,24 @@ export default function App() {
     localStorage.removeItem('comic_vault_comics');
   };
 
-  const handleResetSampleData = () => {
-    setComics(INITIAL_COMICS);
-    setBoxes(DEFAULT_BOXES);
-    dbCall(replaceBoxes(DEFAULT_BOXES).then(() => replaceComics(INITIAL_COMICS))).catch(() => {/* handled by dbCall */});
-    localStorage.setItem('comic_vault_comics', JSON.stringify(INITIAL_COMICS));
-    localStorage.setItem('comic_vault_boxes', JSON.stringify(DEFAULT_BOXES));
-  };
-
   const handleUpdateComicCover = (comicId: string, coverUrl: string) => {
-    setComics((prev) => {
-      const updated = prev.map((c) => (c.id === comicId ? { ...c, coverImage: coverUrl } : c));
-      const comic = updated.find((c) => c.id === comicId);
-      if (comic) dbCall(saveComic(comic)).catch((err) => console.error('Failed to save comic cover:', err));
-      try {
-        localStorage.setItem('comic_vault_comics', JSON.stringify(updated));
-      } catch (err) {
-        console.warn('LocalStorage save failed for comic cover update:', err);
-      }
-      return updated;
-    });
+    const existing = comics.find((c) => c.id === comicId);
+    setComics((prev) => prev.map((c) => (c.id === comicId ? { ...c, coverImage: coverUrl } : c)));
+    if (existing) {
+      dbCall(saveComic({ ...existing, coverImage: coverUrl })).catch((err) =>
+        console.error('Failed to save comic cover:', err)
+      );
+    }
   };
 
   const handleUpdateComicFullCover = (comicId: string, coverFullUrl: string) => {
-    setComics((prev) => {
-      const updated = prev.map((c) => (c.id === comicId ? { ...c, coverImageFull: coverFullUrl } : c));
-      const comic = updated.find((c) => c.id === comicId);
-      if (comic) dbCall(saveComic(comic)).catch((err) => console.error('Failed to save comic full cover:', err));
-      try {
-        localStorage.setItem('comic_vault_comics', JSON.stringify(updated));
-      } catch (err) {
-        console.warn('LocalStorage save failed for comic full cover update:', err);
-      }
-      return updated;
-    });
+    const existing = comics.find((c) => c.id === comicId);
+    setComics((prev) => prev.map((c) => (c.id === comicId ? { ...c, coverImageFull: coverFullUrl } : c)));
+    if (existing) {
+      dbCall(saveComic({ ...existing, coverImageFull: coverFullUrl })).catch((err) =>
+        console.error('Failed to save comic full cover:', err)
+      );
+    }
   };
 
   const handleUpdateComicCoversBatch = (updates: Array<{ comicId: string; coverUrl?: string; coverImageFullUrl?: string }>) => {
@@ -405,74 +387,57 @@ export default function App() {
       if (u.coverImageFullUrl) fullCoverMap.set(u.comicId, u.coverImageFullUrl);
     });
 
-    setComics((prev) => {
-      const updated = prev.map((c) => {
-        let changed = false;
-        let newCover = c.coverImage;
-        let newFull = c.coverImageFull;
+    const changedComics: ComicBook[] = [];
+    const updatedList = comics.map((c) => {
+      let changed = false;
+      let newCover = c.coverImage;
+      let newFull = c.coverImageFull;
 
-        if (coverMap.has(c.id)) {
-          newCover = coverMap.get(c.id)!;
-          changed = true;
-        }
-        if (fullCoverMap.has(c.id)) {
-          newFull = fullCoverMap.get(c.id)!;
-          changed = true;
-        }
-
-        return changed ? { ...c, coverImage: newCover, coverImageFull: newFull } : c;
-      });
-      dbCall(replaceComics(updated)).catch((err) => console.error('Failed to persist batch comic covers:', err));
-      try {
-        localStorage.setItem('comic_vault_comics', JSON.stringify(updated));
-      } catch (err) {
-        console.warn('LocalStorage save failed for batch comic covers:', err);
+      if (coverMap.has(c.id)) {
+        newCover = coverMap.get(c.id)!;
+        changed = true;
       }
-      return updated;
+      if (fullCoverMap.has(c.id)) {
+        newFull = fullCoverMap.get(c.id)!;
+        changed = true;
+      }
+
+      if (changed) {
+        const updatedComic = { ...c, coverImage: newCover, coverImageFull: newFull };
+        changedComics.push(updatedComic);
+        return updatedComic;
+      }
+      return c;
     });
+
+    setComics(updatedList);
+    if (changedComics.length > 0) {
+      dbCall(saveComicsBatch(changedComics)).catch((err) =>
+        console.error('Failed to persist batch comic covers:', err)
+      );
+    }
   };
 
   const handleApplyNoImageFallback = (noImageUrl: string) => {
-    setComics((prev) => {
-      const updated = prev.map((c) => {
-        if (!c.coverImage || c.coverImage === 'NoImage.png' || c.coverImage.toLowerCase().includes('noimage')) {
-          return { ...c, coverImage: noImageUrl };
-        }
-        return c;
-      });
-      dbCall(replaceComics(updated));
-      return updated;
+    const changedComics: ComicBook[] = [];
+    const updatedList = comics.map((c) => {
+      if (!c.coverImage || c.coverImage === 'NoImage.png' || c.coverImage.toLowerCase().includes('noimage')) {
+        const updatedComic = { ...c, coverImage: noImageUrl };
+        changedComics.push(updatedComic);
+        return updatedComic;
+      }
+      return c;
     });
+    setComics(updatedList);
+    if (changedComics.length > 0) {
+      dbCall(saveComicsBatch(changedComics));
+    }
   };
 
-  const seriesOverviewSummary = useMemo(() => {
-    const totalsMap = new Map<string, number>();
-    (seriesTotals || []).forEach((st) => {
-      if (st.seriesName) totalsMap.set(st.seriesName.toLowerCase().trim(), st.issueCount);
-    });
-    const seriesOwnedMap = new Map<string, number>();
-    comics.forEach((c) => {
-      if (c.readingStatus !== 'Wishlist') {
-        const key = (c.seriesName || c.title || '').trim().toLowerCase();
-        if (key) seriesOwnedMap.set(key, (seriesOwnedMap.get(key) || 0) + 1);
-      }
-    });
-
-    let completeRuns = 0;
-    let totalKnownRuns = 0;
-    seriesOwnedMap.forEach((owned, sName) => {
-      const total = totalsMap.get(sName);
-      if (total && total > 0) {
-        totalKnownRuns++;
-        if (owned >= total) completeRuns++;
-      }
-    });
-
-    return {
-      completeRuns,
-      totalKnownRuns: totalKnownRuns || (seriesTotals ? seriesTotals.length : 0),
-    };
-  }, [comics, seriesTotals]);
+  const seriesOverviewSummary = useMemo(
+    () => getSeriesOverviewSummary(comics, seriesTotals),
+    [comics, seriesTotals]
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-slate-900 dark:selection:bg-indigo-600 selection:text-white transition-colors duration-150">
@@ -647,7 +612,6 @@ export default function App() {
         comics={comics}
         onRemoveDuplicates={handleRemoveDuplicates}
         onClearAllComics={handleClearAllComics}
-        onResetSampleData={handleResetSampleData}
       />
 
       <ServerSettingsModal

@@ -257,17 +257,17 @@ export function getNormalizedCoordinates(
  */
 export function disposeScene(context: SceneContext) {
   const { renderer, scene, controls } = context;
-
+  const disposeMaterial = (m: THREE.Material) => {
+    if ('map' in m && m.map instanceof THREE.Texture) m.map.dispose();
+    m.dispose();
+  };
   controls.dispose();
 
   scene.traverse((object) => {
     if (object instanceof THREE.Mesh) {
       object.geometry?.dispose();
-      if (Array.isArray(object.material)) {
-        object.material.forEach((mat) => mat?.dispose());
-      } else if (object.material) {
-        object.material.dispose();
-      }
+      if (Array.isArray(object.material)) object.material.forEach(disposeMaterial);
+      else if (object.material) disposeMaterial(object.material);
     }
   });
 

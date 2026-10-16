@@ -680,7 +680,7 @@ export function compressBase64Image(dataUrl: string, maxDimension = 800, quality
     }
 
     // If it's already reasonably small (under 250KB string length), resolve immediately
-    if (dataUrl.length < 2500000) {
+    if (dataUrl.length < 250000) {
       resolve(dataUrl);
       return;
     }

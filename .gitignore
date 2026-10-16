@@ -1,6 +1,7 @@
 node_modules/
 build/
 dist/
+dist-server/
 coverage/
 .DS_Store
 *.log
@@ -11,3 +12,6 @@ Troubleshooting/
 test-results/
 playwright-report/
 .idea/
+.vs/
+android/.gradle/
+android/app/src/main/assets/public/server.cjs*

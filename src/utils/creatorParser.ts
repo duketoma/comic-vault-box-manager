@@ -160,3 +160,34 @@ export function extractIndividualCreators(comics: ComicBook[]): string[] {
 
   return Array.from(creatorSet).sort((a, b) => a.localeCompare(b));
 }
+
+/**
+ * Determines whether a given role string represents a writing / scripting contribution.
+ */
+export function isWritingRole(role?: string | null): boolean {
+  if (!role) return false;
+  const r = role.trim().toLowerCase();
+  return (
+    r.includes('writ') ||
+    r.includes('story') ||
+    r.includes('script') ||
+    r.includes('plot') ||
+    r.includes('author')
+  );
+}
+
+/**
+ * Determines whether a given role string represents an interior / pencil art contribution.
+ */
+export function isArtRole(role?: string | null): boolean {
+  if (!role) return false;
+  const r = role.trim().toLowerCase();
+  return (
+    r.includes('pencil') ||
+    r.includes('artist') ||
+    r.includes('illustrat') ||
+    r.includes('draw') ||
+    r.includes('art')
+  );
+}
+

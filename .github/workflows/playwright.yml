@@ -51,7 +51,7 @@ jobs:
       - name: Start server
         run: |
           export PORT=3000
-          NODE_ENV=production node dist/server.cjs &
+          NODE_ENV=production node dist-server/server.cjs &
       - name: Run Playwright tests
         run: npx playwright test --reporter=github
         env:

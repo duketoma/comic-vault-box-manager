@@ -113,8 +113,8 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Navigate to Catalog
-    const catalogTab = page.getByRole('button', { name: 'Catalog View' }).or(page.locator('nav button').filter({ hasText: 'Catalog' })).first();
-    await catalogTab.click({ force: true });
+    const catalogTab = page.getByRole('button', { name: /Catalog/i }).first();
+    await catalogTab.click();
 
     // Select Captain America (Vol. 1) in the Series Run dropdown
     const seriesSelect = page.locator('label:has-text("Series Run") + select');
