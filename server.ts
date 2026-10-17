@@ -17,6 +17,7 @@ async function startServer() {
     'http://localhost:5173',
     'capacitor://localhost',
     'http://localhost',
+    'null',
     ...(process.env.ALLOWED_ORIGINS?.split(',').map((s) => s.trim()) || []),
   ]);
   app.use(
@@ -29,6 +30,9 @@ async function startServer() {
     })
   );
   app.use(express.json({ limit: '25mb' }));
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true });
+  });
 
   if (pool) {
     try {

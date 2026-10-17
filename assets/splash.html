@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="comic-vault.ico" />
+    <title>Comic Vault Box Manager</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 35%, #1e1b4b 0%, #0f172a 65%, #020617 100%);
+        color: #f8fafc;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+      }
+      .vault-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 48px;
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(245, 158, 11, 0.1);
+        max-width: 420px;
+        width: 90%;
+        text-align: center;
+      }
+      .icon-wrap {
+        width: 88px;
+        height: 88px;
+        margin-bottom: 24px;
+        filter: drop-shadow(0 8px 16px rgba(245, 158, 11, 0.25));
+        animation: float 2.4s ease-in-out infinite;
+      }
+      .icon-wrap img {
+        width: 100%;
+        height: 100%;
+      }
+      h1 {
+        font-size: 1.45rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #f8fafc;
+        margin-bottom: 8px;
+      }
+      .status {
+        font-size: 0.92rem;
+        color: #94a3b8;
+        margin-bottom: 24px;
+        min-height: 1.4em;
+      }
+      .progress-track {
+        width: 100%;
+        height: 6px;
+        background: rgba(51, 65, 85, 0.6);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+      }
+      .progress-bar {
+        position: absolute;
+        top: 0;
+        left: -40%;
+        width: 40%;
+        height: 100%;
+        background: linear-gradient(90deg, #d97706, #fbbf24, #f59e0b);
+        border-radius: 999px;
+        animation: slide 1.3s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0% { left: -40%; }
+        100% { left: 100%; }
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-6px); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="vault-card">
+      <div class="icon-wrap">
+        <img src="comic-vault.ico" alt="Comic Vault" />
+      </div>
+      <h1>Comic Vault Box Manager</h1>
+      <p class="status" id="status-text">Unlocking vault &amp; connecting to database...</p>
+      <div class="progress-track">
+        <div class="progress-bar"></div>
+      </div>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const targetUrl = params.get('target') || 'http://localhost:3000';
+      const statusEl = document.getElementById('status-text');
+      let attempts = 0;
+
+      async function checkServer() {
+        attempts++;
+        if (attempts === 12) {
+          statusEl.textContent = 'Warming up local server & collection index...';
+        } else if (attempts === 30) {
+          statusEl.textContent = 'Almost ready — loading comic catalog...';
+        }
+
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1200);
+          const res = await fetch(targetUrl + '/api/health?t=' + Date.now(), {
+            cache: 'no-store',
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+          if (res.ok) {
+            statusEl.textContent = 'Vault unlocked! Launching...';
+            window.location.replace(targetUrl);
+            return;
+          }
+        } catch (_err) {
+          // Server still starting up
+        }
+        setTimeout(checkServer, 300);
+      }
+
+      checkServer();
+    </script>
+  </body>
+</html>
