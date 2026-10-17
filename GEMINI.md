@@ -18,3 +18,21 @@
 
 4. **Single-Pass Collection Aggregations**:
    - When computing multiple collection statistics or counts in top-level state (e.g., `App.tsx`), combine them into a single-pass `useMemo` loop rather than chaining multiple full `.filter()` / `.reduce()` passes over large arrays.
+
+## Webcam & Hardware Media Capture Invariants
+5. **Explicit Camera Selection & Device Binding**:
+   - In desktop/web views capturing camera feeds, never invoke `navigator.mediaDevices.getUserMedia` solely with generic constraints (`{ video: true }` or `{ video: { facingMode: 'environment' } }`) without providing an explicit device selector.
+   - Virtual camera drivers (e.g., Iriun Webcam, DroidCam, OBS Virtual Camera) and multi-camera systems require explicit device targeting (`video: { deviceId: { exact: selectedId } }`) to prevent the operating system or browser from substituting the system default.
+   - Persist user camera preferences using dual identifiers (both `deviceId` and device `label`) in `localStorage` so selections persist across browser sessions even if internal device IDs rotate upon reboot.
+   - Attach a `devicechange` listener to `navigator.mediaDevices` to auto-detect and switch to hot-plugged cameras when external or virtual camera apps connect while the interface is already open.
+   - Gracefully trap `NotReadableError` to warn the user when another application (such as the native Windows Camera app) holds an exclusive hardware lock on the device.
+
+## Cover Processing & Imaging Invariants
+6. **Zero-Cost Client-Side Imaging & OCR**:
+   - Cover scanning and image enhancement must execute entirely on the client (e.g., via `tesseract.js` and HTML5 Canvas perspective homography warping/deskewing). Do not introduce third-party cloud AI vision dependencies with per-request running costs.
+   - Imaging and perspective-cropping workflows must be accessible from both the new comic addition modal and existing comic details (`ComicDetailModal`), supporting both Front Cover (`coverImage`) and Full Wraparound Art (`coverImageFull`) targets.
+
+## Shell & Environment Invariants
+7. **Windows PowerShell Command Chaining**:
+   - When executing commands in Windows PowerShell environments, do not use `&&` as a command separator (which causes parse errors in PowerShell 5.1). Use `;` or separate command invocations instead.
+
