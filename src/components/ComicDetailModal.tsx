@@ -5,6 +5,7 @@ import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
 import { getComicSeriesInfo } from '../utils/seriesUtils';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
+import { CoverScannerCropper } from './CoverScannerCropper';
 import { 
   X, 
   Star, 
@@ -29,7 +30,8 @@ import {
   Crown,
   Search,
   Sparkles,
-  Bookmark
+  Bookmark,
+  Crop
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -70,6 +72,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   onOpenGenerateWishlist,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [cropperTargetField, setCropperTargetField] = useState<'front' | 'full' | null>(null);
   const [title, setTitle] = useState(comic?.title || '');
   const [issueNumber, setIssueNumber] = useState(comic?.issueNumber || '1');
   const [readingStatus, setReadingStatus] = useState(comic?.readingStatus || 'Unread');
@@ -123,6 +126,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setContributions(getInitialContributions(comic));
     setCharacters(comic.characterAppearances || []);
     setIsEditing(false);
+    setCropperTargetField(null);
   }, [comic]);
 
   const availableRoles = useMemo(() => {
@@ -404,6 +408,17 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   </button>
                 </div>
               )}
+
+              {/* 1-Click Launch Cover Scanner & Cropper */}
+              <button
+                type="button"
+                onClick={() => setCropperTargetField(heroViewMode === 'full' ? 'full' : 'front')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                title="Add, replace, or perspective-crop this comic's cover image"
+              >
+                <Crop className="w-3.5 h-3.5 text-sky-400" />
+                <span>Scan / Crop Cover</span>
+              </button>
             </div>
 
             <div className="flex-1 space-y-2 text-center sm:text-left min-w-0 w-full">
@@ -934,18 +949,28 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             {/* Cover Image URL Edit Field */}
             {isEditing && (
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
                     Cover Image URL or Google Drive Share Link
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setCoverImage('NoImage.png')}
-                    className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 underline font-semibold cursor-pointer"
-                  >
-                    Reset to NoImage.png
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCropperTargetField('front')}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Crop className="w-3.5 h-3.5" />
+                      <span>Scan / Crop Front Cover</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCoverImage('NoImage.png')}
+                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 underline font-semibold cursor-pointer"
+                    >
+                      Reset to NoImage.png
+                    </button>
+                  </div>
                 </label>
                 <input
                   type="text"
@@ -983,20 +1008,30 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             {/* Full Wraparound Art URL Edit Field */}
             {isEditing && (
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                <label className="block text-[11px] font-bold text-purple-700 dark:text-purple-400 mb-1 flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-purple-700 dark:text-purple-400 mb-1 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                     Full Wraparound Art URL (Front + Back Cover Spread)
                   </span>
-                  {coverImageFull && (
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setCoverImageFull('')}
-                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-rose-600 underline font-semibold cursor-pointer"
+                      onClick={() => setCropperTargetField('full')}
+                      className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                     >
-                      Clear Full Art
+                      <Crop className="w-3.5 h-3.5" />
+                      <span>Scan / Crop Full Spread</span>
                     </button>
-                  )}
+                    {coverImageFull && (
+                      <button
+                        type="button"
+                        onClick={() => setCoverImageFull('')}
+                        className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-rose-600 underline font-semibold cursor-pointer"
+                      >
+                        Clear Full Art
+                      </button>
+                    )}
+                  </div>
                 </label>
                 <input
                   type="text"
@@ -1126,6 +1161,116 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
         </div>
 
       </div>
+
+      {/* Perspective Cover Scanner & Cropper Modal Overlay for Existing Comic */}
+      {cropperTargetField !== null && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCropperTargetField(null);
+          }}
+          className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden my-auto text-slate-900 dark:text-slate-100">
+            <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400">
+                  <Crop className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                    Scan / Perspective-Crop Cover Image
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {comic.title} #{comic.issueNumber}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Target Slot Switcher: Front Cover vs Full Wraparound Spread */}
+                <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-900 p-0.5 rounded-lg text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setCropperTargetField('front')}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      cropperTargetField === 'front'
+                        ? 'bg-slate-900 dark:bg-indigo-600 text-white'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Front Cover
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCropperTargetField('full')}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
+                      cropperTargetField === 'full'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-purple-700 dark:text-purple-300 hover:text-purple-900'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Full Spread</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCropperTargetField(null)}
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 max-h-[80vh] overflow-y-auto scrollbar-thin">
+              <CoverScannerCropper
+                key={cropperTargetField}
+                enableOcr={false}
+                defaultPreset={cropperTargetField === 'full' ? 'wraparound' : 'standard'}
+                initialImageUrl={
+                  cropperTargetField === 'full'
+                    ? coverImageFull || comic.coverImageFull
+                    : coverImage || comic.coverImage
+                }
+                comicTitle={title || comic.title}
+                comicIssueNumber={issueNumber || comic.issueNumber}
+                existingComics={allComics}
+                seriesTotals={seriesTotals}
+                applyButtonLabel={
+                  cropperTargetField === 'full'
+                    ? 'Save Cropped Full Spread'
+                    : 'Save Cropped Front Cover'
+                }
+                onCancel={() => setCropperTargetField(null)}
+                onSelectOcrCandidate={(field, val) => {
+                  if (field === 'title') setTitle(val);
+                  else if (field === 'issueNumber') setIssueNumber(val);
+                }}
+                onApplyImage={(croppedDataUrl) => {
+                  if (cropperTargetField === 'full') {
+                    setCoverImageFull(croppedDataUrl);
+                    setHeroViewMode('full');
+                    onUpdateComic({
+                      ...comic,
+                      coverImageFull: croppedDataUrl,
+                    });
+                  } else {
+                    setCoverImage(croppedDataUrl);
+                    setHeroViewMode('front');
+                    onUpdateComic({
+                      ...comic,
+                      coverImage: croppedDataUrl,
+                    });
+                  }
+                  setCropperTargetField(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Full Art Showcase Modal */}
       {showFullArtModal && (

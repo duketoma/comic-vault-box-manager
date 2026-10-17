@@ -593,6 +593,7 @@ export default function App() {
         onClose={() => setIsAddModalOpen(false)}
         boxes={boxes}
         existingComics={comics}
+        seriesTotals={seriesTotals}
         onAddComic={handleAddComic}
         onUpdateComic={handleUpdateComic}
         initialScanMode={initialScanMode}
@@ -668,7 +669,7 @@ export default function App() {
             <strong className="text-slate-800 dark:text-slate-200">Comic Archive Pro</strong> • 15 Storage Box & Reading Manager
           </div>
           <div className="text-slate-400 dark:text-slate-500">
-            Powered by Google AI Studio Gemini API & Google Drive Integration
+            Perspective Cover Scanner, Local OCR & Google Drive Integration
           </div>
         </div>
       </footer>

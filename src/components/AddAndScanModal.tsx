@@ -1,19 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { ComicBook, StorageBox, ComicFormat, ComicCondition, ReadingStatus } from '../types';
-import { compressBase64Image, extractDriveFileId } from '../utils/imageUtils';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ComicBook, StorageBox, ComicFormat, ComicCondition, ReadingStatus, SeriesIssueTotal } from '../types';
+import { extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { MONTH_NAMES } from '../utils/dateUtils';
+import { CoverScannerCropper } from './CoverScannerCropper';
+import { CoverOcrResult } from '../utils/coverOcrService';
 import { 
   X, 
-  Camera, 
-  Sparkles, 
-  Upload, 
+  Crop,
   BookOpen, 
   PlusCircle, 
-  CheckCircle, 
-  Loader2, 
   Layers, 
-  Boxes,
   Copy,
   RefreshCw,
   ArrowRight,
@@ -21,16 +18,15 @@ import {
   Cloud,
   Info,
   Bookmark,
-  Barcode
+  Check
 } from 'lucide-react';
-import { buildApiUrl } from '../services/apiConfig';
-import { capturePhotoNative, scanBarcodeNative, isNativeMobile } from '../utils/nativeHardware';
 
 interface AddAndScanModalProps {
   isOpen: boolean;
   onClose: () => void;
   boxes: StorageBox[];
   existingComics?: ComicBook[];
+  seriesTotals?: SeriesIssueTotal[];
   onAddComic: (newComic: ComicBook) => void;
   onUpdateComic?: (updatedComic: ComicBook) => void;
   initialScanMode?: boolean;
@@ -42,15 +38,22 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
   onClose,
   boxes,
   existingComics = [],
+  seriesTotals = [],
   onAddComic,
   onUpdateComic,
   initialScanMode = false,
   onOpenGenerateWishlist,
 }) => {
   const [activeMode, setActiveMode] = useState<'scan' | 'manual'>(initialScanMode ? 'scan' : 'manual');
-  const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [scanPreviewUrl, setScanPreviewUrl] = useState<string | null>(null);
-  const [scanError, setScanError] = useState<string | null>(null);
+  const [hasAppliedCrop, setHasAppliedCrop] = useState<boolean>(false);
+
+  // Sync mode when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setActiveMode(initialScanMode ? 'scan' : 'manual');
+      setHasAppliedCrop(false);
+    }
+  }, [isOpen, initialScanMode]);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -87,8 +90,8 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     // Check title + issue + publisher first
     const exact = existingComics.find((c) => {
-      const cTitle = c.title.trim().toLowerCase();
-      const cIssue = c.issueNumber.trim().toLowerCase().replace(/^#/, '');
+      const cTitle = (c.title || '').trim().toLowerCase();
+      const cIssue = (c.issueNumber || '').trim().toLowerCase().replace(/^#/, '');
       const cPub = (c.publisher || '').trim().toLowerCase();
       return cTitle === normTitle && cIssue === normIssue && (normPub ? cPub === normPub : true);
     });
@@ -96,96 +99,42 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     // Secondary match on title + issue
     return existingComics.find((c) => {
-      const cTitle = c.title.trim().toLowerCase();
-      const cIssue = c.issueNumber.trim().toLowerCase().replace(/^#/, '');
+      const cTitle = (c.title || '').trim().toLowerCase();
+      const cIssue = (c.issueNumber || '').trim().toLowerCase().replace(/^#/, '');
       return cTitle === normTitle && cIssue === normIssue;
     }) || null;
   }, [title, issueNumber, publisher, existingComics]);
 
   if (!isOpen) return null;
 
-  // Process and scan cover image with Gemini API
-  const processCoverImage = async (base64Image: string) => {
-    setScanError(null);
-    setIsScanning(true);
+  // Apply cropped cover and optional local OCR results
+  const handleApplyCroppedCover = (croppedDataUrl: string, ocr?: CoverOcrResult) => {
+    setCoverImage(croppedDataUrl);
+    setHasAppliedCrop(true);
+    if (ocr) {
+      if (ocr.title) setTitle(ocr.title);
+      if (ocr.issueNumber) setIssueNumber(String(ocr.issueNumber));
+      if (ocr.publisher) setPublisher(ocr.publisher);
+      if (ocr.volume) setVolume(ocr.volume);
+    }
+  };
 
-    try {
-      const compressedBase64 = await compressBase64Image(base64Image, 800, 0.75);
-      setScanPreviewUrl(compressedBase64);
-      setCoverImage(compressedBase64);
+  const handleSelectOcrCandidate = (field: 'title' | 'issueNumber' | 'publisher', value: string) => {
+    if (field === 'title') setTitle(value);
+    else if (field === 'issueNumber') setIssueNumber(value);
+    else if (field === 'publisher') setPublisher(value);
+  };
 
-      const response = await fetch(buildApiUrl('/api/scan-cover'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: compressedBase64,
-          mimeType: 'image/jpeg',
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        const d = result.data;
-        if (d.title) setTitle(d.title);
-        if (d.issueNumber) setIssueNumber(String(d.issueNumber));
-        if (d.volume) setVolume(d.volume);
-        if (d.publisher) setPublisher(d.publisher);
-        if (d.publicationYear) setPublicationYear(Number(d.publicationYear));
-        if (d.genre) setGenre(d.genre);
-        if (d.writer) setWriter(d.writer);
-        if (d.artist) setArtist(d.artist);
-        if (d.coverArtist) setCoverArtist(d.coverArtist);
-        if (d.format) setFormat(d.format);
-        if (d.sizeThickness) setSizeThickness(Number(d.sizeThickness));
-        if (d.estimatedValue) setEstimatedValue(String(d.estimatedValue));
-        if (d.summary) setNotes(d.summary);
-        if (Array.isArray(d.tags)) setTagsInput(d.tags.join(', '));
-      } else {
-        setScanError(result.error || 'Could not analyze cover image');
+  // Native Mobile Barcode / UPC Scan callback
+  const handleBarcodeScanned = (barcode: string) => {
+    setNotes((prev) => (prev ? `${prev}\nUPC: ${barcode}` : `UPC: ${barcode}`));
+    setTagsInput((prev) => {
+      const parts = prev ? prev.split(',').map((s) => s.trim()) : [];
+      if (!parts.includes(`UPC:${barcode}`)) {
+        parts.push(`UPC:${barcode}`);
       }
-    } catch (err: any) {
-      console.error(err);
-      setScanError(err.message || 'Error connecting to cover scanner API');
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  // Handle Cover Image Upload from Browser
-  const handleImageUploadAndScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      await processCoverImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Native Mobile Camera Capture
-  const handleNativeCamera = async () => {
-    const photo = await capturePhotoNative();
-    if (photo) {
-      await processCoverImage(photo);
-    }
-  };
-
-  // Native Mobile Barcode / UPC Scan
-  const handleNativeBarcode = async () => {
-    const barcode = await scanBarcodeNative();
-    if (barcode) {
-      // Append UPC to notes and tags
-      setNotes((prev) => (prev ? `${prev}\nUPC: ${barcode}` : `UPC: ${barcode}`));
-      setTagsInput((prev) => {
-        const parts = prev ? prev.split(',').map((s) => s.trim()) : [];
-        if (!parts.includes(`UPC:${barcode}`)) {
-          parts.push(`UPC:${barcode}`);
-        }
-        return parts.join(', ');
-      });
-    }
+      return parts.join(', ');
+    });
   };
 
   // Format Auto-adjust thickness suggestion
@@ -322,7 +271,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Add New Comic to Vault</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Scan cover photo or fill manual catalog fields</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Perspective crop cover & local OCR or fill manual catalog fields</p>
             </div>
           </div>
           <button
@@ -344,8 +293,8 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>Gemini AI Cover Scanner</span>
+            <Crop className="w-4 h-4 text-sky-400" />
+            <span>Cover Scanner & Perspective Crop</span>
           </button>
 
           <button
@@ -381,93 +330,71 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
         <div className="p-6">
           {activeMode === 'scan' ? (
             
-            /* AI SCANNER TAB */
-            <div className="space-y-6 text-center py-2">
-              <div className="max-w-md mx-auto border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-slate-500 dark:hover:border-slate-500 rounded-2xl p-8 bg-slate-50/50 dark:bg-slate-800/30 transition-colors relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUploadAndScan}
-                  disabled={isScanning}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
+            /* PERSPECTIVE CROP & LOCAL OCR SCANNER TAB */
+            <div className="space-y-4">
+              <CoverScannerCropper
+                enableOcr={true}
+                defaultPreset="standard"
+                initialImageUrl={coverImage !== 'NoImage.png' ? coverImage : undefined}
+                comicTitle={title}
+                comicIssueNumber={issueNumber}
+                existingComics={existingComics}
+                seriesTotals={seriesTotals}
+                onApplyImage={handleApplyCroppedCover}
+                onSelectOcrCandidate={handleSelectOcrCandidate}
+                onBarcodeScanned={handleBarcodeScanned}
+              />
 
-                {scanPreviewUrl ? (
-                  <div className="space-y-3">
-                    <img
-                      src={scanPreviewUrl}
-                      alt="Cover Preview"
-                      className="w-32 h-48 object-cover rounded-xl mx-auto shadow-md border border-slate-200 dark:border-slate-700"
-                    />
-                    {isScanning ? (
-                      <div className="flex items-center justify-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-xs">
-                        <Loader2 className="w-4 h-4 animate-spin text-slate-900 dark:text-indigo-400" />
-                        <span>Gemini AI Analyzing Cover details...</span>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
-                        Scan Complete! Review detected fields below.
-                      </p>
-                    )}
+              {/* Quick Editable Title & Issue Bar once Crop/OCR is applied */}
+              {hasAppliedCrop && (
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Check className="w-4 h-4" />
+                      <span>Cropped Cover Applied — Verify Detected Title & Issue #</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('manual')}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Continue to Full Form</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center mx-auto">
-                      <Camera className="w-7 h-7" />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                        Detected Comic Title
+                      </label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="e.g. The Amazing Spider-Man"
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100"
+                      />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Upload or Snap Comic Cover</h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Gemini AI will scan title, issue #, writer, artist, publisher, publication year, format, and estimated size thickness!
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2 z-20 relative">
-                      {isNativeMobile() && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleNativeCamera();
-                          }}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Camera className="w-4 h-4" />
-                          Take Photo
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold rounded-xl text-xs shadow-xs cursor-pointer"
-                      >
-                        Choose Image File
-                      </button>
-                      {isNativeMobile() && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleNativeBarcode();
-                          }}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Barcode className="w-4 h-4" />
-                          Scan Barcode / UPC
-                        </button>
-                      )}
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                        Detected Issue #
+                      </label>
+                      <input
+                        type="text"
+                        value={issueNumber}
+                        onChange={(e) => setIssueNumber(e.target.value)}
+                        placeholder="1"
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-bold"
+                      />
                     </div>
                   </div>
-                )}
-              </div>
-
-              {scanError && (
-                <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs rounded-xl">
-                  {scanError}
                 </div>
               )}
 
-              {/* Duplicate Banner in AI Scanner */}
-              {duplicateMatch && !isScanning && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-left space-y-3 max-w-lg mx-auto">
+              {/* Duplicate Banner in Scanner */}
+              {duplicateMatch && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-left space-y-3">
                   <div className="flex items-start gap-3">
                     <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-xl text-amber-800 dark:text-amber-300 shrink-0 mt-0.5">
                       <Copy className="w-5 h-5" />
@@ -802,7 +729,17 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Cover Image URL or Google Drive Share Link</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Cover Image URL or Google Drive Share Link</label>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMode('scan')}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Crop className="w-3.5 h-3.5" />
+                    <span>Scan / Crop Cover Photo</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={coverImage}

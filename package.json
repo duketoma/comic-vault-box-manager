@@ -30,7 +30,6 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^5.0.4",
@@ -45,6 +44,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.0.1",
     "recharts": "^3.10.1",
+    "tesseract.js": "^7.0.0",
     "three": "^0.185.1",
     "vite": "^6.2.3"
   },

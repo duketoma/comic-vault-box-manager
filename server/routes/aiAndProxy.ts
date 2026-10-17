@@ -1,7 +1,6 @@
 import express from 'express';
 import dns from 'dns';
 import net from 'net';
-import { GoogleGenAI } from '@google/genai';
 
 export const aiAndProxyRouter = express.Router();
 
@@ -207,75 +206,3 @@ aiAndProxyRouter.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-// Helper lazy init for Gemini API
-const getGeminiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is not configured');
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
-// --- API ROUTE: Scan Comic Cover Image with Gemini AI ---
-aiAndProxyRouter.post('/api/scan-cover', async (req, res) => {
-  try {
-    const { imageBase64, mimeType = 'image/jpeg' } = req.body;
-    if (!imageBase64) {
-      return res.status(400).json({ error: 'Missing imageBase64 data' });
-    }
-
-    const ai = getGeminiClient();
-    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-
-    const prompt = `
-Analyze this comic book cover photo carefully and extract or estimate all details in raw JSON format with these exact keys:
-{
-  "title": "Comic Title (e.g. The Amazing Spider-Man)",
-  "issueNumber": "Issue number or designation (e.g. 300, 1, Annual #2, TPB Vol 1)",
-  "volume": "Volume identifier if visible (e.g. Vol. 1)",
-  "publisher": "Publisher name (e.g. Marvel Comics, DC Comics, Image Comics, Dark Horse, BOOM! Studios)",
-  "publicationYear": 1988 (number year estimate or exact),
-  "genre": "Main Genre (e.g. Superhero, Sci-Fi, Horror, Fantasy, Crime, Mystery)",
-  "writer": "Primary writer(s)",
-  "artist": "Primary artist(s) or penciller/inker",
-  "coverArtist": "Cover artist if known",
-  "format": "Single Issue" | "Trade Paperback" | "Hardcover" | "Omnibus" | "Graphic Novel",
-  "sizeThickness": 1.0 (number: 1.0 for single issue, 3.5 for trade paperback, 6.0 for hardcover, 12.0 for omnibus/compendium),
-  "estimatedValue": 15.0 (estimated USD value based on title/issue/condition),
-  "summary": "Brief 1-2 sentence description of the issue or cover scene",
-  "tags": ["Key Issue", "First Appearance", "Marvel"]
-}
-Return ONLY valid JSON without markdown fences if possible or clean JSON.
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType,
-                data: cleanBase64,
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    const responseText = response.text || '';
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsedData = JSON.parse(jsonMatch[0]);
-      return res.json({ success: true, data: parsedData });
-    }
-
-    return res.json({ success: true, rawText: responseText });
-  } catch (err: any) {
-    console.error('Scan Cover Error:', err);
-    return res.status(500).json({ error: err.message || 'Failed to scan comic cover' });
-  }
-});

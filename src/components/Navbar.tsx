@@ -163,15 +163,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden xl:inline">Drive Covers</span>
             </button>
 
-            {/* AI Cover Scanner */}
+            {/* Cover Scanner & Cropper */}
             <button
               onClick={onOpenScanModal}
               className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
-              title="Scan Comic Cover with Gemini AI"
-              aria-label="AI Cover Scanner"
+              title="Scan & Perspective-Crop Comic Cover with Local OCR"
+              aria-label="Cover Scanner"
             >
               <Camera className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">AI Cover Scanner</span>
+              <span className="hidden xl:inline">Cover Scanner</span>
             </button>
 
             {/* Add Comic */}
