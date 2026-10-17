@@ -242,6 +242,28 @@ npm run test:e2e:report
 | `npm run lint` | Runs TypeScript type checking (`tsc --noEmit`) |
 | `npm run test:e2e` | Executes Playwright end-to-end test suite |
 | `npm run import:collection` | Runs the standalone CSV collection import utility |
+| `npm run android:build` | Rebuilds web bundle with Vite and synchronizes assets to Android project (`npx cap sync android`) |
+| `npm run android:sync` | Synchronizes already-built web assets and Capacitor plugins to Android project |
+| `npm run android:open` | Opens the Android project in Android Studio |
+| `npm run android:run` | Builds and runs app directly onto connected Android device or emulator |
+
+---
+
+## 📱 Android & Mobile Development
+
+This project uses [Capacitor](https://capacitorjs.com/) to package the web application as a native Android application.
+
+### Synchronizing Main Code to Android
+Web code changes (`src/`) do not automatically reflect in the Android APK unless compiled into `dist/` and copied to `android/app/src/main/assets/public/`.
+
+We have configured two layers to ensure the Android app stays 100% up to date:
+1. **Automated Gradle Hook (Android Studio)**:
+   - When building or running the project from **Android Studio** (or running `./gradlew assembleDebug`), Gradle executes the `syncWebAssets` task.
+   - Gradle checks if any files in `src/`, `package.json`, `index.html`, or `vite.config.ts` have changed. If changed, it automatically runs `npm run android:build` before creating the APK.
+2. **Command Line / NPM**:
+   - Run `npm run android:build` anytime before opening Android Studio or deploying to your phone to build and sync web assets and Capacitor plugins.
+   - Run `npm run android:open` to launch Android Studio.
+
 
 ---
 

@@ -36,3 +36,11 @@
 7. **Windows PowerShell Command Chaining**:
    - When executing commands in Windows PowerShell environments, do not use `&&` as a command separator (which causes parse errors in PowerShell 5.1). Use `;` or separate command invocations instead.
 
+## Android / Capacitor Synchronization Invariants
+8. **Automated & Manual Mobile Asset Synchronization**:
+   - The Android application serves web assets packaged in `android/app/src/main/assets/public/`.
+   - Native builds in Android Studio or Gradle automatically invoke the `syncWebAssets` Gradle task (defined in `android/app/build.gradle`), which detects changes to `src/`, `package.json`, or web configuration files and runs `npm run android:build` before packaging the APK.
+   - When deploying or testing on an Android device via Android Studio or CLI, ensure `npm run android:build` (which executes `vite build && npx cap sync android`) has completed so the latest web bundle and Capacitor plugins are synced.
+   - Never push or run native builds assuming the web code updates automatically; verify that `android/app/src/main/assets/public/` contains the latest timestamped bundles.
+
+

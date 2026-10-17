@@ -52,3 +52,21 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+tasks.register('syncWebAssets', Exec) {
+    workingDir file('../../')
+    inputs.files(fileTree(dir: '../../src'))
+    inputs.file file('../../package.json')
+    inputs.file file('../../index.html')
+    inputs.file file('../../vite.config.ts')
+    outputs.dir file('src/main/assets/public')
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'npm', 'run', 'android:build'
+    } else {
+        commandLine 'npm', 'run', 'android:build'
+    }
+}
+
+preBuild.dependsOn syncWebAssets
+

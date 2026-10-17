@@ -17,6 +17,7 @@
     "test:e2e:headed": "npx playwright test --headed",
     "test:e2e:report": "npx playwright show-report",
     "android:build": "vite build && npx cap sync android",
+    "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
     "android:run": "npx cap run android",
     "desktop:launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/launch-app.ps1",
