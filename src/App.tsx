@@ -24,8 +24,13 @@ import { getSeriesOverviewSummary } from './utils/seriesUtils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
+  const [isLoadingCollection, setIsLoadingCollection] = useState<boolean>(true);
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const handleSetActiveTab = (tab: 'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping') => {
+    setActiveTab(tab);
+  };
 
   // Dark Mode State with LocalStorage Persistence and system preference fallback
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -86,7 +91,7 @@ export default function App() {
 
   const handleViewSeriesInCatalog = (seriesName: string) => {
     setSelectedSeriesFilter(seriesName);
-    setActiveTab('catalog');
+    handleSetActiveTab('catalog');
   };
 
   // Helper to run DB promises and clear the error on success
@@ -122,6 +127,7 @@ export default function App() {
   }, [seriesTotals]);
 
   const refreshCollectionData = () => {
+    setIsLoadingCollection(true);
     return loadCollection()
       .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals, creatorTypes: storedCreatorTypes }) => {
         if (storedBoxes.length > 0) setBoxes(storedBoxes);
@@ -138,7 +144,10 @@ export default function App() {
         }
         setDatabaseError(null);
       })
-      .catch((error) => setDatabaseError(error instanceof Error ? error.message : 'Unable to reach PostgreSQL.'));
+      .catch((error) => setDatabaseError(error instanceof Error ? error.message : 'Unable to reach PostgreSQL.'))
+      .finally(() => {
+        setIsLoadingCollection(false);
+      });
   };
 
   useEffect(() => {
@@ -157,12 +166,27 @@ export default function App() {
     return () => { active = false; clearInterval(interval); };
   }, [databaseError]);
 
-  // Total Collection Metrics (In Collection vs Wishlist)
-  const inCollectionComics = comics.filter((c) => c.readingStatus !== 'Wishlist');
-  const wishlistComics = comics.filter((c) => c.readingStatus === 'Wishlist');
+  // Total Collection Metrics (In Collection vs Wishlist) - single-pass memoized calculation
+  const { inCollectionComics, wishlistComics, totalThicknessUnits } = useMemo(() => {
+    const inCol: ComicBook[] = [];
+    const wish: ComicBook[] = [];
+    let thickness = 0;
+    for (const c of comics) {
+      if (c.readingStatus === 'Wishlist') {
+        wish.push(c);
+      } else {
+        inCol.push(c);
+        thickness += c.sizeThickness || 1.0;
+      }
+    }
+    return {
+      inCollectionComics: inCol,
+      wishlistComics: wish,
+      totalThicknessUnits: thickness,
+    };
+  }, [comics]);
 
   const totalComicsCount = inCollectionComics.length;
-  const totalThicknessUnits = inCollectionComics.reduce((acc, c) => acc + (c.sizeThickness || 1.0), 0);
   const wishlistCount = wishlistComics.length;
 
   // Handlers update the UI immediately, then persist the change to PostgreSQL.
@@ -307,7 +331,7 @@ export default function App() {
       await dbCall(saveComicsBatch(sanitizedImports));
     }
     if (navigate) {
-      setActiveTab('catalog');
+      handleSetActiveTab('catalog');
     }
   };
 
@@ -445,7 +469,7 @@ export default function App() {
       {/* Navigation Header */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSetActiveTab}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         darkMode={darkMode}
@@ -467,7 +491,7 @@ export default function App() {
         wishlistCount={wishlistCount}
         onNavigateToStats={() => {
           setStatsSubTab('series');
-          setActiveTab('stats');
+          handleSetActiveTab('stats');
         }}
         onOpenServerSettings={() => setIsServerModalOpen(true)}
       />
@@ -499,6 +523,7 @@ export default function App() {
             selectedSeries={selectedSeriesFilter}
             onSelectSeries={setSelectedSeriesFilter}
             onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
+            isLoading={isLoadingCollection}
           />
         )}
 
@@ -550,7 +575,7 @@ export default function App() {
             boxes={boxes} 
             onImportComics={handleImportComics}
             onRefreshCollection={handleRefreshCollection}
-            onNavigateToTab={(tab) => setActiveTab(tab)}
+            onNavigateToTab={(tab) => handleSetActiveTab(tab)}
             onOpenDataManagementModal={() => setIsDataModalOpen(true)}
             comicsCount={comics.length}
           />
@@ -623,7 +648,7 @@ export default function App() {
       {/* Mobile Bottom Navigation Bar (thumb navigation on Android/iOS) */}
       <MobileBottomNav
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSetActiveTab}
         onOpenScanModal={() => {
           setInitialScanMode(true);
           setIsAddModalOpen(true);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
@@ -48,6 +48,83 @@ import {
   RotateCcw
 } from 'lucide-react';
 
+export const CHUNK_SIZE_GRID = 48;
+export const CHUNK_SIZE_TABLE = 50;
+
+export const CatalogSkeletonGrid: React.FC<{ count?: number; viewMode?: 'grid' | 'table' }> = ({
+  count = 24,
+  viewMode = 'grid',
+}) => {
+  if (viewMode === 'table') {
+    const rowCount = Math.min(Math.max(count, 8), 50);
+    return (
+      <div
+        data-testid="catalog-skeleton-grid"
+        data-skeleton-mode="table"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm animate-pulse"
+      >
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/4" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/6" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/6" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/6" />
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 p-2 space-y-3">
+          {Array.from({ length: rowCount }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 py-2 px-2">
+              <div className="w-8 h-12 bg-slate-200 dark:bg-slate-700 rounded shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-1/3" />
+                <div className="h-2.5 bg-slate-200 dark:bg-slate-700/60 rounded w-1/4" />
+              </div>
+              <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-20" />
+              <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid="catalog-skeleton-grid"
+      data-skeleton-mode="grid"
+      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+    >
+      {Array.from({ length: count }).map((_, idx) => (
+        <div
+          key={idx}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs flex flex-col justify-between animate-pulse"
+        >
+          {/* Cover Placeholder */}
+          <div className="relative aspect-[2/3] bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-slate-300 dark:bg-slate-700/60" />
+            <div className="absolute top-2 left-2 w-16 h-4 bg-slate-300/80 dark:bg-slate-700/80 rounded" />
+            <div className="absolute top-2 right-2 w-12 h-4 bg-slate-300/80 dark:bg-slate-700/80 rounded" />
+          </div>
+          {/* Card Content Placeholder */}
+          <div className="p-3 space-y-2.5">
+            <div className="flex justify-between items-center gap-2">
+              <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+              <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-6" />
+            </div>
+            <div className="h-2.5 bg-slate-200 dark:bg-slate-700/60 rounded w-1/2" />
+            <div className="flex gap-1.5 pt-1">
+              <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-14" />
+              <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-14" />
+            </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+              <div className="h-3 bg-slate-200 dark:bg-slate-700/60 rounded w-12" />
+              <div className="h-3 bg-slate-200 dark:bg-slate-700/60 rounded w-10" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 interface CollectionCatalogProps {
   comics: ComicBook[];
   boxes: StorageBox[];
@@ -58,6 +135,58 @@ interface CollectionCatalogProps {
   selectedSeries?: string;
   onSelectSeries?: (series: string) => void;
   onOpenGenerateWishlist?: (seriesName?: string) => void;
+  isLoading?: boolean;
+}
+
+interface CatalogMetadataCache {
+  comicsRef: ComicBook[] | null;
+  seriesTotalsRef: SeriesIssueTotal[] | null;
+  seriesList: string[];
+  seriesTotalsMap: Map<string, SeriesIssueTotal>;
+  seriesStatsMap: Map<string, any>;
+  seriesRunCounts: { complete: number; near: number; inProgress: number };
+  genres: string[];
+  publishers: string[];
+  authors: string[];
+  characters: string[];
+  events: string[];
+}
+
+let catalogMetadataCache: CatalogMetadataCache = {
+  comicsRef: null,
+  seriesTotalsRef: null,
+  seriesList: [],
+  seriesTotalsMap: new Map(),
+  seriesStatsMap: new Map(),
+  seriesRunCounts: { complete: 0, near: 0, inProgress: 0 },
+  genres: [],
+  publishers: [],
+  authors: [],
+  characters: [],
+  events: [],
+};
+
+interface CatalogFilteredCache {
+  comicsRef: ComicBook[] | null;
+  seriesTotalsRef: SeriesIssueTotal[] | null;
+  cacheKey: string;
+  filtered: ComicBook[];
+}
+
+let catalogFilteredCache: CatalogFilteredCache = {
+  comicsRef: null,
+  seriesTotalsRef: null,
+  cacheKey: '',
+  filtered: [],
+};
+
+const EMPTY_SERIES_TOTALS: SeriesIssueTotal[] = [];
+
+function areSeriesTotalsEqual(a: SeriesIssueTotal[] | null | undefined, b: SeriesIssueTotal[] | null | undefined): boolean {
+  if (a === b) return true;
+  if (!a && !b) return true;
+  if (a && b && a.length === 0 && b.length === 0) return true;
+  return false;
 }
 
 export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
@@ -66,13 +195,37 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   searchQuery,
   onSelectComic,
   onQuickStatusChange,
-  seriesTotals = [],
+  seriesTotals = EMPTY_SERIES_TOTALS,
   selectedSeries: controlledSelectedSeries,
   onSelectSeries: onSelectSeriesProp,
   onOpenGenerateWishlist,
+  isLoading = false,
 }) => {
   const MAX_PUBLISH_YEAR = Math.max(new Date().getFullYear() + 2, 2026);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [visibleCount, setVisibleCount] = useState<number>(() => (viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE));
+  const isInitialMount = useRef<boolean>(true);
+  const [isSettled, setIsSettled] = useState<boolean>(false);
+
+  // Transition settling: allows lightweight skeleton placeholder grid to paint before heavy card tree
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsSettled(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const { totalOwnedCount, totalWishlistCount } = useMemo(() => {
+    let owned = 0;
+    let wishlist = 0;
+    for (const c of comics) {
+      if (c.readingStatus === 'Wishlist') wishlist++;
+      else owned++;
+    }
+    return { totalOwnedCount: owned, totalWishlistCount: wishlist };
+  }, [comics]);
+
   const [internalSelectedSeries, setInternalSelectedSeries] = useState<string>('all');
   const selectedSeries = controlledSelectedSeries !== undefined ? controlledSelectedSeries : internalSelectedSeries;
   const setSelectedSeries = (val: string) => {
@@ -174,103 +327,150 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     );
   };
 
-  // Extract unique filter options
-  const seriesList = useMemo(() => {
-    const set = new Set<string>();
+  // Extract unique filter options with module-level cache
+  const {
+    seriesList,
+    seriesTotalsMap,
+    seriesStatsMap,
+    seriesRunCounts,
+    genres,
+    publishers,
+    authors,
+    characters,
+    events,
+  } = useMemo(() => {
+    if (
+      catalogMetadataCache.comicsRef === comics &&
+      areSeriesTotalsEqual(catalogMetadataCache.seriesTotalsRef, seriesTotals)
+    ) {
+      return catalogMetadataCache;
+    }
+
+    const sListSet = new Set<string>();
+    const genresSet = new Set<string>();
+    const publishersSet = new Set<string>();
+    const authorsSet = new Set<string>();
+    const charactersSet = new Set<string>();
+    const eventsSet = new Set<string>();
+
     comics.forEach(c => {
       const s = (c.seriesName || c.title || '').trim();
-      if (s) set.add(s);
+      if (s) sListSet.add(s);
+      if (c.genre) genresSet.add(c.genre);
+      if (c.publisher) publishersSet.add(c.publisher);
+      if (c.writer) authorsSet.add(c.writer);
+      if (c.artist) authorsSet.add(c.artist);
+      if (Array.isArray(c.creatorContributions)) {
+        c.creatorContributions.forEach(cc => {
+          if (cc.creatorName) authorsSet.add(cc.creatorName);
+        });
+      }
+      if (Array.isArray(c.characterAppearances)) {
+        c.characterAppearances.forEach(ca => {
+          if (ca.characterName) charactersSet.add(ca.characterName);
+        });
+      }
+      if (c.event) eventsSet.add(c.event);
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [comics]);
 
-  const seriesTotalsMap = useMemo(
-    () => buildSeriesTotalsMap(seriesTotals),
-    [seriesTotals]
-  );
+    const sTotalsMap = buildSeriesTotalsMap(seriesTotals);
+    const sStatsMap = computeSeriesCompletionMap(comics, seriesTotals);
 
-  const seriesStatsMap = useMemo(
-    () => computeSeriesCompletionMap(comics, seriesTotals),
-    [comics, seriesTotals]
-  );
-
-  const seriesRunCounts = useMemo(() => {
     let complete = 0;
     let near = 0;
     let inProgress = 0;
-    seriesStatsMap.forEach(s => {
+    sStatsMap.forEach(s => {
       if (s.totalIssues > 0) {
         if (s.isComplete) complete++;
         else if (s.pct >= 75) near++;
         else inProgress++;
       }
     });
-    return { complete, near, inProgress };
-  }, [seriesStatsMap]);
-  const genres = useMemo(() => {
-    const set = new Set<string>();
-    comics.forEach(c => c.genre && set.add(c.genre));
-    return Array.from(set).sort();
-  }, [comics]);
 
-  const publishers = useMemo(() => {
-    const set = new Set<string>();
-    comics.forEach(c => c.publisher && set.add(c.publisher));
-    return Array.from(set).sort();
-  }, [comics]);
+    const newCache: CatalogMetadataCache = {
+      comicsRef: comics,
+      seriesTotalsRef: seriesTotals,
+      seriesList: Array.from(sListSet).sort((a, b) => a.localeCompare(b)),
+      seriesTotalsMap: sTotalsMap,
+      seriesStatsMap: sStatsMap,
+      seriesRunCounts: { complete, near, inProgress },
+      genres: Array.from(genresSet).sort(),
+      publishers: Array.from(publishersSet).sort(),
+      authors: Array.from(authorsSet).sort(),
+      characters: Array.from(charactersSet).sort(),
+      events: Array.from(eventsSet).sort(),
+    };
 
-  const authors = useMemo(() => {
-    const set = new Set<string>();
-    comics.forEach(c => {
-      if (c.writer) set.add(c.writer);
-      if (c.artist) set.add(c.artist);
-      if (Array.isArray(c.creatorContributions)) {
-        c.creatorContributions.forEach(cc => {
-          if (cc.creatorName) set.add(cc.creatorName);
-        });
-      }
-    });
-    return Array.from(set).sort();
-  }, [comics]);
+    catalogMetadataCache = newCache;
+    return newCache;
+  }, [comics, seriesTotals]);
 
-  const characters = useMemo(() => {
-    const set = new Set<string>();
-    comics.forEach(c => {
-      if (Array.isArray(c.characterAppearances)) {
-        c.characterAppearances.forEach(ca => {
-          if (ca.characterName) set.add(ca.characterName);
-        });
-      }
-    });
-    return Array.from(set).sort();
-  }, [comics]);
+  // Derive a stable cache key for all active filter and sort parameters
+  const catalogFilterKey = useMemo(() => JSON.stringify({
+    q: deferredSearchQuery,
+    series: selectedSeries,
+    run: selectedRunProgress,
+    genre: selectedGenre,
+    pub: selectedPublisher,
+    author: selectedAuthor,
+    char: selectedCharacter,
+    box: selectedBoxId,
+    status: selectedStatus,
+    format: selectedFormat,
+    event: selectedEvent,
+    art: onlyFullArt,
+    start: startDate,
+    end: endDate,
+    yMin: yearRange[0],
+    yMax: yearRange[1],
+    sort: multiSortOptions,
+  }), [
+    deferredSearchQuery,
+    selectedSeries,
+    selectedRunProgress,
+    selectedGenre,
+    selectedPublisher,
+    selectedAuthor,
+    selectedCharacter,
+    selectedBoxId,
+    selectedStatus,
+    selectedFormat,
+    selectedEvent,
+    onlyFullArt,
+    startDate,
+    endDate,
+    yearRange,
+    multiSortOptions,
+  ]);
 
-  const events = useMemo(() => {
-    const set = new Set<string>();
-    comics.forEach(c => {
-      if (c.event) set.add(c.event);
-    });
-    return Array.from(set).sort();
-  }, [comics]);
-
-  // Filtered & Sorted Comics
+  // Filtered & Sorted Comics with module-level cache
   const filteredComics = useMemo(() => {
-    return comics.filter(c => {
+    const cacheKey = catalogFilterKey;
+
+    if (
+      catalogFilteredCache.comicsRef === comics &&
+      areSeriesTotalsEqual(catalogFilteredCache.seriesTotalsRef, seriesTotals) &&
+      catalogFilteredCache.cacheKey === cacheKey
+    ) {
+      return catalogFilteredCache.filtered;
+    }
+
+    const computed = comics.filter(c => {
       // Search query filter
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
+      if (deferredSearchQuery) {
+        const q = deferredSearchQuery.toLowerCase();
         const matchTitle = (c.title || c.fullTitle || c.seriesName || '').toLowerCase().includes(q);
         const matchFullTitle = c.fullTitle ? c.fullTitle.toLowerCase().includes(q) : false;
         const matchSeries = c.seriesName ? c.seriesName.toLowerCase().includes(q) : false;
-        const matchIssue = c.issueNumber.toLowerCase().includes(q);
-        const matchPub = c.publisher.toLowerCase().includes(q);
-        const matchWriter = c.writer.toLowerCase().includes(q);
-        const matchArtist = c.artist.toLowerCase().includes(q);
-        const matchTag = c.tags.some(t => t.toLowerCase().includes(q));
+        const matchIssue = c.issueNumber ? String(c.issueNumber).toLowerCase().includes(q) : false;
+        const matchPub = c.publisher ? c.publisher.toLowerCase().includes(q) : false;
+        const matchWriter = c.writer ? c.writer.toLowerCase().includes(q) : false;
+        const matchArtist = c.artist ? c.artist.toLowerCase().includes(q) : false;
+        const matchTag = Array.isArray(c.tags) ? c.tags.some(t => typeof t === 'string' && t.toLowerCase().includes(q)) : false;
         const matchEvent = c.event ? c.event.toLowerCase().includes(q) : false;
         const matchVol = c.volume ? c.volume.toLowerCase().includes(q) : false;
-        const matchCreator = c.creatorContributions?.some(cc => cc.creatorName.toLowerCase().includes(q) || cc.roleName.toLowerCase().includes(q));
-        const matchChar = c.characterAppearances?.some(ca => ca.characterName.toLowerCase().includes(q) || ca.appearanceType.toLowerCase().includes(q));
+        const matchCreator = Array.isArray(c.creatorContributions) ? c.creatorContributions.some(cc => (cc.creatorName && cc.creatorName.toLowerCase().includes(q)) || (cc.roleName && cc.roleName.toLowerCase().includes(q))) : false;
+        const matchChar = Array.isArray(c.characterAppearances) ? c.characterAppearances.some(ca => (ca.characterName && ca.characterName.toLowerCase().includes(q)) || (ca.appearanceType && ca.appearanceType.toLowerCase().includes(q))) : false;
         if (!matchTitle && !matchFullTitle && !matchSeries && !matchIssue && !matchPub && !matchWriter && !matchArtist && !matchTag && !matchEvent && !matchVol && !matchCreator && !matchChar) {
           return false;
         }
@@ -294,7 +494,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       if (selectedPublisher !== 'all' && c.publisher !== selectedPublisher) return false;
       if (selectedAuthor !== 'all' && c.writer !== selectedAuthor && c.artist !== selectedAuthor && !c.creatorContributions?.some(cc => cc.creatorName === selectedAuthor)) return false;
       if (selectedCharacter !== 'all' && !c.characterAppearances?.some(ca => ca.characterName === selectedCharacter)) return false;
-      if (selectedBoxId !== 'all' && c.currentBoxId.toString() !== selectedBoxId) return false;
+      if (selectedBoxId !== 'all' && String(c.currentBoxId ?? '') !== selectedBoxId) return false;
       if (selectedStatus !== 'all' && c.readingStatus !== selectedStatus) return false;
       if (selectedFormat !== 'all' && c.format !== selectedFormat) return false;
       if (selectedEvent !== 'all' && c.event !== selectedEvent) return false;
@@ -327,9 +527,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
 
       return true;
     }).sort((a, b) => compareComicsMultiSort(a, b, multiSortOptions));
+
+    catalogFilteredCache = {
+      comicsRef: comics,
+      seriesTotalsRef: seriesTotals,
+      cacheKey,
+      filtered: computed,
+    };
+
+    return computed;
   }, [
     comics,
-    searchQuery,
+    seriesTotals,
+    catalogFilterKey,
+    deferredSearchQuery,
     selectedSeries,
     selectedRunProgress,
     selectedGenre,
@@ -348,6 +559,64 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     seriesStatsMap,
   ]);
 
+  // Combined layout key including viewMode (grid vs table)
+  const layoutResetKey = `${catalogFilterKey}|${viewMode}`;
+
+  // Reset visible batches immediately during render to eliminate layout thrashing and prevent mounting elevated nodes
+  const [prevLayoutResetKey, setPrevLayoutResetKey] = useState<string>(layoutResetKey);
+  if (prevLayoutResetKey !== layoutResetKey) {
+    setPrevLayoutResetKey(layoutResetKey);
+    setVisibleCount(viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE);
+  }
+
+  // Scroll to top when search query, sort criteria, filters, or viewMode change
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, [layoutResetKey]);
+
+  const visibleComics = useMemo(() => {
+    return filteredComics.slice(0, visibleCount);
+  }, [filteredComics, visibleCount]);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const hasMore = visibleCount < filteredComics.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisibleCount(filteredComics.length);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => {
+            const batchSize = viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE;
+            return Math.min(prev + batchSize, filteredComics.length);
+          });
+        }
+      },
+      {
+        root: null,
+        rootMargin: '300px',
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, viewMode, filteredComics.length, visibleCount, isSettled, isLoading]);
+
   const resetFilters = () => {
     setSelectedSeries('all');
     setSelectedRunProgress('all');
@@ -363,6 +632,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     setStartDate('');
     setEndDate('');
     setYearRange([1930, MAX_PUBLISH_YEAR]);
+    setVisibleCount(viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE);
   };
 
   const hasActiveFilters = selectedSeries !== 'all' || selectedRunProgress !== 'all' || selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || onlyFullArt || startDate !== '' || endDate !== '';
@@ -377,7 +647,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
             <Filter className="w-4 h-4 text-slate-700 dark:text-slate-300" />
             <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Collection Filters</h2>
             <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
-              Showing <strong className="text-slate-900 dark:text-slate-100">{filteredComics.length}</strong> items ({comics.filter(c => c.readingStatus !== 'Wishlist').length} Owned, {comics.filter(c => c.readingStatus === 'Wishlist').length} Wishlist)
+              Showing <strong className="text-slate-900 dark:text-slate-100">{visibleComics.length}</strong> of <strong className="text-slate-900 dark:text-slate-100">{filteredComics.length}</strong> comics ({totalOwnedCount} Owned, {totalWishlistCount} Wishlist)
             </span>
           </div>
 
@@ -913,11 +1183,11 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                       className={`h-3 rounded-full transition-all duration-500 ${
                         isComplete 
                           ? 'bg-gradient-to-r from-amber-400 to-amber-500' 
-                          : pct >= 75
+                          : pct !== null && pct >= 75
                           ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
                           : 'bg-gradient-to-r from-indigo-500 to-indigo-600'
                       }`}
-                      style={{ width: `${Math.min(100, pct || 0)}%` }}
+                      style={{ width: `${Math.min(100, pct ?? 0)}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
@@ -1056,7 +1326,9 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       })()}
 
       {/* Catalog Display */}
-      {filteredComics.length === 0 ? (
+      {isLoading || !isSettled ? (
+        <CatalogSkeletonGrid viewMode={viewMode} count={viewMode === 'grid' ? CHUNK_SIZE_GRID : 20} />
+      ) : filteredComics.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm">
           <BookOpen className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">No comics found</h3>
@@ -1076,7 +1348,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         
         /* GRID VIEW */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {filteredComics.map((comic) => {
+          {visibleComics.map((comic) => {
             const box = boxes.find(b => b.id === comic.currentBoxId);
             return (
               <div
@@ -1406,7 +1678,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredComics.map((comic) => (
+                {visibleComics.map((comic) => (
                   <tr
                     key={comic.id}
                     onClick={() => onSelectComic(comic)}
@@ -1419,6 +1691,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                         onError={handleImageError}
                         referrerPolicy="no-referrer"
                         className="w-8 h-12 object-cover rounded shadow-xs border border-slate-200 dark:border-slate-700 shrink-0"
+                        loading="lazy"
                       />
                       <div>
                         <div className="font-bold text-slate-800 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white">
@@ -1572,6 +1845,31 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Progressive Loading Sentinel / Progress Indicator */}
+      {!isLoading && isSettled && filteredComics.length > 0 && (
+        <div className="w-full">
+          {hasMore ? (
+            <div
+              ref={sentinelRef}
+              data-testid="catalog-sentinel"
+              className="py-8 flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400"
+            >
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <div className="w-4 h-4 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                <span>Loading more comics...</span>
+              </div>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                Showing {visibleComics.length} of {filteredComics.length} comics
+              </span>
+            </div>
+          ) : filteredComics.length > (viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE) ? (
+            <div className="py-6 text-center text-xs font-medium text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 mt-2">
+              All {filteredComics.length} comics loaded
+            </div>
+          ) : null}
         </div>
       )}
 

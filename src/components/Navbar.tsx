@@ -15,7 +15,8 @@ import {
   Trophy, 
   ShoppingCart, 
   Server,
-  MoreVertical
+  MoreVertical,
+  X
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -58,6 +59,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenServerSettings,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  // Keep local search input synchronized if search query changes externally
+  React.useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Debounce downstream collection search query propagation by 275ms (250–300ms window)
+  React.useEffect(() => {
+    if (localSearch === searchQuery) return;
+    const timer = setTimeout(() => {
+      React.startTransition(() => {
+        setSearchQuery(localSearch);
+      });
+    }, 275);
+    return () => clearTimeout(timer);
+  }, [localSearch, searchQuery, setSearchQuery]);
+
+  const handleClear = () => {
+    setLocalSearch('');
+    React.startTransition(() => {
+      setSearchQuery('');
+    });
+  };
 
   return (
     <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 sticky top-0 z-40 shadow-xs transition-colors safe-top">
@@ -97,16 +122,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               <input
                 type="text"
                 placeholder="Search title, writer, artist, publisher, issue #..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-md text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600 focus:bg-white dark:focus:bg-slate-800 transition-all"
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    handleClear();
+                  } else if (e.key === 'Enter') {
+                    React.startTransition(() => {
+                      setSearchQuery(localSearch);
+                    });
+                  }
+                }}
+                className="w-full pl-9 pr-16 py-1.5 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-md text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600 focus:bg-white dark:focus:bg-slate-800 transition-all"
               />
-              {searchQuery && (
+              {localSearch && (
                 <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+                  type="button"
+                  onClick={handleClear}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer flex items-center gap-1 px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                  title="Clear search"
+                  aria-label="Clear search"
                 >
-                  Clear
+                  <X className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-medium">Clear</span>
                 </button>
               )}
             </div>
