@@ -1,8 +1,59 @@
-export type ComicFormat = 'Single Issue' | 'Trade Paperback' | 'Hardcover' | 'Omnibus' | 'Graphic Novel';
+export const COMIC_FORMATS = [
+  'Single Issue',
+  'Prestige',
+  'One-Shot/Special',
+  'Annual',
+  'Giant-Size/Double-Sized',
+  'Ashcan',
+  'Trade Paperback',
+  'Standard Hardcover',
+  'Oversized Hardcover',
+  'Omnibus',
+  'Epic Collection',
+  'Compendium',
+  'Graphic Novel',
+  'Digital',
+  'Magazine',
+  "Artist's Edition",
+] as const;
+
+export type ComicFormat = typeof COMIC_FORMATS[number] | 'Hardcover';
+
+export const FORMAT_DEFAULT_THICKNESS: Record<ComicFormat, number> = {
+  'Ashcan': 0.5,
+  'Single Issue': 1.0,
+  'One-Shot/Special': 1.0,
+  'Prestige': 1.5,
+  'Annual': 1.5,
+  'Magazine': 1.5,
+  'Giant-Size/Double-Sized': 2.0,
+  'Trade Paperback': 3.5,
+  'Graphic Novel': 3.5,
+  'Standard Hardcover': 5.0,
+  'Hardcover': 5.0, // Backward compatibility for legacy data
+  'Epic Collection': 5.0,
+  'Oversized Hardcover': 7.0,
+  "Artist's Edition": 8.0,
+  'Omnibus': 10.0,
+  'Compendium': 12.0,
+  'Digital': 0.0,
+};
 
 export type ReadingStatus = 'Unread' | 'Reading' | 'Read' | 'Wishlist';
 
-export type ComicCondition = 'Gem Mint' | 'Near Mint' | 'Very Fine' | 'Fine' | 'Very Good' | 'Good' | 'Fair' | 'Poor';
+export const COMIC_CONDITIONS = [
+  'Gem Mint',
+  'Mint',
+  'Near Mint',
+  'Very Fine',
+  'Fine',
+  'Very Good',
+  'Good',
+  'Fair',
+  'Poor',
+] as const;
+
+export type ComicCondition = typeof COMIC_CONDITIONS[number];
 
 export const CREATOR_ROLES = [
   'Artist',

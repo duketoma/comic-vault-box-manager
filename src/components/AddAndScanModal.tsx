@@ -1,5 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ComicBook, StorageBox, ComicFormat, ComicCondition, ReadingStatus, SeriesIssueTotal } from '../types';
+import { 
+  ComicBook, 
+  StorageBox, 
+  ComicFormat, 
+  ComicCondition, 
+  ReadingStatus, 
+  SeriesIssueTotal,
+  COMIC_FORMATS,
+  FORMAT_DEFAULT_THICKNESS,
+  COMIC_CONDITIONS
+} from '../types';
 import { extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { MONTH_NAMES } from '../utils/dateUtils';
@@ -56,6 +66,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
   }, [isOpen, initialScanMode]);
 
   // Form State
+  const [seriesName, setSeriesName] = useState('');
   const [title, setTitle] = useState('');
   const [issueNumber, setIssueNumber] = useState('1');
   const [volume, setVolume] = useState('');
@@ -105,6 +116,22 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
     }) || null;
   }, [title, issueNumber, publisher, existingComics]);
 
+  const availableSeriesOptions = useMemo(() => {
+    const sSet = new Set<string>();
+    if (seriesTotals && Array.isArray(seriesTotals)) {
+      seriesTotals.forEach((st) => {
+        if (st.seriesName && st.seriesName.trim()) sSet.add(st.seriesName.trim());
+      });
+    }
+    if (existingComics && Array.isArray(existingComics)) {
+      existingComics.forEach((c) => {
+        if (c.seriesName && c.seriesName.trim()) sSet.add(c.seriesName.trim());
+        else if (c.title && c.title.trim()) sSet.add(c.title.trim());
+      });
+    }
+    return Array.from(sSet).sort((a, b) => a.localeCompare(b));
+  }, [seriesTotals, existingComics]);
+
   if (!isOpen) return null;
 
   // Apply cropped cover and optional local OCR results
@@ -140,11 +167,10 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
   // Format Auto-adjust thickness suggestion
   const handleFormatChange = (newFmt: ComicFormat) => {
     setFormat(newFmt);
-    if (newFmt === 'Single Issue') setSizeThickness(1.0);
-    else if (newFmt === 'Trade Paperback') setSizeThickness(3.5);
-    else if (newFmt === 'Hardcover') setSizeThickness(6.0);
-    else if (newFmt === 'Omnibus') setSizeThickness(12.0);
-    else if (newFmt === 'Graphic Novel') setSizeThickness(4.0);
+    const defaultThickness = FORMAT_DEFAULT_THICKNESS[newFmt];
+    if (defaultThickness !== undefined) {
+      setSizeThickness(defaultThickness);
+    }
   };
 
   // Action: Update existing comic record with new scanned/provided details
@@ -183,6 +209,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       publisher: publisher.trim() || duplicateMatch.publisher,
       publicationYear: publicationYear || duplicateMatch.publicationYear,
       publicationMonth: publicationMonth.trim() || duplicateMatch.publicationMonth,
+      seriesName: seriesName.trim() || duplicateMatch.seriesName,
       volume: volume.trim() || duplicateMatch.volume,
       event: event.trim() || duplicateMatch.event,
       genre: genre.trim() || duplicateMatch.genre,
@@ -225,10 +252,15 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
     const finalCopies = isWishlist ? 0 : (Number(copiesOwned) > 0 ? Number(copiesOwned) : 1);
     const finalBoxId = isWishlist ? 0 : Number(currentBoxId);
 
+    const cleanTitle = title.trim();
+    const cleanIssue = issueNumber.trim() || '1';
+
     const newComic: ComicBook = {
       id: `c-${Date.now()}`,
-      title: title.trim(),
-      issueNumber: issueNumber.trim() || '1',
+      title: cleanTitle,
+      issueNumber: cleanIssue,
+      fullTitle: `${cleanTitle} #${cleanIssue}`,
+      seriesName: seriesName.trim() || undefined,
       volume: volume.trim() || undefined,
       event: event.trim() || undefined,
       copiesOwned: finalCopies,
@@ -467,8 +499,25 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-indigo-700 dark:text-indigo-400 mb-1">Comic Series</label>
+                  <input
+                    type="text"
+                    list="add-comic-series-datalist"
+                    value={seriesName}
+                    onChange={(e) => setSeriesName(e.target.value)}
+                    placeholder="e.g. The Amazing Spider-Man (1963 - 1998)"
+                    className="w-full bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-800 rounded-lg px-3 py-2 text-xs text-indigo-950 dark:text-indigo-200 font-medium focus:outline-none focus:border-indigo-500"
+                  />
+                  <datalist id="add-comic-series-datalist">
+                    {availableSeriesOptions.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Comic Title *</label>
                   <input
                     type="text"
@@ -479,7 +528,9 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                   />
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Issue # *</label>
                   <input
@@ -488,12 +539,10 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                     value={issueNumber}
                     onChange={(e) => setIssueNumber(e.target.value)}
                     placeholder="300 or #1"
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Volume</label>
                   <input
@@ -632,43 +681,41 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {(['Single Issue', 'Trade Paperback', 'Hardcover', 'Omnibus', 'Graphic Novel'] as ComicFormat[]).map((fmt) => (
-                    <button
-                      key={fmt}
-                      type="button"
-                      onClick={() => handleFormatChange(fmt)}
-                      className={`p-2 rounded-lg text-xs font-semibold border transition-all text-left cursor-pointer ${
-                        format === fmt
-                          ? 'bg-slate-900 dark:bg-indigo-600 text-white border-slate-900 dark:border-indigo-600'
-                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      }`}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Media Format
+                    </label>
+                    <select
+                      value={format}
+                      onChange={(e) => handleFormatChange(e.target.value as ComicFormat)}
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                     >
-                      <div>{fmt}</div>
-                      <div className={`text-[10px] font-normal ${format === fmt ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
-                        {fmt === 'Single Issue' && '1.0 unit'}
-                        {fmt === 'Trade Paperback' && '~3.5 units'}
-                        {fmt === 'Hardcover' && '~6.0 units'}
-                        {fmt === 'Omnibus' && '~12.0 units'}
-                        {fmt === 'Graphic Novel' && '~4.0 units'}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      {COMIC_FORMATS.map((fmt) => (
+                        <option key={fmt} value={fmt}>
+                          {fmt} ({FORMAT_DEFAULT_THICKNESS[fmt] ?? 1.0}x)
+                        </option>
+                      ))}
+                      {format === 'Hardcover' && (
+                        <option value="Hardcover">Hardcover (Legacy 5.0x)</option>
+                      )}
+                    </select>
+                  </div>
 
-                <div className="flex items-center gap-3 pt-2">
-                  <label className="text-xs text-slate-600 dark:text-slate-400 shrink-0 font-medium">
-                    Custom Size Thickness Multiplier:
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    max="25"
-                    value={sizeThickness}
-                    onChange={(e) => setSizeThickness(parseFloat(e.target.value) || 1.0)}
-                    className="w-24 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-slate-100 font-bold"
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Thickness Multiplier (Units)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="25"
+                      value={sizeThickness}
+                      onChange={(e) => setSizeThickness(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -704,14 +751,9 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                     onChange={(e) => setCondition(e.target.value as ComicCondition)}
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                   >
-                    <option value="Gem Mint">Gem Mint</option>
-                    <option value="Near Mint">Near Mint</option>
-                    <option value="Very Fine">Very Fine</option>
-                    <option value="Fine">Fine</option>
-                    <option value="Very Good">Very Good</option>
-                    <option value="Good">Good</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Poor">Poor</option>
+                    {COMIC_CONDITIONS.map((cnd) => (
+                      <option key={cnd} value={cnd}>{cnd}</option>
+                    ))}
                   </select>
                 </div>
 

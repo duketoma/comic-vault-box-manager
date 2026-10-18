@@ -1,5 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ComicBook, SeriesIssueTotal, StorageBox, CREATOR_ROLES, CreatorContribution, CharacterAppearance } from '../types';
+import { 
+  ComicBook, 
+  SeriesIssueTotal, 
+  StorageBox, 
+  CREATOR_ROLES, 
+  CreatorContribution, 
+  CharacterAppearance,
+  ComicFormat,
+  ComicCondition,
+  COMIC_FORMATS,
+  FORMAT_DEFAULT_THICKNESS,
+  COMIC_CONDITIONS
+} from '../types';
 import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
@@ -85,6 +97,17 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [showFullArtModal, setShowFullArtModal] = useState(false);
   const [heroViewMode, setHeroViewMode] = useState<'front' | 'full'>('front');
   const [volume, setVolume] = useState(comic?.volume || '');
+  const [seriesName, setSeriesName] = useState(comic?.seriesName || '');
+  const [condition, setCondition] = useState<ComicCondition>(comic?.condition || 'Near Mint');
+  const [format, setFormat] = useState<ComicFormat>(comic?.format || 'Single Issue');
+  const [purchasePrice, setPurchasePrice] = useState<string>(
+    comic?.purchasePrice !== undefined && comic?.purchasePrice !== null ? String(comic.purchasePrice) : ''
+  );
+  const [estimatedValue, setEstimatedValue] = useState<string>(
+    comic?.estimatedValue !== undefined && comic?.estimatedValue !== null ? String(comic.estimatedValue) : ''
+  );
+  const [tags, setTags] = useState<string[]>(Array.isArray(comic?.tags) ? [...comic.tags] : []);
+  const [newTagInput, setNewTagInput] = useState('');
   const [event, setEvent] = useState(comic?.event || '');
   const [publicationYear, setPublicationYear] = useState<number>(comic?.publicationYear || 0);
   const [publicationMonth, setPublicationMonth] = useState<string>(comic?.publicationMonth || '');
@@ -119,6 +142,17 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setCoverImageFull(comic.coverImageFull || '');
     setHeroViewMode('front');
     setVolume(comic.volume || '');
+    setSeriesName(comic.seriesName || '');
+    setCondition(comic.condition || 'Near Mint');
+    setFormat(comic.format || 'Single Issue');
+    setPurchasePrice(
+      comic.purchasePrice !== undefined && comic.purchasePrice !== null ? String(comic.purchasePrice) : ''
+    );
+    setEstimatedValue(
+      comic.estimatedValue !== undefined && comic.estimatedValue !== null ? String(comic.estimatedValue) : ''
+    );
+    setTags(Array.isArray(comic.tags) ? [...comic.tags] : []);
+    setNewTagInput('');
     setEvent(comic.event || '');
     setPublicationYear(comic.publicationYear || 0);
     setPublicationMonth(comic.publicationMonth || '');
@@ -203,6 +237,41 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     [comic, seriesTotals, allComics]
   );
 
+  const availableSeriesOptions = useMemo(() => {
+    const sSet = new Set<string>();
+    if (seriesTotals && Array.isArray(seriesTotals)) {
+      seriesTotals.forEach((st) => {
+        if (st.seriesName && st.seriesName.trim()) sSet.add(st.seriesName.trim());
+      });
+    }
+    if (allComics && Array.isArray(allComics)) {
+      allComics.forEach((c) => {
+        if (c.seriesName && c.seriesName.trim()) sSet.add(c.seriesName.trim());
+        else if (c.title && c.title.trim()) sSet.add(c.title.trim());
+      });
+    }
+    return Array.from(sSet).sort((a, b) => a.localeCompare(b));
+  }, [seriesTotals, allComics]);
+
+  const allExistingTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    if (allComics && Array.isArray(allComics)) {
+      allComics.forEach((c) => {
+        if (Array.isArray(c.tags)) {
+          c.tags.forEach((t) => {
+            if (t && t.trim()) tagSet.add(t.trim());
+          });
+        }
+      });
+    }
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+  }, [allComics]);
+
+  const suggestedTags = useMemo(() => {
+    const currentTagSet = new Set(tags.map((t) => t.toLowerCase()));
+    return allExistingTags.filter((t) => !currentTagSet.has(t.toLowerCase()));
+  }, [allExistingTags, tags]);
+
   if (!comic) return null;
 
   const currentBox = boxes.find((b) => b.id === comic.currentBoxId);
@@ -253,6 +322,32 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     }
   };
 
+  const handleFormatChange = (newFmt: ComicFormat) => {
+    setFormat(newFmt);
+    const defaultThickness = FORMAT_DEFAULT_THICKNESS[newFmt];
+    if (defaultThickness !== undefined) {
+      setThickness(defaultThickness);
+    }
+  };
+
+  const handleAddTag = (rawTag?: string) => {
+    const candidate = (rawTag !== undefined ? rawTag : newTagInput).trim().replace(/^#/, '');
+    if (!candidate) return;
+    const splitTags = candidate.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
+    const nextTags = [...tags];
+    splitTags.forEach((t) => {
+      if (!nextTags.some((existing) => existing.toLowerCase() === t.toLowerCase())) {
+        nextTags.push(t);
+      }
+    });
+    setTags(nextTags);
+    setNewTagInput('');
+  };
+
+  const handleRemoveTag = (index: number) => {
+    setTags(tags.filter((_, i) => i !== index));
+  };
+
   const handleSaveQuickEdits = () => {
     // Derive primary writer and artist for backwards compatibility
     const writerContrib = contributions.find((c) => c.roleName.toLowerCase() === 'writer');
@@ -262,14 +357,27 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     const cleanIssue = issueNumber.trim() || comic.issueNumber;
     const cleanFullTitle = `${cleanTitle} #${cleanIssue}`;
 
+    const parsedPurchasePrice = purchasePrice.trim() !== '' && !isNaN(Number(purchasePrice))
+      ? Number(parseFloat(purchasePrice).toFixed(2))
+      : undefined;
+    const parsedEstimatedValue = estimatedValue.trim() !== '' && !isNaN(Number(estimatedValue))
+      ? Number(parseFloat(estimatedValue).toFixed(2))
+      : undefined;
+
     onUpdateComic({
       ...comic,
       title: cleanTitle,
       issueNumber: cleanIssue,
       fullTitle: cleanFullTitle,
+      seriesName: seriesName.trim() || undefined,
       readingStatus,
       userRating: userRating || undefined,
       currentBoxId: Number(boxId),
+      condition,
+      format,
+      purchasePrice: parsedPurchasePrice,
+      estimatedValue: parsedEstimatedValue,
+      tags,
       notes,
       sizeThickness: Number(thickness),
       coverImage: coverImage.trim() || 'NoImage.png',
@@ -657,9 +765,27 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             </div>
 
             {/* Extended Edit Controls: Title, Issue #, Volume, Event, Year, Month, Copies Owned */}
+            {/* Extended Edit Controls: Series, Title, Issue #, Volume, Event, Year, Month, Copies Owned */}
             {isEditing && (
               <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-indigo-700 dark:text-indigo-400 mb-1">Comic Series</label>
+                    <input
+                      type="text"
+                      list="comic-series-datalist"
+                      value={seriesName}
+                      onChange={(e) => setSeriesName(e.target.value)}
+                      placeholder="e.g. The Amazing Spider-Man (1963 - 1998)"
+                      className="w-full bg-white dark:bg-slate-900 border border-indigo-300 dark:border-indigo-800 rounded-lg px-2.5 py-1.5 text-xs text-indigo-950 dark:text-indigo-200 font-medium"
+                    />
+                    <datalist id="comic-series-datalist">
+                      {availableSeriesOptions.map((s) => (
+                        <option key={s} value={s} />
+                      ))}
+                    </datalist>
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Comic Title</label>
                     <input
@@ -670,7 +796,9 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Issue #</label>
                     <input
@@ -681,9 +809,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-bold"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Volume</label>
                     <input
@@ -705,7 +831,9 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       className="w-full bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-800 rounded-lg px-2.5 py-1.5 text-xs text-purple-900 dark:text-purple-300 font-medium"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-amber-800 dark:text-amber-400 mb-1">Copies Owned</label>
                     <input
@@ -716,9 +844,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-lg px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-300 font-bold"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Pub Year</label>
                     <input
@@ -1070,43 +1196,200 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           )}
 
           {/* Metadata Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-            <div>
-              <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Condition</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition || 'Near Mint'}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Format</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format || 'Single Issue'}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Purchase Price</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                {comic.purchasePrice ? `$${comic.purchasePrice.toFixed(2)}` : 'N/A'}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Est. Market Value</span>
-              <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                {comic.estimatedValue ? `$${comic.estimatedValue.toFixed(2)}` : 'N/A'}
-              </span>
-            </div>
+          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+            {isEditing ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
+                    Condition
+                  </label>
+                  <select
+                    value={condition}
+                    onChange={(e) => setCondition(e.target.value as ComicCondition)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-semibold"
+                  >
+                    {COMIC_CONDITIONS.map((cnd) => (
+                      <option key={cnd} value={cnd}>
+                        {cnd}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1 flex items-center justify-between">
+                    <span>Format</span>
+                    <span className="text-[9px] text-slate-400 font-normal">({thickness.toFixed(1)}x)</span>
+                  </label>
+                  <select
+                    value={format}
+                    onChange={(e) => handleFormatChange(e.target.value as ComicFormat)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-semibold"
+                  >
+                    {COMIC_FORMATS.map((fmt) => (
+                      <option key={fmt} value={fmt}>
+                        {fmt} ({FORMAT_DEFAULT_THICKNESS[fmt] ?? 1.0}x)
+                      </option>
+                    ))}
+                    {format === 'Hardcover' && (
+                      <option value="Hardcover">Hardcover (Legacy 5.0x)</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
+                    Purchase Price
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400 text-xs pointer-events-none font-bold">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={purchasePrice}
+                      onChange={(e) => setPurchasePrice(e.target.value)}
+                      className="w-full pl-6 pr-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-100 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-emerald-700 dark:text-emerald-400 block text-[10px] font-bold mb-1">
+                    Est. Market Value
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-emerald-600 dark:text-emerald-400 text-xs pointer-events-none font-bold">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={estimatedValue}
+                      onChange={(e) => setEstimatedValue(e.target.value)}
+                      className="w-full pl-6 pr-2.5 py-1.5 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800/80 rounded-lg text-xs text-emerald-700 dark:text-emerald-400 font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Condition</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition || 'Near Mint'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Format</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format || 'Single Issue'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Purchase Price</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {comic.purchasePrice ? `$${comic.purchasePrice.toFixed(2)}` : 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Est. Market Value</span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                    {comic.estimatedValue ? `$${comic.estimatedValue.toFixed(2)}` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Tags */}
-          {(comic.tags || []).length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Tags:</span>
-              {(comic.tags || []).map((t) => (
-                <span
-                  key={t}
-                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] border border-slate-200 dark:border-slate-700"
-                >
-                  #{t}
-                </span>
-              ))}
+          {/* Tags Section */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Tags {isEditing && `(${tags.length})`}</span>
+              </span>
             </div>
-          )}
+
+            {isEditing ? (
+              <div className="space-y-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 p-3 rounded-xl">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {tags.map((t, idx) => (
+                    <span
+                      key={t + idx}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 text-xs border border-indigo-200 dark:border-indigo-800 font-semibold"
+                    >
+                      <span>#{t}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(idx)}
+                        className="text-indigo-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer"
+                        title={`Remove #${t}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+
+                  <div className="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                    <input
+                      type="text"
+                      value={newTagInput}
+                      onChange={(e) => setNewTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      placeholder="Type tag and press Enter..."
+                      className="w-full px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddTag()}
+                      disabled={!newTagInput.trim()}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-lg text-xs font-semibold cursor-pointer shrink-0"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {suggestedTags.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-semibold text-[10px] text-slate-400">Suggestions:</span>
+                    {suggestedTags.slice(0, 8).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => handleAddTag(st)}
+                        className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[11px]"
+                      >
+                        +{st}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              (comic.tags || []).length > 0 ? (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(comic.tags || []).map((t) => (
+                    <span
+                      key={t}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] border border-slate-200 dark:border-slate-700 font-medium"
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 dark:text-slate-500 italic">No tags assigned.</p>
+              )
+            )}
+          </div>
 
         </div>
         {/* End of Modal Main Content */}

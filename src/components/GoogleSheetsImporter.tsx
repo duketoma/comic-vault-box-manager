@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ComicBook, StorageBox, ReadingStatus } from '../types';
+import { ComicBook, StorageBox, ReadingStatus, ComicFormat, COMIC_FORMATS } from '../types';
 import { getAccessToken } from '../services/auth';
 import { parseTitleAndIssue } from '../utils/titleParser';
 import { parseYearAndMonth } from '../utils/dateUtils';
@@ -627,7 +627,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       creatorContributions: [],
       characterAppearances: [],
       coverImage: imgIdx >= 0 && row[imgIdx] ? String(row[imgIdx]).trim() : 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing',
-      format: ['Single Issue', 'Trade Paperback', 'Hardcover', 'Omnibus', 'Graphic Novel'].includes(formatVal) ? formatVal : 'Single Issue',
+      format: (COMIC_FORMATS as readonly string[]).includes(formatVal) || formatVal === 'Hardcover' ? (formatVal as ComicFormat) : 'Single Issue',
       sizeThickness: thicknessVal > 0 ? thicknessVal : 1.0,
       currentBoxId: boxVal >= 0 ? boxVal : 0,
       proposedBoxId: proposedBoxVal !== undefined ? proposedBoxVal : (isWishlist ? undefined : (boxVal >= 0 ? boxVal : 0)),

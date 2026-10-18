@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { ComicBook, StorageBox, SeriesIssueTotal } from '../types';
+import { ComicBook, StorageBox, SeriesIssueTotal, COMIC_FORMATS } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, getMonthIndex, MONTH_NAMES } from '../utils/dateUtils';
@@ -763,7 +763,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         </div>
 
         {/* Filter Controls Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-3 pt-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 pt-3">
           
           {/* Series Run */}
           <div>
@@ -910,6 +910,22 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
               <option value="Reading">Currently Reading</option>
               <option value="Unread">Unread</option>
               <option value="Wishlist">Wishlist</option>
+            </select>
+          </div>
+
+          {/* Media Format */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Format</label>
+            <select
+              value={selectedFormat}
+              onChange={(e) => setSelectedFormat(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600"
+            >
+              <option value="all">All Formats</option>
+              {COMIC_FORMATS.map((fmt) => (
+                <option key={fmt} value={fmt}>{fmt}</option>
+              ))}
+              <option value="Hardcover">Hardcover (Legacy)</option>
             </select>
           </div>
 
