@@ -130,8 +130,11 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     return Array.from(eventSet).sort((a, b) => a.localeCompare(b));
   }, [comics]);
 
-  // Fallback default event options if collection doesn't have many custom events
+  // Fallback default event options only if collection doesn't have any custom events
   const defaultEventOptions = useMemo(() => {
+    if (allEventsList.length > 0) {
+      return allEventsList;
+    }
     const defaultList = [
       'Secret Wars Era',
       'X-Tinction Agenda',
@@ -143,8 +146,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
       'Flashpoint',
       'The Long Halloween'
     ];
-    const combined = new Set([...allEventsList, ...defaultList]);
-    return Array.from(combined).sort((a, b) => a.localeCompare(b));
+    return [...defaultList].sort((a, b) => a.localeCompare(b));
   }, [allEventsList]);
 
   // Selected Event Filtered Comics
@@ -862,7 +864,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 shadow-xs transition-all min-w-[200px]"
                 >
                   <option value="all">🌐 All Crossover Events ({allEventsComparisonData.length})</option>
-                  <optgroup label="Events in Your Collection">
+                  <optgroup label={allEventsList.length > 0 ? "Events in Your Collection" : "Suggested Events"}>
                     {defaultEventOptions.map((evt) => (
                       <option key={evt} value={evt}>
                         ⚡ {evt}
