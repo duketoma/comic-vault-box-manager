@@ -63,6 +63,21 @@ test.describe('Wishlist In-Store Shopping Priority Feature', () => {
     await expect(page.locator('text=Silver Surfer').first()).toBeVisible();
   });
 
+  test('Gap Filling sorting displays Full Bridge (+100) items at top', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Wishlist Hunter/i }).click();
+    await expect(page.getByRole('heading', { name: 'Top 60 Wishlist Hunt List' })).toBeVisible({ timeout: 15000 });
+
+    // Select Gap Filling (Full Bridges) sort option
+    const sortSelect = page.locator('select').filter({ hasText: 'Gap Filling' });
+    await sortSelect.selectOption('gap');
+
+    // First card should have Full Bridge (+100)
+    const firstCard = page.locator('.grid.grid-cols-1.md\\:grid-cols-2.xl\\:grid-cols-3 > div').first();
+    await expect(firstCard).toBeVisible();
+    await expect(firstCard.getByText('Full Bridge (+100)')).toBeVisible();
+  });
+
   test('Interactive selection and Mark Purchased commits to collection', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: /Wishlist Hunter/i }).click();
