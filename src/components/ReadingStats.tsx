@@ -749,93 +749,84 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
       </div>
 
       {/* Analytics Sub-Tab Bar */}
-      <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl flex items-center justify-between gap-2 overflow-x-auto border border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-1.5 min-w-max">
-          
-          <button
-            onClick={() => setActiveStatsTab('events')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeStatsTab === 'events'
-                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>Event Status Graph</span>
-            {allEventsList.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'events' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-                {allEventsList.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveStatsTab('series')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeStatsTab === 'series'
-                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4 text-indigo-400" />
-            <span>Comic Titles / Series Graph</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'series' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-              {seriesSummary.length}
+      <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-none sm:flex-wrap border border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setActiveStatsTab('events')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+            activeStatsTab === 'events'
+              ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>Event Status</span>
+          {allEventsList.length > 0 && (
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'events' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+              {allEventsList.length}
             </span>
-          </button>
+          )}
+        </button>
 
-          <button
-            onClick={() => setActiveStatsTab('creators')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeStatsTab === 'creators'
-                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
-            <Palette className="w-4 h-4 text-violet-400" />
-            <span>Creators & Roles Breakdown</span>
-            {creatorList.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'creators' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-                {creatorList.length}
-              </span>
-            )}
-            {pencillersWhoWroteList.length > 0 && (
-              <span className="text-[9px] px-1.5 py-0.2 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-300 font-bold rounded-full">
-                {pencillersWhoWroteList.length} 🎨✍️
-              </span>
-            )}
-          </button>
+        <button
+          onClick={() => setActiveStatsTab('series')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+            activeStatsTab === 'series'
+              ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span>Titles & Series</span>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'series' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+            {seriesSummary.length}
+          </span>
+        </button>
 
-          <button
-            onClick={() => setActiveStatsTab('achievements')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeStatsTab === 'achievements'
-                ? 'bg-gradient-to-r from-amber-600 to-purple-700 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
-            <Trophy className="w-4 h-4 text-amber-300" />
-            <span>100% Completion Achievements</span>
-            {completedSeriesBadges.length > 0 && (
-              <span className="text-[10px] px-2 py-0.2 bg-amber-400 text-amber-950 font-black rounded-full shadow-xs">
-                {completedSeriesBadges.length} 🏆
-              </span>
-            )}
-          </button>
+        <button
+          onClick={() => setActiveStatsTab('creators')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+            activeStatsTab === 'creators'
+              ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Palette className="w-4 h-4 text-violet-400 shrink-0" />
+          <span>Creators & Roles</span>
+          {creatorList.length > 0 && (
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'creators' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+              {creatorList.length}
+            </span>
+          )}
+        </button>
 
-          <button
-            onClick={() => setActiveStatsTab('general')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeStatsTab === 'general'
-                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
-            <Boxes className="w-4 h-4 text-emerald-400" />
-            <span>Box Capacity & General</span>
-          </button>
+        <button
+          onClick={() => setActiveStatsTab('achievements')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+            activeStatsTab === 'achievements'
+              ? 'bg-gradient-to-r from-amber-600 to-purple-700 text-white shadow-sm'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Trophy className="w-4 h-4 text-amber-300 shrink-0" />
+          <span>Achievements</span>
+          {completedSeriesBadges.length > 0 && (
+            <span className="text-[10px] px-2 py-0.2 bg-amber-400 text-amber-950 font-black rounded-full shadow-xs">
+              {completedSeriesBadges.length} 🏆
+            </span>
+          )}
+        </button>
 
-        </div>
+        <button
+          onClick={() => setActiveStatsTab('general')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+            activeStatsTab === 'general'
+              ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Boxes className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>Box Capacity</span>
+        </button>
       </div>
 
       {/* ========================================================================= */}
@@ -1191,7 +1182,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
 
           {/* Filter & Search Bar for Series */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
               <button
                 onClick={() => setSeriesRunFilter('all')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
