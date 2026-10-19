@@ -280,11 +280,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2 pb-2 overflow-x-auto scrollbar-none">
-          <nav className="flex items-center gap-1">
+        <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2 pb-2 gap-2 sm:gap-4 min-w-0">
+          <nav className="flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0 py-0.5">
             <button
               onClick={() => setActiveTab('catalog')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'catalog'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -296,7 +296,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('shopping')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'shopping'
                   ? 'bg-rose-700 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-rose-600 dark:hover:text-rose-400'
@@ -319,7 +319,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('boxes')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'boxes'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -331,7 +331,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('challenge')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'challenge'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -343,7 +343,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('stats')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'stats'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -355,7 +355,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('sheets')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'sheets'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -367,7 +367,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('database')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'database'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -379,13 +379,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Quick Stats Pill */}
-          <div className="hidden lg:flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0 pl-4 border-l border-slate-200 dark:border-slate-800">
-            <div>
-              Total Titles: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalComicsCount}</span>
+          <div className="hidden lg:flex items-center gap-2.5 text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0 pl-3 border-l border-slate-200 dark:border-slate-800">
+            <div className="whitespace-nowrap">
+              <span className="hidden xl:inline">Total </span>Titles: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalComicsCount}</span>
             </div>
             <div className="text-slate-300 dark:text-slate-700">•</div>
-            <div>
-              Issue Equivalents: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalThicknessUnits.toFixed(1)} units</span>
+            <div className="whitespace-nowrap">
+              <span className="hidden xl:inline">Issue </span>Units: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalThicknessUnits.toFixed(1)}</span>
             </div>
             {fullRunsCount !== undefined && totalRunsCount !== undefined && (
               <>
@@ -393,11 +393,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onNavigateToStats}
-                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-bold text-xs transition-colors cursor-pointer"
-                  title="Click to view Series Run Completion tracking in Stats"
+                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-bold text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+                  title={`${fullRunsCount} of ${totalRunsCount} series runs 100% complete (${totalRunsCount > 0 ? Math.round((fullRunsCount / totalRunsCount) * 100) : 0}%) — Click to view Series Run Completion tracking in Stats`}
                 >
-                  <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                  <span>Runs: <strong>{fullRunsCount}</strong> of <strong>{totalRunsCount}</strong> 100% ({totalRunsCount > 0 ? Math.round((fullRunsCount / totalRunsCount) * 100) : 0}%)</span>
+                  <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Runs</span>
+                  <span className="text-amber-700 dark:text-amber-300 font-bold">
+                    <span className="hidden xl:inline">: </span><strong>{fullRunsCount}</strong><span className="hidden xl:inline">/{totalRunsCount}</span>
+                  </span>
                 </button>
               </>
             )}

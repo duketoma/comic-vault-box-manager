@@ -1633,7 +1633,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   </th>
                   <th
                     onClick={(e) => handleColumnHeaderClick('format', e.shiftKey)}
-                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                     title="Click to sort by Format. Shift+click to add to multi-sort."
                   >
                     <div className="flex items-center gap-1">
@@ -1643,7 +1643,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   </th>
                   <th
                     onClick={(e) => handleColumnHeaderClick('sizeThickness', e.shiftKey)}
-                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                     title="Click to sort by Size Thickness. Shift+click to add to multi-sort."
                   >
                     <div className="flex items-center gap-1">
@@ -1653,7 +1653,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   </th>
                   <th
                     onClick={(e) => handleColumnHeaderClick('currentBoxId', e.shiftKey)}
-                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                     title="Click to sort by Storage Box. Shift+click to add to multi-sort."
                   >
                     <div className="flex items-center gap-1">
@@ -1795,27 +1795,33 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                         </div>
                       )}
                     </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px]">
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] whitespace-nowrap inline-block">
                         {comic.format}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                    <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                       {comic.sizeThickness.toFixed(1)}x
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       {comic.currentBoxId === 0 ? (
                         comic.readingStatus === 'Wishlist' ? (
-                          <span className="px-2 py-1 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold">
-                            Wishlist (Unassigned)
+                          <span
+                            className="px-2 py-1 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold whitespace-nowrap inline-block"
+                            title="Wishlist (Unassigned)"
+                          >
+                            Wishlist
                           </span>
                         ) : (
-                          <span className="px-2 py-1 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold">
+                          <span
+                            className="px-2 py-1 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold whitespace-nowrap inline-block"
+                            title="Box 0 (Unallocated)"
+                          >
                             Box 0 (Unallocated)
                           </span>
                         )
                       ) : (
-                        <span className="px-2 py-1 rounded bg-slate-900 dark:bg-slate-800 text-white text-[11px] font-semibold border dark:border-slate-700">
+                        <span className="px-2 py-1 rounded bg-slate-900 dark:bg-slate-800 text-white text-[11px] font-semibold border dark:border-slate-700 whitespace-nowrap inline-block">
                           Box #{comic.currentBoxId}
                         </span>
                       )}
