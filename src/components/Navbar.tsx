@@ -397,9 +397,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title={`${fullRunsCount} of ${totalRunsCount} series runs 100% complete (${totalRunsCount > 0 ? Math.round((fullRunsCount / totalRunsCount) * 100) : 0}%) — Click to view Series Run Completion tracking in Stats`}
                 >
                   <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Runs</span>
+                  <span>Runs<span className="hidden xl:inline">:</span></span>
                   <span className="text-amber-700 dark:text-amber-300 font-bold">
-                    <span className="hidden xl:inline">: </span><strong>{fullRunsCount}</strong><span className="hidden xl:inline">/{totalRunsCount}</span>
+                    <strong>{fullRunsCount}</strong><span className="hidden xl:inline">/{totalRunsCount}</span>
                   </span>
                 </button>
               </>

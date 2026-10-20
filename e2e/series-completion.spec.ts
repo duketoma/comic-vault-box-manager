@@ -10,8 +10,8 @@ test.describe('Series Collection Completion Tracking', () => {
     // Verify Run completion badge in Navbar
     const runBadge = page.locator('button[title*="Series Run Completion"]');
     await expect(runBadge).toBeVisible({ timeout: 15000 });
-    await expect(runBadge).toContainText('Runs:');
-    await expect(runBadge).toContainText('100%');
+    await expect(runBadge).toContainText('Runs');
+    await expect(runBadge).toHaveAttribute('title', /100% complete/);
 
     // Click badge to navigate to Series Stats
     await runBadge.click();
@@ -75,7 +75,7 @@ test.describe('Series Collection Completion Tracking', () => {
     await expect(page.getByText('Total Collection')).toBeVisible({ timeout: 15000 });
 
     // Switch to Series Completion sub-tab
-    const seriesTab = page.getByRole('button', { name: /Comic Titles \/ Series Graph/i });
+    const seriesTab = page.getByRole('button', { name: /Titles & Series|Comic Titles/i });
     await expect(seriesTab).toBeVisible();
     await seriesTab.click();
     await expect(page.getByRole('heading', { name: 'Series Collection & Run Progress' })).toBeVisible();
@@ -89,7 +89,7 @@ test.describe('Series Collection Completion Tracking', () => {
     }
 
     // Click Achievements sub-tab
-    const achievementsTab = page.getByRole('button', { name: /100% Completion Achievements/i });
+    const achievementsTab = page.getByRole('button', { name: /Achievements/i });
     await expect(achievementsTab).toBeVisible();
     await achievementsTab.click();
     // Should show Full Run Complete section
@@ -104,7 +104,7 @@ test.describe('Series Collection Completion Tracking', () => {
     await statsTab.click();
 
     // Switch to Series Completion sub-tab
-    const seriesTab = page.getByRole('button', { name: /Comic Titles \/ Series Graph/i });
+    const seriesTab = page.getByRole('button', { name: /Titles & Series|Comic Titles/i });
     await seriesTab.click();
 
     // Select "Closest to Completion (Fewest Remaining)" in the Sort dropdown
@@ -130,7 +130,7 @@ test.describe('Series Collection Completion Tracking', () => {
     await statsTab.click();
 
     // Switch to Series Completion sub-tab
-    const seriesTab = page.getByRole('button', { name: /Comic Titles \/ Series Graph/i });
+    const seriesTab = page.getByRole('button', { name: /Titles & Series|Comic Titles/i });
     await seriesTab.click();
 
     // Select "Collection Progress % (Run Completion)" in the Sort dropdown

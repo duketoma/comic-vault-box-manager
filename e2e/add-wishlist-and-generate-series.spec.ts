@@ -32,7 +32,7 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
 
     // Wait for the app and collection to load from database
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
+    await expect(page.getByRole('button', { name: /Runs:?\s*[1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Open Add Comic modal
     const addComicBtn = page.getByRole('button', { name: 'Add Comic' });
@@ -110,7 +110,7 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
 
     // Wait for the app and collection to load
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
+    await expect(page.getByRole('button', { name: /Runs:?\s*[1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Navigate to Catalog
     const catalogTab = page.getByRole('button', { name: /Catalog/i }).first();
@@ -167,7 +167,7 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: /Runs: [1-9]/i })).toBeVisible({ timeout: 45000 });
+    await expect(page.getByRole('button', { name: /Runs:?\s*[1-9]/i })).toBeVisible({ timeout: 45000 });
 
     // Open Add Comic modal
     const addComicBtn = page.getByRole('button', { name: 'Add Comic' });
