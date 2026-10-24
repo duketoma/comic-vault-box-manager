@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
-import { MONTH_NAMES } from '../utils/dateUtils';
+import { MONTH_NAMES, formatIsoComicDate } from '../utils/dateUtils';
 import { CoverScannerCropper } from './CoverScannerCropper';
 import { CoverOcrResult } from '../utils/coverOcrService';
 import { 
@@ -209,6 +209,11 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       publisher: publisher.trim() || duplicateMatch.publisher,
       publicationYear: publicationYear || duplicateMatch.publicationYear,
       publicationMonth: publicationMonth.trim() || duplicateMatch.publicationMonth,
+      publicationDate: formatIsoComicDate(
+        publicationYear || duplicateMatch.publicationYear,
+        publicationMonth.trim() || duplicateMatch.publicationMonth,
+        duplicateMatch.publicationDate
+      ),
       seriesName: seriesName.trim() || duplicateMatch.seriesName,
       volume: volume.trim() || duplicateMatch.volume,
       event: event.trim() || duplicateMatch.event,
@@ -267,6 +272,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       publisher: publisher.trim() || 'Marvel Comics',
       publicationYear: publicationYear || new Date().getFullYear(),
       publicationMonth: publicationMonth.trim() || undefined,
+      publicationDate: formatIsoComicDate(publicationYear || new Date().getFullYear(), publicationMonth.trim() || undefined),
       genre: genre.trim() || 'Superhero',
       writer: writer.trim(),
       artist: artist.trim(),

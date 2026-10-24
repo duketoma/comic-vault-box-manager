@@ -4,7 +4,7 @@ import {
   ReadingChallengeCriteria,
 } from '../types/readingChallenge.types';
 import { parseIssueNumber } from './comicSortUtils';
-import { MONTH_NAMES } from './dateUtils';
+import { MONTH_NAMES, getNormalizedComicDate } from './dateUtils';
 import { splitCreatorNames, isWritingRole, isArtRole } from './creatorParser';
 
 const MONTH_INDEX_MAP: Record<string, number> = {};
@@ -21,46 +21,11 @@ export function getNormalizedReleaseDate(comic: Partial<ComicBook>): {
   dateStr: string | null;
   sortValue: number;
 } {
-  // 1. If explicit publicationDate is present and valid
-  if (comic.publicationDate && comic.publicationDate.trim()) {
-    const raw = comic.publicationDate.trim();
-    // YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-      const parts = raw.split('-').map(Number);
-      return { dateStr: raw, sortValue: parts[0] * 10000 + parts[1] * 100 + parts[2] };
-    }
-    // YYYY-MM
-    if (/^\d{4}-\d{2}$/.test(raw)) {
-      const parts = raw.split('-').map(Number);
-      return { dateStr: `${raw}-01`, sortValue: parts[0] * 10000 + parts[1] * 100 + 1 };
-    }
-    // Check if it parses as Date
-    const parsed = new Date(raw);
-    if (!isNaN(parsed.getTime())) {
-      const y = parsed.getFullYear();
-      const m = parsed.getMonth() + 1;
-      const d = parsed.getDate();
-      const padM = String(m).padStart(2, '0');
-      const padD = String(d).padStart(2, '0');
-      return { dateStr: `${y}-${padM}-${padD}`, sortValue: y * 10000 + m * 100 + d };
-    }
+  const norm = getNormalizedComicDate(comic);
+  if (!norm.isoDate || norm.year === 0) {
+    return { dateStr: null, sortValue: Number.MAX_SAFE_INTEGER };
   }
-
-  // 2. Derive from publicationYear and publicationMonth
-  if (comic.publicationYear && comic.publicationYear > 1900 && comic.publicationYear < 2100) {
-    const y = comic.publicationYear;
-    let m = 1;
-    if (comic.publicationMonth) {
-      const cleanMonth = comic.publicationMonth.trim().toLowerCase();
-      if (MONTH_INDEX_MAP[cleanMonth]) {
-        m = MONTH_INDEX_MAP[cleanMonth];
-      }
-    }
-    const padM = String(m).padStart(2, '0');
-    return { dateStr: `${y}-${padM}-01`, sortValue: y * 10000 + m * 100 + 1 };
-  }
-
-  return { dateStr: null, sortValue: Number.MAX_SAFE_INTEGER };
+  return { dateStr: norm.isoDate, sortValue: norm.sortKey };
 }
 
 /**

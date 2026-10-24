@@ -14,7 +14,7 @@ import {
 } from '../types';
 import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
-import { formatPublicationDate, MONTH_NAMES } from '../utils/dateUtils';
+import { formatPublicationDate, formatIsoComicDate, MONTH_NAMES } from '../utils/dateUtils';
 import { getComicSeriesInfo } from '../utils/seriesUtils';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { CoverScannerCropper } from './CoverScannerCropper';
@@ -386,6 +386,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       event: event.trim() || undefined,
       publicationYear: Number(publicationYear) || comic.publicationYear,
       publicationMonth: publicationMonth.trim() || undefined,
+      publicationDate: formatIsoComicDate(Number(publicationYear) || comic.publicationYear, publicationMonth.trim() || undefined, comic.publicationDate),
       copiesOwned: readingStatus === 'Wishlist' ? 0 : (Number(copiesOwned) >= 0 ? Number(copiesOwned) : 0),
       writer: writerContrib ? writerContrib.creatorName : comic.writer,
       artist: artistContrib ? artistContrib.creatorName : comic.artist,

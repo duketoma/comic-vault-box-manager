@@ -1,5 +1,6 @@
 import { ComicBook } from '../types';
 import { parseTitleAndIssue } from './titleParser';
+import { compareComicDates } from './dateUtils';
 
 export interface ParsedIssueNumber {
   prefix: string; // E.g. 'annual', 'tpb', 'special', etc.
@@ -349,10 +350,9 @@ export function compareComicsByTitleAndIssue(a: ComicBook, b: ComicBook): number
   const issueCmp = compareIssueNumbersWithAnnuals(a, b, true);
   if (issueCmp !== 0) return issueCmp;
 
-  // Tie-breakers: publication year
-  if (a.publicationYear && b.publicationYear && a.publicationYear !== b.publicationYear) {
-    return a.publicationYear - b.publicationYear;
-  }
+  // Tie-breakers: publication date / year
+  const dateCmp = compareComicDates(a, b);
+  if (dateCmp !== 0) return dateCmp;
 
   return (a.id || '').localeCompare(b.id || '');
 }
@@ -682,12 +682,7 @@ export function compareComicsByField(
       return 0;
     }
     case 'publicationYear': {
-      const yA = a.publicationYear || 0;
-      const yB = b.publicationYear || 0;
-      if (yA !== yB) return yA - yB;
-      const dateA = a.publicationDate || (a.publicationMonth ? `${yA}-${a.publicationMonth}` : '');
-      const dateB = b.publicationDate || (b.publicationMonth ? `${yB}-${b.publicationMonth}` : '');
-      return dateA.localeCompare(dateB);
+      return compareComicDates(a, b);
     }
     case 'currentBoxId': {
       const boxA = a.currentBoxId ?? 0;

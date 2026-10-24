@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'r
 import { ComicBook, StorageBox, SeriesIssueTotal, COMIC_FORMATS } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
-import { formatPublicationDate, getMonthIndex, MONTH_NAMES } from '../utils/dateUtils';
+import { formatPublicationDate, getMonthIndex, getNormalizedComicDate, MONTH_NAMES } from '../utils/dateUtils';
 import { 
   compareComicsByTitleAndIssue, 
   parseIntegerIssueNumber,
@@ -501,20 +501,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       if (onlyFullArt && !c.coverImageFull) return false;
       // Publication date range filter (if set)
       if (startDate || endDate) {
-        const pubIso = (() => {
-          if (c.publicationDate) {
-            const m = String(c.publicationDate).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
-            if (m) return `${m[1]}-${m[2]}-${m[3] || '01'}`;
-            const yOnly = String(c.publicationDate).match(/^(\d{4})$/);
-            if (yOnly) return `${yOnly[1]}-01-01`;
-          }
-          if (c.publicationYear) {
-            const monthNum = getMonthIndex(c.publicationMonth);
-            const mm = monthNum >= 1 ? String(monthNum).padStart(2,'0') : '01';
-            return `${c.publicationYear}-${mm}-01`;
-          }
-          return null;
-        })();
+        const pubIso = getNormalizedComicDate(c).isoDate;
         if (pubIso) {
           if (startDate && pubIso < startDate) return false;
           if (endDate && pubIso > endDate) return false;
