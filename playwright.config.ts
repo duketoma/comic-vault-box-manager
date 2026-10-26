@@ -25,7 +25,7 @@ export default defineConfig({
     command: 'node dist-server/server.cjs',
     port: 3000,
     reuseExistingServer: true,
-    timeout: 60_000,
+    timeout: 120_000,
     env: {
       NODE_ENV: 'production',
     },

@@ -111,23 +111,19 @@ function getSeriesSyncKey(item: SeriesIssueTotal): string {
 
 /**
  * Loads the complete local database snapshot from IndexedDB.
- * Automatically migrates existing localStorage data on first run.
+ * Automatically synchronizes existing localStorage data on startup.
  */
 export async function loadLocalSnapshot(): Promise<LocalDbSnapshot> {
   try {
     const db = await openLocalDb();
 
-    // Check if migration from localStorage is needed
-    const needsMigration = await new Promise<boolean>((resolve) => {
-      const tx = db.transaction([STORE_META], 'readonly');
-      const store = tx.objectStore(STORE_META);
-      const req = store.get('migratedFromLocalStorage');
-      req.onsuccess = () => resolve(!req.result?.value);
-      req.onerror = () => resolve(false);
-    });
-
-    if (needsMigration) {
-      await migrateFromLocalStorage(db);
+    // Check if localStorage has seeded comics (e.g. test runner or initial run)
+    const rawComics =
+      typeof window !== 'undefined' && window.localStorage
+        ? localStorage.getItem('comic_vault_comics')
+        : null;
+    if (rawComics) {
+      await syncFromLocalStorage(db);
     }
 
     return await readSnapshotFromDb(db);
@@ -137,7 +133,7 @@ export async function loadLocalSnapshot(): Promise<LocalDbSnapshot> {
   }
 }
 
-async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
+async function syncFromLocalStorage(db: IDBDatabase): Promise<void> {
   try {
     const rawComics = localStorage.getItem('comic_vault_comics');
     const rawBoxes = localStorage.getItem('comic_vault_boxes');
@@ -153,33 +149,43 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
     const seriesStore = tx.objectStore(STORE_SERIES_TOTALS);
     const metaStore = tx.objectStore(STORE_META);
 
-    for (const c of parsedComics) {
-      if (c && c.id && !isSampleComicId(c.id)) {
-        const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
-        comicStore.put(clean);
+    if (parsedComics.length > 0) {
+      comicStore.clear();
+      for (const c of parsedComics) {
+        if (c && c.id && !isSampleComicId(c.id)) {
+          const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
+          comicStore.put(clean);
+        }
       }
     }
 
-    for (const b of parsedBoxes) {
-      if (b && b.id) {
-        boxStore.put(b);
+    if (parsedBoxes.length > 0) {
+      for (const b of parsedBoxes) {
+        if (b && b.id) {
+          boxStore.put(b);
+        }
       }
     }
 
-    for (const s of parsedSeries) {
-      if (s && s.seriesName) {
-        seriesStore.put({ ...s, syncKey: getSeriesSyncKey(s) });
+    if (parsedSeries.length > 0) {
+      for (const s of parsedSeries) {
+        if (s && s.seriesName) {
+          seriesStore.put({ ...s, syncKey: getSeriesSyncKey(s) });
+        }
       }
     }
 
     metaStore.put({ key: 'migratedFromLocalStorage', value: true });
+    if (parsedComics.length > 0) {
+      metaStore.put({ key: 'lastSyncAt', value: new Date().toISOString() });
+    }
 
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   } catch (err) {
-    console.warn('Migration from localStorage to IndexedDB warning:', err);
+    console.warn('Sync from localStorage to IndexedDB warning:', err);
   }
 }
 
@@ -216,6 +222,17 @@ async function readSnapshotFromDb(db: IDBDatabase): Promise<LocalDbSnapshot> {
     String(a.updatedAt || '').localeCompare(String(b.updatedAt || ''))
   );
 
+  // Safety guard: if outbox has over 500 items, it was an accidental bulk enqueue
+  if (sortedOutbox.length > 500) {
+    try {
+      const clearTx = db.transaction([STORE_OUTBOX], 'readwrite');
+      clearTx.objectStore(STORE_OUTBOX).clear();
+      sortedOutbox.length = 0;
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     comics,
     boxes,
@@ -245,6 +262,29 @@ function loadFallbackSnapshotFromLocalStorage(): LocalDbSnapshot {
     lastSyncAt: null,
     outbox: [],
   };
+}
+
+/**
+ * Directly populates comics in IndexedDB without enqueuing them to sync_outbox
+ * (used when hydrating from backend loadCollection or server snapshot).
+ */
+export async function putLocalComicsDirect(comics: ComicBook[]): Promise<void> {
+  if (comics.length === 0) return;
+  const db = await openLocalDb();
+  const tx = db.transaction([STORE_COMICS], 'readwrite');
+  const comicStore = tx.objectStore(STORE_COMICS);
+
+  for (const c of comics) {
+    if (c && c.id && !isSampleComicId(c.id)) {
+      const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
+      comicStore.put(clean);
+    }
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 /**
@@ -556,6 +596,19 @@ export async function clearLastSyncTimestamp(): Promise<void> {
   const db = await openLocalDb();
   const tx = db.transaction([STORE_META], 'readwrite');
   tx.objectStore(STORE_META).put({ key: 'lastSyncAt', value: null });
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Sets the lastSyncAt metadata timestamp in IndexedDB.
+ */
+export async function setLastSyncTimestamp(isoTimestamp: string): Promise<void> {
+  const db = await openLocalDb();
+  const tx = db.transaction([STORE_META], 'readwrite');
+  tx.objectStore(STORE_META).put({ key: 'lastSyncAt', value: isoTimestamp });
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);

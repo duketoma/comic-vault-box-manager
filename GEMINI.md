@@ -43,4 +43,17 @@
    - When deploying or testing on an Android device via Android Studio or CLI, ensure `npm run android:build` (which executes `vite build && npx cap sync android`) has completed so the latest web bundle and Capacitor plugins are synced.
    - Never push or run native builds assuming the web code updates automatically; verify that `android/app/src/main/assets/public/` contains the latest timestamped bundles.
 
+## Offline-First Persistence & Bidirectional Wi-Fi Sync Invariants
+9. **IndexedDB Local Storage & Sync Outbox (`localDbService.ts` & `syncService.ts`)**:
+   - Never persist large comic collections solely into `localStorage`, which hits a ~5 MB WebView quota limit and silently drops persistence.
+   - All client-side collection reads and mutations (`ComicBook`, `StorageBox`, `SeriesIssueTotal`) must persist through `src/services/localDbService.ts` (`ComicVaultLocalDB` in IndexedDB) and enqueue mutations into the `sync_outbox` object store before triggering `performBidirectionalSync()` (`src/services/syncService.ts`).
+   - Every client-side mutation must stamp a fresh ISO 8601 `updatedAt: new Date().toISOString()` on modified records. When transitioning a comic's status (especially from `'Wishlist'` to owned), always pass the prior `baseStatus` into `saveLocalComicAndEnqueue` / `saveLocalComicsBatchAndEnqueue` so `POST /api/sync` preserves offline wishlist purchases even if PC metadata changed while separated.
+   - When hydrating from backend `loadCollection()`, write directly to IndexedDB via `putLocalComicsDirect(clean)` and update `lastSyncAt = now` to avoid enqueuing the entire collection into `sync_outbox` or triggering redundant full delta syncs.
+   - In React top-level state (`App.tsx`), keep collection hydration callbacks stable with empty dependency arrays (`[]`) and ref pointers (`comicsRef`, `boxesRef`) to prevent infinite hydration loops and visual skeleton thrashing. Always call standard REST endpoints (`replaceComics`, `saveComic`, etc.) in tandem with local outbox enqueueing so existing REST API test intercepts remain fully functional.
+
+10. **PostgreSQL Sync Tombstones & Transaction Client Queries (`server/db.ts` & `server/routes/collection.ts`)**:
+   - Any server-side deletion of comics or storage boxes in PostgreSQL must record tombstones in the `deleted_records` table via `recordDeletionTombstones(client, entityType, ids)`, and any upsert must clear tombstones via `clearDeletionTombstones(client, entityType, ids)` so delta syncs (`POST /api/sync`) propagate deletions to mobile devices.
+   - In `node-postgres` (`pg`), never run `Promise.all([client.query(...), client.query(...)])` concurrently on the same checked-out `PoolClient` instance inside a transaction (which triggers `pg` deprecation warnings and serializes over one socket anyway). Execute queries sequentially with `await client.query(...)` on a checked-out `PoolClient`, or use `pool.query(...)` only for non-transactional parallel reads.
+   - Defensively ensure numeric fields with database `NOT NULL` constraints (such as `copies_owned`) are always guarded in `comicValues()` with appropriate fallbacks (`Math.max(1, Number(value) || 1)` for owned comics, `0` for wishlist items).
+
 

@@ -167,7 +167,9 @@ async function executeSyncPass(options?: {
       lastSyncSummary: summary,
     });
 
-    options?.onSnapshotUpdated?.(updatedSnapshot, summary);
+    if (pulledTotal > 0 || pushedCount > 0 || syncData.isFullSync) {
+      options?.onSnapshotUpdated?.(updatedSnapshot, summary);
+    }
 
     return {
       success: true,

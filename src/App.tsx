@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ComicBook, ReadingStatus, StorageBox, SeriesIssueTotal } from './types';
 import { DEFAULT_BOXES, INITIAL_COMICS, isSampleComicId } from './data/initialData';
 import { Navbar } from './components/Navbar';
@@ -21,19 +21,30 @@ import {
   deleteLocalComicAndEnqueue,
   loadLocalSnapshot,
   LocalDbSnapshot,
+  putLocalComicsDirect,
   replaceAllLocalComicsAndEnqueue,
   saveLocalBoxAndEnqueue,
   saveLocalComicAndEnqueue,
   saveLocalComicsBatchAndEnqueue,
+  setLastSyncTimestamp,
   SyncMutation,
 } from './services/localDbService';
 import { performBidirectionalSync, SyncStatusState } from './services/syncService';
+import {
+  deleteBox,
+  deleteComic,
+  loadCollection,
+  replaceComics,
+  saveBox,
+  saveBoxes,
+  saveComic,
+  saveComicsBatch,
+} from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
 import { getSeriesOverviewSummary } from './utils/seriesUtils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
-  const [isLoadingCollection, setIsLoadingCollection] = useState<boolean>(true);
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -60,7 +71,7 @@ export default function App() {
 
   const handleToggleDarkMode = () => setDarkMode((prev) => !prev);
 
-  // Initial state falls back to localStorage / defaults until IndexedDB snapshot hydrates (<100ms)
+  // Local Storage Persistent State
   const [boxes, setBoxes] = useState<StorageBox[]>(() => {
     const saved = localStorage.getItem('comic_vault_boxes');
     return sortBoxes(saved ? JSON.parse(saved) : DEFAULT_BOXES);
@@ -73,6 +84,13 @@ export default function App() {
       .filter((c) => !isSampleComicId(c.id))
       .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
   });
+
+  const [isLoadingCollection, setIsLoadingCollection] = useState<boolean>(true);
+
+  const comicsRef = useRef(comics);
+  comicsRef.current = comics;
+  const boxesRef = useRef(boxes);
+  boxesRef.current = boxes;
 
   const [seriesTotals, setSeriesTotals] = useState<SeriesIssueTotal[]>(() => {
     const saved = localStorage.getItem('comic_vault_series_totals');
@@ -112,11 +130,36 @@ export default function App() {
     handleSetActiveTab('catalog');
   };
 
+  // Browser storage remains a local cache; IndexedDB & PostgreSQL are the system of record.
+  useEffect(() => {
+    try {
+      localStorage.setItem('comic_vault_boxes', JSON.stringify(boxes));
+    } catch (err) {
+      console.warn('LocalStorage save failed for boxes:', err);
+    }
+  }, [boxes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('comic_vault_comics', JSON.stringify(comics));
+    } catch (err) {
+      console.warn('LocalStorage quota exceeded for comics, data is safely saved in Cloud DB / IndexedDB:', err);
+    }
+  }, [comics]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('comic_vault_series_totals', JSON.stringify(seriesTotals));
+    } catch (err) {
+      console.warn('LocalStorage save failed for series totals:', err);
+    }
+  }, [seriesTotals]);
+
   const applyLocalSnapshotToState = useCallback((snapshot: LocalDbSnapshot) => {
     if (snapshot.boxes.length > 0) setBoxes(snapshot.boxes);
     if (snapshot.seriesTotals.length > 0) setSeriesTotals(snapshot.seriesTotals);
     if (snapshot.creatorTypes.length > 0) setCreatorTypes(snapshot.creatorTypes);
-    setComics(snapshot.comics);
+    if (snapshot.comics.length > 0) setComics(snapshot.comics);
     setSyncStatus((prev) => ({
       ...prev,
       pendingCount: snapshot.outbox.length,
@@ -159,11 +202,39 @@ export default function App() {
     return () => clearTimeout(t);
   }, [syncToast]);
 
-  // 1. Hydrate immediately from IndexedDB on startup, then run bidirectional Wi-Fi sync
+  const refreshCollectionData = useCallback(() => {
+    if (comicsRef.current.length === 0) {
+      setIsLoadingCollection(true);
+    }
+    return loadCollection()
+      .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals, creatorTypes: storedCreatorTypes }) => {
+        if (storedBoxes.length > 0) setBoxes(storedBoxes);
+        if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
+        if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
+        if (storedComics.length > 0) {
+          const clean = storedComics
+            .filter((c) => !isSampleComicId(c.id))
+            .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
+          setComics(clean);
+          void putLocalComicsDirect(clean);
+        } else if (storedBoxes.length === 0) {
+          saveBoxes(boxesRef.current).catch(() => {});
+        }
+        void setLastSyncTimestamp(new Date().toISOString());
+        setSyncStatus((prev) => ({ ...prev, connectionState: 'online', lastSyncError: null }));
+      })
+      .catch((err) => {
+        console.warn('Backend loadCollection unavailable, running with local IndexedDB collection:', err);
+        setSyncStatus((prev) => ({ ...prev, connectionState: 'offline' }));
+      })
+      .finally(() => {
+        setIsLoadingCollection(false);
+      });
+  }, []);
+
+  // 1. Hydrate immediately from IndexedDB/localStorage on startup, then load collection / sync
   useEffect(() => {
     let active = true;
-    setIsLoadingCollection(true);
-
     loadLocalSnapshot()
       .then((localSnapshot) => {
         if (!active) return;
@@ -171,16 +242,22 @@ export default function App() {
         if (localSnapshot.comics.length > 0) {
           setIsLoadingCollection(false);
         }
-        return triggerSync();
+        if (localSnapshot.outbox.length > 0) {
+          void triggerSync();
+        }
       })
       .finally(() => {
-        if (active) setIsLoadingCollection(false);
+        if (active) {
+          refreshCollectionData();
+        }
       });
 
     return () => {
       active = false;
     };
-  }, [applyLocalSnapshotToState, triggerSync]);
+    // Only run on initial mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2. Auto-sync when returning to Wi-Fi / online or unlocking mobile screen
   useEffect(() => {
@@ -210,10 +287,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [syncStatus.connectionState, syncStatus.pendingCount, triggerSync]);
 
-  const refreshCollectionData = useCallback(() => {
-    return triggerSync({ forceFull: false }).then(() => {});
-  }, [triggerSync]);
-
   // Total Collection Metrics (In Collection vs Wishlist) - single-pass memoized calculation
   const { inCollectionComics, wishlistComics, totalThicknessUnits } = useMemo(() => {
     const inCol: ComicBook[] = [];
@@ -237,7 +310,7 @@ export default function App() {
   const totalComicsCount = inCollectionComics.length;
   const wishlistCount = wishlistComics.length;
 
-  // Handlers update the UI immediately, persist to IndexedDB + sync_outbox, and sync with PC when reachable.
+  // Handlers update the UI immediately, persist to IndexedDB + sync_outbox, and send to backend REST API.
   const handleAddComic = (newComic: ComicBook) => {
     const nowIso = new Date().toISOString();
     const cleanComic: ComicBook = {
@@ -250,6 +323,7 @@ export default function App() {
     saveLocalComicAndEnqueue(cleanComic)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    saveComic(cleanComic).catch(() => {});
   };
 
   const handleBatchAddComics = async (newComics: ComicBook[]) => {
@@ -264,6 +338,7 @@ export default function App() {
     const outbox = await saveLocalComicsBatchAndEnqueue(cleanComics);
     updateOutboxStatus(outbox);
     void triggerSync();
+    saveComicsBatch(cleanComics).catch(() => {});
   };
 
   const handleUpdateComic = (updatedComic: ComicBook) => {
@@ -278,6 +353,7 @@ export default function App() {
     saveLocalComicAndEnqueue(cleanComic, existing?.readingStatus)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    saveComic(cleanComic).catch(() => {});
   };
 
   const handleUpdateAllComics = (updatedComics: ComicBook[]) => {
@@ -313,6 +389,7 @@ export default function App() {
         .then(updateOutboxStatus)
         .then(() => triggerSync());
     }
+    replaceComics(cleanList).catch(() => {});
   };
 
   const handleDeleteComic = (comicId: string) => {
@@ -322,6 +399,7 @@ export default function App() {
     deleteLocalComicAndEnqueue(comicId, label)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    deleteComic(comicId).catch(() => {});
   };
 
   const handleQuickStatusChange = (comicId: string, newStatus: ComicBook['readingStatus']) => {
@@ -340,6 +418,7 @@ export default function App() {
     saveLocalComicAndEnqueue(updatedComic, existing.readingStatus)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    saveComic(updatedComic).catch(() => {});
   };
 
   const handlePurchaseWishlistComics = async (comicIds: string[], targetBoxId?: number) => {
@@ -370,6 +449,7 @@ export default function App() {
       const outbox = await saveLocalComicsBatchAndEnqueue(updatedComicsToPersist, baseStatuses);
       updateOutboxStatus(outbox);
       void triggerSync();
+      saveComicsBatch(updatedComicsToPersist).catch(() => {});
     }
   };
 
@@ -381,9 +461,11 @@ export default function App() {
       prev.map((b) => (b.id === boxId ? { ...b, maxCapacity: clampedCapacity, updatedAt: nowIso } : b))
     );
     if (existing) {
-      saveLocalBoxAndEnqueue({ ...existing, maxCapacity: clampedCapacity, updatedAt: nowIso })
+      const updatedBox = { ...existing, maxCapacity: clampedCapacity, updatedAt: nowIso };
+      saveLocalBoxAndEnqueue(updatedBox)
         .then(updateOutboxStatus)
         .then(() => triggerSync());
+      saveBox(updatedBox).catch(() => {});
     }
   };
 
@@ -403,6 +485,7 @@ export default function App() {
     saveLocalBoxAndEnqueue(newBox)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    saveBox(newBox).catch(() => {});
   };
 
   const handleUpdateBox = (updatedBox: StorageBox) => {
@@ -416,6 +499,7 @@ export default function App() {
     saveLocalBoxAndEnqueue(clampedBox)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    saveBox(clampedBox).catch(() => {});
   };
 
   const handleDeleteBox = (boxId: number) => {
@@ -440,6 +524,11 @@ export default function App() {
         ? saveLocalComicsBatchAndEnqueue(reassignedComics).then(() => deleteLocalBoxAndEnqueue(boxId))
         : deleteLocalBoxAndEnqueue(boxId);
     persistPromise.then(updateOutboxStatus).then(() => triggerSync());
+    if (reassignedComics.length > 0) {
+      saveComicsBatch(reassignedComics).then(() => deleteBox(boxId)).catch(() => {});
+    } else {
+      deleteBox(boxId).catch(() => {});
+    }
   };
 
   const handleImportComics = async (
@@ -458,10 +547,12 @@ export default function App() {
       setComics(sanitizedImports);
       const outbox = await replaceAllLocalComicsAndEnqueue(sanitizedImports);
       updateOutboxStatus(outbox);
+      replaceComics(sanitizedImports).catch(() => {});
     } else {
       setComics((prev) => [...sanitizedImports, ...prev]);
       const outbox = await saveLocalComicsBatchAndEnqueue(sanitizedImports);
       updateOutboxStatus(outbox);
+      saveComicsBatch(sanitizedImports).catch(() => {});
     }
     void triggerSync();
     if (navigate) {
@@ -470,7 +561,7 @@ export default function App() {
   };
 
   const handleRefreshCollection = async () => {
-    await triggerSync({ forceFull: false });
+    await refreshCollectionData();
   };
 
   const handleRemoveDuplicates = (): number => {
@@ -494,6 +585,7 @@ export default function App() {
       replaceAllLocalComicsAndEnqueue(unique)
         .then(updateOutboxStatus)
         .then(() => triggerSync());
+      replaceComics(unique).catch(() => {});
     }
     return removedCount;
   };
@@ -504,31 +596,36 @@ export default function App() {
     replaceAllLocalComicsAndEnqueue([])
       .then(updateOutboxStatus)
       .then(() => triggerSync());
+    replaceComics([]).catch(() => {});
   };
 
   const handleUpdateComicCover = (comicId: string, coverUrl: string) => {
     const existing = comics.find((c) => c.id === comicId);
     const nowIso = new Date().toISOString();
+    const updated = existing ? { ...existing, coverImage: coverUrl, updatedAt: nowIso } : null;
     setComics((prev) =>
       prev.map((c) => (c.id === comicId ? { ...c, coverImage: coverUrl, updatedAt: nowIso } : c))
     );
-    if (existing) {
-      saveLocalComicAndEnqueue({ ...existing, coverImage: coverUrl, updatedAt: nowIso })
+    if (updated) {
+      saveLocalComicAndEnqueue(updated)
         .then(updateOutboxStatus)
         .then(() => triggerSync());
+      saveComic(updated).catch(() => {});
     }
   };
 
   const handleUpdateComicFullCover = (comicId: string, coverFullUrl: string) => {
     const existing = comics.find((c) => c.id === comicId);
     const nowIso = new Date().toISOString();
+    const updated = existing ? { ...existing, coverImageFull: coverFullUrl, updatedAt: nowIso } : null;
     setComics((prev) =>
       prev.map((c) => (c.id === comicId ? { ...c, coverImageFull: coverFullUrl, updatedAt: nowIso } : c))
     );
-    if (existing) {
-      saveLocalComicAndEnqueue({ ...existing, coverImageFull: coverFullUrl, updatedAt: nowIso })
+    if (updated) {
+      saveLocalComicAndEnqueue(updated)
         .then(updateOutboxStatus)
         .then(() => triggerSync());
+      saveComic(updated).catch(() => {});
     }
   };
 
@@ -572,6 +669,7 @@ export default function App() {
       saveLocalComicsBatchAndEnqueue(changedComics)
         .then(updateOutboxStatus)
         .then(() => triggerSync());
+      saveComicsBatch(changedComics).catch(() => {});
     }
   };
 
@@ -591,6 +689,7 @@ export default function App() {
       saveLocalComicsBatchAndEnqueue(changedComics)
         .then(updateOutboxStatus)
         .then(() => triggerSync());
+      saveComicsBatch(changedComics).catch(() => {});
     }
   };
 

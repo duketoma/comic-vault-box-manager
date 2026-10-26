@@ -77,6 +77,10 @@ export function comicValues(comic: Record<string, unknown>) {
     if (column === 'read_count') {
       return Number(value) || 0;
     }
+    if (column === 'copies_owned') {
+      const isWishlist = comic.reading_status === 'Wishlist' || comic.readingStatus === 'Wishlist';
+      return isWishlist ? 0 : Math.max(1, Number(value) || 1);
+    }
     if (column === 'created_at' || column === 'updated_at') {
       return value ? String(value) : nowIso;
     }
