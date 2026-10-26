@@ -17,6 +17,8 @@ interface MobileBottomNavProps {
   onOpenAddModal: () => void;
   onOpenServerSettings: () => void;
   wishlistCount?: number;
+  connectionState?: 'online' | 'offline' | 'syncing';
+  pendingSyncCount?: number;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -26,6 +28,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenAddModal,
   onOpenServerSettings,
   wishlistCount,
+  connectionState = 'online',
+  pendingSyncCount = 0,
 }) => {
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-lg px-2 py-1 safe-bottom">
@@ -116,11 +120,36 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {/* Connection / Settings */}
         <button
           onClick={onOpenServerSettings}
-          className="flex flex-col items-center justify-center flex-1 py-1 rounded-lg transition-colors cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-          title="Server Settings"
+          className="relative flex flex-col items-center justify-center flex-1 py-1 rounded-lg transition-colors cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+          title="Sync & Server Settings"
         >
-          <Server className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] leading-tight">Server</span>
+          <Server
+            className={`w-5 h-5 mb-0.5 ${
+              connectionState === 'syncing'
+                ? 'text-blue-500 animate-pulse'
+                : connectionState === 'offline'
+                ? 'text-amber-500'
+                : 'text-emerald-500'
+            }`}
+          />
+          <span className="text-[10px] leading-tight">
+            {pendingSyncCount > 0 ? `Sync (${pendingSyncCount})` : 'Sync'}
+          </span>
+          {pendingSyncCount > 0 ? (
+            <span className="absolute top-0 right-2.5 min-w-4 h-4 px-1 rounded-full bg-amber-500 text-slate-950 font-black text-[9px] flex items-center justify-center">
+              {pendingSyncCount}
+            </span>
+          ) : (
+            <span
+              className={`absolute top-1 right-3.5 w-2 h-2 rounded-full ${
+                connectionState === 'syncing'
+                  ? 'bg-blue-500 animate-ping'
+                  : connectionState === 'offline'
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+              }`}
+            />
+          )}
         </button>
 
       </div>

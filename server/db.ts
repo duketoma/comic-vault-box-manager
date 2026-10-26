@@ -68,14 +68,48 @@ export function databaseErrorMessage(error: unknown) {
 }
 
 export function comicValues(comic: Record<string, unknown>) {
+  const nowIso = new Date().toISOString();
   return comicColumns.map((column) => {
     const value = comic[comicFields[column]];
-    return ['creator_contributions', 'character_appearances', 'tags'].includes(column)
-      ? JSON.stringify(value ?? [])
-      : column === 'read_count'
-      ? Number(value) || 0
-      : value ?? null;
+    if (['creator_contributions', 'character_appearances', 'tags'].includes(column)) {
+      return JSON.stringify(value ?? []);
+    }
+    if (column === 'read_count') {
+      return Number(value) || 0;
+    }
+    if (column === 'created_at' || column === 'updated_at') {
+      return value ? String(value) : nowIso;
+    }
+    return value ?? null;
   });
+}
+
+export async function recordDeletionTombstones(
+  client: Pool | PoolClient,
+  entityType: 'comic' | 'box',
+  entityIds: Array<string | number>
+): Promise<void> {
+  const cleanIds = entityIds.map((id) => String(id).trim()).filter(Boolean);
+  if (cleanIds.length === 0) return;
+  await client.query(
+    `INSERT INTO deleted_records (entity_type, entity_id, deleted_at)
+     SELECT $1, unnest($2::text[]), NOW()
+     ON CONFLICT (entity_type, entity_id) DO UPDATE SET deleted_at = NOW()`,
+    [entityType, cleanIds]
+  );
+}
+
+export async function clearDeletionTombstones(
+  client: Pool | PoolClient,
+  entityType: 'comic' | 'box',
+  entityIds: Array<string | number>
+): Promise<void> {
+  const cleanIds = entityIds.map((id) => String(id).trim()).filter(Boolean);
+  if (cleanIds.length === 0) return;
+  await client.query(
+    `DELETE FROM deleted_records WHERE entity_type = $1 AND entity_id = ANY($2::text[])`,
+    [entityType, cleanIds]
+  );
 }
 
 /**
@@ -110,6 +144,11 @@ export async function upsertComicsBatch(
     `;
     await client.query(batchSql, values);
   }
+  await clearDeletionTombstones(
+    client,
+    'comic',
+    comics.map((c) => String(c.id || ''))
+  );
 }
 
 export function rowToComic(row: Record<string, unknown>) {
@@ -120,9 +159,16 @@ export function rowToComic(row: Record<string, unknown>) {
   ]);
   for (const column of comicColumns) {
     const value = row[column];
-    comic[comicFields[column]] = ['creator_contributions', 'character_appearances', 'tags'].includes(column)
-      ? (typeof value === 'string' ? JSON.parse(value) : value ?? [])
-      : numericColumns.has(column) && value !== null && value !== undefined ? Number(value) : value;
+    if (['creator_contributions', 'character_appearances', 'tags'].includes(column)) {
+      comic[comicFields[column]] = typeof value === 'string' ? JSON.parse(value) : value ?? [];
+    } else if (column === 'created_at' || column === 'updated_at') {
+      comic[comicFields[column]] =
+        value instanceof Date ? value.toISOString() : value ? String(value) : new Date().toISOString();
+    } else if (numericColumns.has(column) && value !== null && value !== undefined) {
+      comic[comicFields[column]] = Number(value);
+    } else {
+      comic[comicFields[column]] = value;
+    }
   }
   if (!comic.title || !String(comic.title).trim()) {
     comic.title = (comic.fullTitle as string) || (comic.seriesName as string) || 'Untitled Comic';

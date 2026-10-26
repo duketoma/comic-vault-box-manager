@@ -23,7 +23,7 @@ async function request(path: string, options?: RequestInit) {
   return response;
 }
 
-async function prepareComic(comic: ComicBook): Promise<ComicBook> {
+export async function prepareComic(comic: ComicBook): Promise<ComicBook> {
   const clean = structuredClone(comic);
   if (clean.coverImage?.startsWith('data:image') && clean.coverImage.length > 250000) {
     clean.coverImage = await compressBase64Image(clean.coverImage, 800, 0.7);

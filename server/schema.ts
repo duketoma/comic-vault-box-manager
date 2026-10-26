@@ -193,6 +193,16 @@ export const POSTGRES_INIT_SCHEMA_SQL = `
 
   CREATE INDEX IF NOT EXISTS idx_reading_history_comic 
     ON reading_history (comic_id, occurred_at DESC);
+
+  CREATE TABLE IF NOT EXISTS deleted_records (
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (entity_type, entity_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_deleted_records_deleted_at 
+    ON deleted_records (deleted_at);
 `;
 
 export function sqlStr(val: unknown, fallback = ''): string {

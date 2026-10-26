@@ -210,6 +210,7 @@ export interface StorageBox {
   maxCapacity: number; // Total capacity in equivalent issue units (e.g. 150)
   colorTag: string;
   notes?: string;
+  updatedAt?: string;
 }
 
 export interface ReadingLog {
