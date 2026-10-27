@@ -310,4 +310,233 @@ test.describe('Google Drive Comic Covers Sync & Matching', () => {
     const regSelect = regCard.locator('select');
     await expect(regSelect).toHaveValue('test-comic-ss-2');
   });
+
+  test('Supports re-scanning drive and displays Scan with Google Account button', async ({ page }) => {
+    await page.route('**/api/collection', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: testComics,
+          boxes: [{ id: 1, name: 'Box 01', maxCapacity: 150 }],
+          seriesTotals: [],
+        }),
+      });
+    });
+
+    let scanCount = 0;
+    await page.route('**/drive/v3/files*', async (route) => {
+      const url = route.request().url();
+      if (url.includes('Comic%20Covers') || url.includes('Comic Covers')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            files: [{ id: 'mock-folder-id', name: 'Comic Covers' }],
+          }),
+        });
+      } else {
+        scanCount++;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            files: [
+              {
+                id: `gdrive-file-spiderman-300-id-${scanCount}`,
+                name: 'The Amazing Spider-Man 300.jpg',
+                mimeType: 'image/jpeg',
+                thumbnailLink: 'https://lh3.googleusercontent.com/thumbnail-spiderman=s220',
+              },
+            ],
+          }),
+        });
+      }
+    });
+
+    const pixelPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    await page.route(/.*googleusercontent\.com.*/, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: pixelPng });
+    });
+
+    await page.addInitScript((comics) => {
+      (window as any).__MOCK_AUTH__ = {
+        user: { displayName: 'Vault Collector', email: 'collector@vault.com', photoURL: '' },
+        token: 'mock-valid-google-access-token',
+      };
+      window.localStorage.setItem('comic_vault_comics', JSON.stringify(comics));
+    }, testComics);
+
+    await page.goto('/');
+    const driveCoversBtn = page.getByRole('button', { name: /Drive Covers/i });
+    await driveCoversBtn.click();
+
+    // Verify modal open
+    await expect(page.getByRole('heading', { name: /Google Drive "Comic Covers" Integration/i })).toBeVisible();
+
+    // Verify Re-scan Drive button is visible
+    const rescanBtn = page.getByRole('button', { name: /Re-scan Drive/i });
+    await expect(rescanBtn).toBeVisible();
+
+    // Verify Scan with Google Account button is visible
+    const googleAccountBtn = page.getByRole('button', { name: /Scan with Google Account/i });
+    await expect(googleAccountBtn).toBeVisible();
+
+    // Click Re-scan Drive
+    await rescanBtn.click();
+    await expect(page.getByText('Folder: "Comic Covers"')).toBeVisible();
+  });
+
+  test('Matches year-designated annuals without appending #1 and prevents subseries confusion', async ({ page }) => {
+    const annualComics = [
+      {
+        id: 'uncanny-ann-95',
+        title: "Uncanny X-Men Annual '95",
+        issueNumber: '1',
+        seriesName: 'Uncanny X-Men (1963 - 2011)',
+        fullTitle: "Uncanny X-Men Annual '95",
+        publisher: 'Marvel Comics',
+        publicationYear: 1995,
+        genre: 'Superhero',
+        writer: 'Scott Lobdell',
+        artist: 'Bryan Hitch',
+        coverImage: 'NoImage.png',
+        format: 'Single Issue',
+        sizeThickness: 1.0,
+        currentBoxId: 1,
+        readingStatus: 'Read',
+        readCount: 1,
+        condition: 'Near Mint',
+        tags: [],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'xmen-ann-95',
+        title: "X-Men Annual '95",
+        issueNumber: '1',
+        seriesName: 'X-Men (Vol. 2) (1991 - 2001)',
+        fullTitle: "X-Men Annual '95",
+        publisher: 'Marvel Comics',
+        publicationYear: 1995,
+        genre: 'Superhero',
+        writer: 'Fabian Nicieza',
+        artist: 'Andy Kubert',
+        coverImage: 'NoImage.png',
+        format: 'Single Issue',
+        sizeThickness: 1.0,
+        currentBoxId: 1,
+        readingStatus: 'Read',
+        readCount: 1,
+        condition: 'Near Mint',
+        tags: [],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+    ];
+
+    // Mock backend database routes
+    await page.route('**/api/collection', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: annualComics,
+          boxes: [{ id: 1, name: 'Box 01', maxCapacity: 150 }],
+          seriesTotals: [],
+        }),
+      });
+    });
+
+    await page.route(/.*\/api\/comics.*/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      });
+    });
+
+    await page.route('**/api/collection/replace', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+    });
+
+    await page.route('**/drive/v3/files*', async (route) => {
+      const url = route.request().url();
+      if (url.includes('Comic%20Covers') || url.includes('Comic Covers')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            files: [{ id: 'mock-comic-covers-folder-id', name: 'Comic Covers', mimeType: 'application/vnd.google-apps.folder' }],
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            files: [
+              {
+                id: 'gdrive-file-xmen-ann-95-std',
+                name: "X-Men Annual '95.jpg",
+                mimeType: 'image/jpeg',
+                thumbnailLink: 'https://lh3.googleusercontent.com/thumbnail-xmen95=s220',
+              },
+              {
+                id: 'gdrive-file-xmen-ann-95-full',
+                name: "X-Men Annual Full '95.jpg",
+                mimeType: 'image/jpeg',
+                thumbnailLink: 'https://lh3.googleusercontent.com/thumbnail-xmen95full=s220',
+              },
+            ],
+          }),
+        });
+      }
+    });
+
+    const pixelPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    await page.route(/.*googleusercontent\.com.*/, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: pixelPng });
+    });
+
+    await page.addInitScript((comics) => {
+      (window as any).__MOCK_AUTH__ = {
+        user: { displayName: 'Vault Collector', email: 'collector@vault.com', photoURL: '' },
+        token: 'mock-valid-google-access-token',
+      };
+      window.localStorage.setItem('comic_vault_comics', JSON.stringify(comics));
+    }, annualComics);
+
+    await page.goto('/');
+    const driveCoversBtn = page.getByRole('button', { name: /Drive Covers/i });
+    await driveCoversBtn.click();
+
+    // Verify modal opened and scanned
+    await expect(page.getByRole('heading', { name: /Google Drive "Comic Covers" Integration/i })).toBeVisible();
+    await expect(page.getByText('Folder: "Comic Covers"')).toBeVisible();
+
+    // Wait for the two files to appear
+    await expect(page.getByText("X-Men Annual '95.jpg")).toBeVisible();
+    await expect(page.getByText("X-Men Annual Full '95.jpg")).toBeVisible();
+
+    // Verify 2 matches are ready to link
+    await expect(page.getByText('2 Ready to Link')).toBeVisible();
+
+    // Verify modal card dropdown does NOT contain "X-Men Annual '95 #1"
+    const cardSelects = page.locator('.fixed.inset-0 select');
+    await expect(cardSelects.first()).toBeVisible();
+    const dropdownHtml = await cardSelects.first().innerHTML();
+    expect(dropdownHtml).not.toContain("X-Men Annual '95 #1");
+    expect(dropdownHtml).toContain("X-Men Annual '95");
+
+    // Verify X-Men Annual '95 was selected, NOT Uncanny
+    await expect(cardSelects.first()).toHaveValue('xmen-ann-95');
+    await expect(cardSelects.nth(1)).toHaveValue('xmen-ann-95');
+
+    // Click "Link 2 Covers & Done"
+    const linkAndDoneBtn = page.getByRole('button', { name: /Link 2 Covers & Done/i });
+    await expect(linkAndDoneBtn).toBeVisible();
+    await linkAndDoneBtn.click();
+    await expect(page.getByRole('heading', { name: /Google Drive "Comic Covers" Integration/i })).not.toBeVisible();
+  });
 });

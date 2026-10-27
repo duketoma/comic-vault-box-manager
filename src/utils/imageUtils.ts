@@ -1,7 +1,7 @@
 import type { SyntheticEvent } from 'react';
 const noImageAsset = new URL('../../assets/NoImage.png', import.meta.url).href;
 import { buildApiUrl } from '../services/apiConfig';
-import { isAnnualComic, extractAnnualNumber, parseIssueNumber } from './comicSortUtils';
+import { isAnnualComic, extractAnnualNumber, parseIssueNumber, isYearDesignatedAnnual } from './comicSortUtils';
 import type { ComicBook } from '../types';
 
 // Utility functions for comic cover images, Google Drive image links, and NoImage.png placeholder
@@ -178,11 +178,12 @@ export function isComicFullCoverLinked(coverImageFullUrl?: string, driveFileId?:
 }
 
 /**
- * Normalization helper (converts punctuation to spaces and collapses whitespace)
+ * Normalization helper (converts punctuation to spaces and collapses whitespace, strips quotes/apostrophes)
  */
 function normalizeText(str: string): string {
   return String(str || '')
     .toLowerCase()
+    .replace(/['’`"]/g, '')
     .replace(/[_\-#:.,/\\\(\)\[\]]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -315,33 +316,48 @@ export function doesFullCoverMatchComic(
     return false;
   }
 
-  const cTitle = (comic.title || '').toLowerCase();
-  const cFullTitle = (comic.fullTitle || '').toLowerCase();
-  const cSeries = (comic.seriesName || '').toLowerCase();
-  const parsedTitle = parsedFullCover.title.toLowerCase().trim();
+  const comicBookPartial: Partial<ComicBook> = {
+    ...comic,
+    issueNumber: String(comic.issueNumber ?? ''),
+    volume: comic.volume !== undefined ? String(comic.volume) : undefined,
+  };
 
-  // 1. Check title match
-  const titleMatches =
-    cTitle.includes(parsedTitle) ||
-    cFullTitle.includes(parsedTitle) ||
-    cSeries.includes(parsedTitle) ||
-    parsedTitle.includes(cTitle);
+  // If normalizedFileNameForMatch is available, evaluate with scoreFileNameMatch
+  if (parsedFullCover.normalizedFileNameForMatch) {
+    const score = scoreFileNameMatch(parsedFullCover.normalizedFileNameForMatch, comicBookPartial);
+    return score >= 70;
+  }
 
-  if (!titleMatches) return false;
+  const normParsedTitle = normalizeText(parsedFullCover.title);
+  const normTitle = normalizeText(comic.title || '');
+  const normSeries = normalizeText(comic.seriesName || '').replace(/\(.*?\)/g, '').trim();
 
-  // 2. If Annual
+  // Strip "Annual" and year from comic title to compare series root
+  const comicBaseTitle = normTitle.replace(/\bannual.*$/i, '').trim();
+  const comicSeriesBase = normSeries.replace(/\bannual.*$/i, '').trim();
+
+  // Exact series/title match (prevents X-Men from matching Uncanny X-Men)
+  const exactSeriesMatch =
+    comicBaseTitle === normParsedTitle ||
+    comicSeriesBase === normParsedTitle ||
+    normTitle === normParsedTitle;
+
+  if (!exactSeriesMatch) {
+    return false;
+  }
+
+  // If Annual
   if (parsedFullCover.isAnnual) {
-    const isComicAnnual = cTitle.includes('annual') || cFullTitle.includes('annual') || cSeries.includes('annual');
+    const isComicAnnual = isAnnualComic(comicBookPartial);
     if (!isComicAnnual) return false;
 
-    const rawIssueYear = parsedFullCover.issueOrYear.replace(/^[#'’]/, '').trim();
-    // Check issue number match
-    const cleanIssue = String(comic.issueNumber || '').replace(/^[#]/, '').trim();
+    const rawIssueYear = parsedFullCover.issueOrYear.replace(/^[#'’`]/, '').trim();
+    const cleanIssue = String(comic.issueNumber || '').replace(/^[#'’`]/, '').trim();
+
     if (cleanIssue && cleanIssue.toLowerCase() === rawIssueYear.toLowerCase()) {
       return true;
     }
 
-    // Check year match (e.g. '96 -> 1996, 2020 -> 2020)
     if (comic.publicationYear) {
       const yearStr = String(comic.publicationYear);
       if (yearStr === rawIssueYear || yearStr.endsWith(rawIssueYear)) {
@@ -349,19 +365,17 @@ export function doesFullCoverMatchComic(
       }
     }
 
-    // Check if title or fullTitle contains the year/issue
-    if (cTitle.includes(rawIssueYear) || cFullTitle.includes(rawIssueYear)) {
+    if (normTitle.includes(rawIssueYear)) {
       return true;
     }
 
     return false;
   }
 
-  // 3. Regular Issue
+  // Regular Issue
   const rawIssue = parsedFullCover.issueOrYear.replace(/^[#]/, '').trim();
   const cleanIssue = String(comic.issueNumber || '').replace(/^[#]/, '').trim();
 
-  // Numeric or exact match on issue number
   if (cleanIssue.toLowerCase() === rawIssue.toLowerCase()) {
     return true;
   }
@@ -372,6 +386,22 @@ export function doesFullCoverMatchComic(
   }
 
   return false;
+}
+
+/**
+ * Scores a strictly parsed full cover file against a comic book (0-100).
+ */
+export function scoreFullCoverMatch(
+  parsedFullCover: ParsedFullCoverFileName,
+  comic: Partial<ComicBook>
+): number {
+  if (!parsedFullCover.isStrictFullCover || !parsedFullCover.title || !parsedFullCover.issueOrYear) {
+    return 0;
+  }
+  if (parsedFullCover.normalizedFileNameForMatch) {
+    return scoreFileNameMatch(parsedFullCover.normalizedFileNameForMatch, comic);
+  }
+  return doesFullCoverMatchComic(parsedFullCover, comic as any) ? 80 : 0;
 }
 
 /**
@@ -445,28 +475,60 @@ export function scoreFileNameMatch(
   let isYearDesignatedMatch = false;
 
   if (comicIsAnnual) {
-    // For Annuals:
-    // Try numeric annual issue number (e.g. #2, Annual 2)
-    const parsed = parseIssueNumber(comic.issueNumber);
-    const annNum = extractAnnualNumber(comic) ?? (parsed.major > 0 ? parsed.major : null);
-    if (annNum !== null) {
-      const annRegex = buildIssueRegex(String(annNum));
-      if (annRegex && annRegex.test(baseFileName)) {
-        issueMatched = true;
-      }
-    }
+    const isYearAnnual = isYearDesignatedAnnual(comic);
 
-    // Try year-designated annuals (e.g. Generation X Annual '97 or Annual 1997)
-    if (!issueMatched && comic.publicationYear) {
-      const fullYearStr = String(comic.publicationYear);
-      const shortYearStr = fullYearStr.slice(-2);
-      if (
-        baseFileName.includes(fullYearStr) ||
-        new RegExp(`['’\`]${shortYearStr}\\b`).test(baseFileName) ||
-        new RegExp(`\\b${shortYearStr}\\b`).test(baseFileName)
-      ) {
-        issueMatched = true;
-        isYearDesignatedMatch = true;
+    if (isYearAnnual) {
+      // For year-designated annuals (e.g. Generation X Annual '97, X-Men Annual '95):
+      // The year functions as the issue designation.
+      let annualYear: string | null = null;
+      if (comic.publicationYear) {
+        annualYear = String(comic.publicationYear);
+      }
+      const titleYearMatch = `${comic.title || ''} ${comic.fullTitle || ''}`.match(/\bannual\s*['’`]?(\d{2,4})\b/i) ||
+        `${comic.title || ''} ${comic.fullTitle || ''}`.match(/\b(?:19|20)(\d{2})\s*annual\b/i);
+      if (titleYearMatch) {
+        const y = titleYearMatch[1];
+        if (!annualYear) {
+          annualYear = y.length === 2 ? (parseInt(y, 10) < 50 ? `20${y}` : `19${y}`) : y;
+        }
+      }
+      const rawIssue = String(comic.issueNumber || '').trim();
+      if (!annualYear && /^['’`]?\d{2,4}$/.test(rawIssue)) {
+        const y = rawIssue.replace(/['’`]/g, '');
+        annualYear = y.length === 2 ? (parseInt(y, 10) < 50 ? `20${y}` : `19${y}`) : y;
+      }
+
+      if (annualYear) {
+        const shortY = annualYear.slice(-2);
+        const shortRegex = new RegExp(`(?:['’\`]|\\b)${shortY}\\b`);
+        const fullRegex = new RegExp(`\\b${annualYear}\\b`);
+        if (shortRegex.test(baseFileName) || fullRegex.test(baseFileName)) {
+          issueMatched = true;
+          isYearDesignatedMatch = true;
+        }
+      } else {
+        const fileYearMatch = baseFileName.match(/(?:['’`]|\\b)(\d{2,4})\b/);
+        if (fileYearMatch && `${comic.title || ''} ${comic.fullTitle || ''}`.includes(fileYearMatch[1])) {
+          issueMatched = true;
+          isYearDesignatedMatch = true;
+        }
+      }
+    } else {
+      // For sequentially numbered Annuals (e.g. Fantastic Four Annual #20):
+      const annNum = extractAnnualNumber(comic);
+      if (annNum !== null) {
+        const annRegex = buildIssueRegex(String(annNum));
+        if (annRegex && annRegex.test(baseFileName)) {
+          issueMatched = true;
+        }
+      } else {
+        const parsed = parseIssueNumber(comic.issueNumber);
+        if (parsed.major > 0) {
+          const annRegex = buildIssueRegex(String(parsed.major));
+          if (annRegex && annRegex.test(baseFileName)) {
+            issueMatched = true;
+          }
+        }
       }
     }
   } else {
@@ -492,15 +554,14 @@ export function scoreFileNameMatch(
 
   // Strip issue number from fileTitleRaw to isolate the title portion
   if (comicIsAnnual) {
-    const parsed = parseIssueNumber(comic.issueNumber);
-    const annNum = extractAnnualNumber(comic) ?? (parsed.major > 0 ? parsed.major : null);
-    if (annNum !== null) {
-      const annRegex = buildIssueRegex(String(annNum));
-      if (annRegex) fileTitleRaw = fileTitleRaw.replace(annRegex, ' ');
+    if (!isYearDesignatedAnnual(comic)) {
+      const parsed = parseIssueNumber(comic.issueNumber);
+      const annNum = extractAnnualNumber(comic) ?? (parsed.major > 0 ? parsed.major : null);
+      if (annNum !== null) {
+        const annRegex = buildIssueRegex(String(annNum));
+        if (annRegex) fileTitleRaw = fileTitleRaw.replace(annRegex, ' ');
+      }
     }
-    // Also strip standalone year designations (e.g. '97, 1997)
-    fileTitleRaw = fileTitleRaw.replace(/\b(?:19|20)?\d{2}\b/g, ' ');
-    fileTitleRaw = fileTitleRaw.replace(/['’`]\d{2}\b/g, ' ');
   } else {
     const cleanIssueNumber = String(comic.issueNumber ?? '').replace(/^#/, '').trim();
     if (cleanIssueNumber) {
@@ -541,6 +602,9 @@ export function scoreFileNameMatch(
     }
     if (comic.title && /\bannual\b/i.test(comic.title)) {
       addCandidate(comic.title.replace(/\bannual\b/gi, ' '));
+    }
+    if (isYearDesignatedAnnual(comic) && comic.title) {
+      addCandidate(comic.title.replace(/['’`]?\d{2,4}\b/g, ' '));
     }
   }
 
@@ -591,9 +655,12 @@ export function scoreFileNameMatch(
 
     // Tier 5: Year-designated Annual Match (Score 80)
     if (comicIsAnnual && isYearDesignatedMatch) {
-      const candNoAnnual = cand.replace(/\bannual\b/gi, '').trim();
-      const fileNoAnnual = normFileTitleNoYear.replace(/\bannual\b/gi, '').trim();
-      if (candNoAnnual === fileNoAnnual || candNoAnnual.replace(/^the\s+/, '') === fileNoAnnual.replace(/^the\s+/, '')) {
+      const candNoAnnual = cand.replace(/\bannual\b/gi, '').replace(/\b(?:19|20)?\d{2}\b/g, '').trim();
+      const fileNoAnnual = normFileTitleNoYear.replace(/\bannual\b/gi, '').replace(/\b(?:19|20)?\d{2}\b/g, '').trim();
+      if (
+        candNoAnnual && fileNoAnnual &&
+        (candNoAnnual === fileNoAnnual || candNoAnnual.replace(/^the\s+/, '') === fileNoAnnual.replace(/^the\s+/, ''))
+      ) {
         bestScore = Math.max(bestScore, 80);
         continue;
       }

@@ -114,6 +114,7 @@ export const POSTGRES_INIT_SCHEMA_SQL = `
 
   UPDATE comic_books
   SET full_title = CASE 
+    WHEN (title ~* 'annual\\s*[''’\`][0-9]{2}' OR title ~* 'annual\\s*(19|20)[0-9]{2}' OR title ~* '(19|20)[0-9]{2}\\s*annual') THEN title
     WHEN issue_number IS NOT NULL AND issue_number != '' AND issue_number != 'Unknown' THEN title || ' #' || issue_number
     ELSE title
   END

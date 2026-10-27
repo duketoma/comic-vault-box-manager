@@ -13,6 +13,7 @@ import {
 import { extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { MONTH_NAMES, formatIsoComicDate } from '../utils/dateUtils';
+import { formatComicFullTitle } from '../utils/comicSortUtils';
 import { CoverScannerCropper } from './CoverScannerCropper';
 import { CoverOcrResult } from '../utils/coverOcrService';
 import { 
@@ -259,13 +260,14 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     const cleanTitle = title.trim();
     const cleanIssue = issueNumber.trim() || '1';
+    const cleanSeries = seriesName.trim();
 
     const newComic: ComicBook = {
       id: `c-${Date.now()}`,
       title: cleanTitle,
       issueNumber: cleanIssue,
-      fullTitle: `${cleanTitle} #${cleanIssue}`,
-      seriesName: seriesName.trim() || undefined,
+      fullTitle: formatComicFullTitle({ title: cleanTitle, issueNumber: cleanIssue, seriesName: cleanSeries }),
+      seriesName: cleanSeries || undefined,
       volume: volume.trim() || undefined,
       event: event.trim() || undefined,
       copiesOwned: finalCopies,

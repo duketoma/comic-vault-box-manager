@@ -16,6 +16,7 @@ import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFi
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, formatIsoComicDate, MONTH_NAMES } from '../utils/dateUtils';
 import { getComicSeriesInfo } from '../utils/seriesUtils';
+import { formatComicFullTitle, isYearDesignatedAnnual } from '../utils/comicSortUtils';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { CoverScannerCropper } from './CoverScannerCropper';
 import { 
@@ -355,7 +356,13 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
     const cleanTitle = title.trim() || comic.title;
     const cleanIssue = issueNumber.trim() || comic.issueNumber;
-    const cleanFullTitle = `${cleanTitle} #${cleanIssue}`;
+    const cleanSeries = seriesName.trim();
+    const cleanFullTitle = formatComicFullTitle({
+      title: cleanTitle,
+      issueNumber: cleanIssue,
+      seriesName: cleanSeries,
+      fullTitle: comic.fullTitle,
+    });
 
     const parsedPurchasePrice = purchasePrice.trim() !== '' && !isNaN(Number(purchasePrice))
       ? Number(parseFloat(purchasePrice).toFixed(2))
@@ -538,7 +545,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               </div>
 
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-tight">
-              {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'} <span className="text-slate-600 dark:text-slate-400">#{comic.issueNumber}</span>
+              {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}{' '}
+              {!isYearDesignatedAnnual(comic) && (
+                <span className="text-slate-600 dark:text-slate-400">#{comic.issueNumber}</span>
+              )}
             </h2>
 
             {comic.seriesName && (

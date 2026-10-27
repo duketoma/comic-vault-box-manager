@@ -2,8 +2,13 @@ import {
   doesFileNameMatchComic, 
   isAnnualFileName, 
   scoreFileNameMatch, 
-  findBestMatchingComic 
+  findBestMatchingComic,
+  hasFullCoverWord,
+  parseStrictFullCoverFileName,
+  doesFullCoverMatchComic,
+  scoreFullCoverMatch
 } from './imageUtils';
+import { isYearDesignatedAnnual, formatComicFullTitle, formatComicOptionLabel } from './comicSortUtils';
 import { ComicBook } from '../types';
 
 function assert(condition: boolean, message: string) {
@@ -267,5 +272,182 @@ assert(bestClassicAv?.id === 'avengers-1', 'Avengers #1.jpg picks The Avengers #
 const soleRegular = [regularSilverSurfer2];
 const bestSole = findBestMatchingComic('Silver Surfer Annual #2.jpg', soleRegular);
 assert(bestSole === null, 'When only regular issue is in vault, Annual file remains unassigned (null)');
+
+// 9. Year-designated Annuals matching (e.g. X-Men Annual '95, '96, Full '95, Full '96)
+const xmenAnn95: ComicBook = {
+  id: 'xmen-ann-95',
+  title: "X-Men Annual '95",
+  issueNumber: '1',
+  fullTitle: "X-Men Annual '95",
+  seriesName: 'X-Men (Vol. 2) (1991 - 2001)',
+  publisher: 'Marvel Comics',
+  publicationYear: 1995,
+  genre: 'Superhero',
+  writer: 'Fabian Nicieza',
+  artist: 'Andy Kubert',
+  coverImage: 'NoImage.png',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const xmenAnn96: ComicBook = {
+  id: 'xmen-ann-96',
+  title: "X-Men Annual '96",
+  issueNumber: '1',
+  fullTitle: "X-Men Annual '96",
+  seriesName: 'X-Men (Vol. 2) (1991 - 2001)',
+  publisher: 'Marvel Comics',
+  publicationYear: 1996,
+  genre: 'Superhero',
+  writer: 'Fabian Nicieza',
+  artist: 'Andy Kubert',
+  coverImage: 'NoImage.png',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const uncannyAnn95: ComicBook = {
+  id: 'uncanny-ann-95',
+  title: "Uncanny X-Men Annual '95",
+  issueNumber: '1',
+  fullTitle: "Uncanny X-Men Annual '95",
+  seriesName: 'Uncanny X-Men (1963 - 2011)',
+  publisher: 'Marvel Comics',
+  publicationYear: 1995,
+  genre: 'Superhero',
+  writer: 'Scott Lobdell',
+  artist: 'Bryan Hitch',
+  coverImage: 'NoImage.png',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const uncannyAnn96: ComicBook = {
+  id: 'uncanny-ann-96',
+  title: "Uncanny X-Men Annual '96",
+  issueNumber: '1',
+  fullTitle: "Uncanny X-Men Annual '96",
+  seriesName: 'Uncanny X-Men (1963 - 2011)',
+  publisher: 'Marvel Comics',
+  publicationYear: 1996,
+  genre: 'Superhero',
+  writer: 'Scott Lobdell',
+  artist: 'Bryan Hitch',
+  coverImage: 'NoImage.png',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const annualVaultCandidates = [uncannyAnn95, uncannyAnn96, xmenAnn95, xmenAnn96];
+
+// Standard covers
+assert(scoreFileNameMatch("X-Men Annual '95.jpg", xmenAnn95) >= 90, "X-Men Annual '95.jpg scores high for X-Men Annual '95");
+assert(scoreFileNameMatch("X-Men Annual '95.jpg", uncannyAnn95) === 0, "X-Men Annual '95.jpg rejects Uncanny X-Men Annual '95");
+assert(scoreFileNameMatch("X-Men Annual '96.jpg", xmenAnn96) >= 90, "X-Men Annual '96.jpg scores high for X-Men Annual '96");
+assert(scoreFileNameMatch("X-Men Annual '96.jpg", uncannyAnn96) === 0, "X-Men Annual '96.jpg rejects Uncanny X-Men Annual '96");
+
+const bestMatch95 = findBestMatchingComic("X-Men Annual '95.jpg", annualVaultCandidates);
+assert(bestMatch95?.id === 'xmen-ann-95', "findBestMatchingComic selects X-Men Annual '95 even when Uncanny is first in candidates");
+
+const bestMatch96 = findBestMatchingComic("X-Men Annual '96.jpg", annualVaultCandidates);
+assert(bestMatch96?.id === 'xmen-ann-96', "findBestMatchingComic selects X-Men Annual '96 even when Uncanny is first in candidates");
+
+// Full Wraparound covers
+const parsedFull95 = parseStrictFullCoverFileName("X-Men Annual Full '95.jpg");
+assert(parsedFull95.isStrictFullCover === true, "X-Men Annual Full '95.jpg parsed as strict full cover");
+assert(doesFullCoverMatchComic(parsedFull95, xmenAnn95) === true, "X-Men Annual Full '95.jpg matches X-Men Annual '95");
+assert(doesFullCoverMatchComic(parsedFull95, uncannyAnn95) === false, "X-Men Annual Full '95.jpg rejects Uncanny X-Men Annual '95");
+
+const parsedFull96 = parseStrictFullCoverFileName("X-Men Annual Full '96.jpg");
+assert(parsedFull96.isStrictFullCover === true, "X-Men Annual Full '96.jpg parsed as strict full cover");
+assert(doesFullCoverMatchComic(parsedFull96, xmenAnn96) === true, "X-Men Annual Full '96.jpg matches X-Men Annual '96");
+assert(doesFullCoverMatchComic(parsedFull96, uncannyAnn96) === false, "X-Men Annual Full '96.jpg rejects Uncanny X-Men Annual '96");
+
+assert(scoreFullCoverMatch(parsedFull95, xmenAnn95) >= 90, "scoreFullCoverMatch scores high for X-Men Annual '95");
+assert(scoreFullCoverMatch(parsedFull95, xmenAnn96) === 0, "scoreFullCoverMatch scores 0 for X-Men Annual '96 when matching Full '95");
+assert(scoreFullCoverMatch(parsedFull96, xmenAnn95) === 0, "scoreFullCoverMatch scores 0 for X-Men Annual '95 when matching Full '96");
+assert(scoreFullCoverMatch(parsedFull95, uncannyAnn95) === 0, "scoreFullCoverMatch scores 0 for Uncanny X-Men Annual '95");
+
+// Batch simulation of standard and full covers together with decoupled assignment sets
+const simulatedFiles = [
+  { id: 'f-ann-96', name: "X-Men Annual '96.jpg" },
+  { id: 'f-full-96', name: "X-Men Annual Full '96.jpg" },
+  { id: 'f-full-95', name: "X-Men Annual Full '95.jpg" },
+  { id: 'f-ann-95', name: "X-Men Annual '95.jpg" },
+];
+const assignedFrontSet = new Set<string>();
+const assignedFullSet = new Set<string>();
+const batchAssignments: Record<string, string> = {};
+
+// Full covers pass
+simulatedFiles.forEach((file) => {
+  if (!hasFullCoverWord(file.name)) return;
+  const parsed = parseStrictFullCoverFileName(file.name);
+  let best: ComicBook | null = null;
+  let bestScore = 0;
+  for (const c of annualVaultCandidates) {
+    const score = scoreFullCoverMatch(parsed, c);
+    if (score < 70) continue;
+    const isUnassigned = !assignedFullSet.has(c.id);
+    if (score > bestScore || (score === bestScore && isUnassigned && best && assignedFullSet.has(best.id))) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  if (best) {
+    batchAssignments[file.id] = best.id;
+    assignedFullSet.add(best.id);
+  }
+});
+
+// Standard covers pass
+simulatedFiles.forEach((file) => {
+  if (hasFullCoverWord(file.name)) return;
+  const match = findBestMatchingComic(file.name, annualVaultCandidates, assignedFrontSet, 90);
+  if (match) {
+    batchAssignments[file.id] = match.id;
+    assignedFrontSet.add(match.id);
+  }
+});
+
+assert(batchAssignments['f-ann-95'] === 'xmen-ann-95', "f-ann-95 matched to xmen-ann-95");
+assert(batchAssignments['f-ann-96'] === 'xmen-ann-96', "f-ann-96 matched to xmen-ann-96");
+assert(batchAssignments['f-full-95'] === 'xmen-ann-95', "f-full-95 matched strictly to xmen-ann-95 (never 96)");
+assert(batchAssignments['f-full-96'] === 'xmen-ann-96', "f-full-96 matched strictly to xmen-ann-96");
+
+// 10. Title and Dropdown Option formatting for Year-designated Annuals
+assert(isYearDesignatedAnnual(xmenAnn95) === true, "X-Men Annual '95 is recognized as year-designated annual");
+assert(formatComicFullTitle(xmenAnn95) === "X-Men Annual '95", "formatComicFullTitle returns clean title without #1");
+assert(formatComicFullTitle({ title: "X-Men Annual '95", issueNumber: "1", fullTitle: "X-Men Annual '95 #1" }) === "X-Men Annual '95", "formatComicFullTitle strips existing #1");
+assert(formatComicOptionLabel(xmenAnn95) === "X-Men Annual '95", "formatComicOptionLabel does not display #1 for year-designated annual");
+assert(formatComicOptionLabel(regularSilverSurfer2) === "Silver Surfer #2", "formatComicOptionLabel formats regular comic with #issue");
 
 console.log('All imageUtils test assertions passed!');

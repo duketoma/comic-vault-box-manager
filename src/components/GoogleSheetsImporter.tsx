@@ -3,6 +3,7 @@ import { ComicBook, StorageBox, ReadingStatus, ComicFormat, COMIC_FORMATS } from
 import { getAccessToken } from '../services/auth';
 import { parseTitleAndIssue } from '../utils/titleParser';
 import { parseYearAndMonth } from '../utils/dateUtils';
+import { formatComicFullTitle } from '../utils/comicSortUtils';
 import { fetchGoogleSubsheets, importSubsheetsData } from '../services/postgresService';
 import { 
   FileSpreadsheet, 
@@ -606,7 +607,12 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     }
 
     const copiesOwnedVal = readingStatusVal === 'Wishlist' ? 0 : (!isNaN(rawCopies) && rawCopies > 0 ? rawCopies : 1);
-    const computedFullTitle = rawFullTitle || `${titleVal} #${issueVal}`;
+    const computedFullTitle = formatComicFullTitle({
+      title: titleVal,
+      issueNumber: issueVal,
+      fullTitle: rawFullTitle,
+      seriesName: rawSeries,
+    });
 
     return {
       id: `imported-${Date.now()}-${idx}`,

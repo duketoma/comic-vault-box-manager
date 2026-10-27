@@ -17,6 +17,17 @@ export interface DriveCoversSyncResult {
   noImageFile: DriveFileItem | null;
   coverFiles: DriveFileItem[];
   error?: string;
+  authExpired?: boolean;
+}
+
+export class DriveAuthError extends Error {
+  status: number;
+  isAuthError = true;
+  constructor(message = 'Google Drive authentication expired or unauthorized (401/403).', status = 401) {
+    super(message);
+    this.name = 'DriveAuthError';
+    this.status = status;
+  }
 }
 
 /**
@@ -52,6 +63,9 @@ export async function findComicCoversFolder(accessToken: string): Promise<DriveF
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       console.warn('Folder search response not ok:', err);
+      if (response.status === 401 || response.status === 403) {
+        throw new DriveAuthError(err?.error?.message || 'Google Drive authorization expired or unauthorized.', response.status);
+      }
       return null;
     }
 
@@ -118,6 +132,9 @@ export async function getDriveImagesInFolder(
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         console.warn(`Drive API page ${pageCount} error:`, err);
+        if (response.status === 401 || response.status === 403) {
+          throw new DriveAuthError(err?.error?.message || 'Google Drive authorization expired or unauthorized.', response.status);
+        }
         break;
       }
 
@@ -178,6 +195,9 @@ export async function scanDriveComicCovers(
           { headers: { Authorization: `Bearer ${accessToken}` } },
           5000
         );
+        if (noImgRes && !noImgRes.ok && (noImgRes.status === 401 || noImgRes.status === 403)) {
+          throw new DriveAuthError('Google Drive authorization expired.', noImgRes.status);
+        }
         if (noImgRes && noImgRes.ok) {
           const noImgData = await noImgRes.json().catch(() => ({}));
           if (noImgData.files?.[0]) {
@@ -219,6 +239,15 @@ export async function scanDriveComicCovers(
     };
   } catch (err: any) {
     console.error('scanDriveComicCovers failed:', err);
+    if (err instanceof DriveAuthError || err?.isAuthError || err?.status === 401 || err?.status === 403) {
+      return {
+        folder: null,
+        noImageFile: null,
+        coverFiles: [],
+        error: 'Google Drive authorization expired or unauthorized (401/403). Please sign in again with your Google Account to scan your drive.',
+        authExpired: true,
+      };
+    }
     return {
       folder: null,
       noImageFile: null,

@@ -16,7 +16,7 @@ import {
   Search
 } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { googleSignIn, initAuth, logout } from '../services/auth';
+import { googleSignIn, initAuth, logout, clearCachedAccessToken } from '../services/auth';
 import { scanDriveComicCovers, DriveFileItem, DriveCoversSyncResult } from '../services/driveService';
 import { ComicBook } from '../types';
 import { 
@@ -32,9 +32,10 @@ import {
   extractDriveFileId,
   hasFullCoverWord,
   parseStrictFullCoverFileName,
-  doesFullCoverMatchComic
+  doesFullCoverMatchComic,
+  scoreFullCoverMatch
 } from '../utils/imageUtils';
-import { isAnnualComic, extractAnnualNumber, parseIssueNumber } from '../utils/comicSortUtils';
+import { isAnnualComic, extractAnnualNumber, parseIssueNumber, formatComicOptionLabel } from '../utils/comicSortUtils';
 
 interface GoogleDriveCoversModalProps {
   isOpen: boolean;
@@ -92,20 +93,36 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     if (isFull) {
       return isComicFullCoverLinked(comic.coverImageFull, file.id);
     }
-    if (!comic.coverImage) return false;
+    if (!comic.coverImage || !isComicAlreadyLinked(comic.coverImage, syncResult?.noImageFile?.id)) {
+      return false;
+    }
     if (comic.coverImage.includes(file.id)) return true;
     const currentId = extractDriveFileId(comic.coverImage);
     return currentId !== null && currentId === file.id;
   };
 
   // Populate or update stagedAssignments whenever syncResult or comics change
-  // Uses indexed issue lookup and Set for O(1) matching performance
+  // Uses indexed issue lookup and Sets for O(1) matching performance
   useEffect(() => {
     if (!syncResult?.coverFiles || syncResult.coverFiles.length === 0) return;
 
     setStagedAssignments((prev) => {
       const updated = { ...prev };
-      const assignedSet = new Set(Object.values(updated));
+      // Separate assigned sets for Front Covers vs Full Art Covers so they never block each other
+      const assignedFrontSet = new Set<string>();
+      const assignedFullSet = new Set<string>();
+
+      // Track existing assignments
+      syncResult.coverFiles.forEach((file) => {
+        const assignedId = updated[file.id];
+        if (assignedId && comics.some((c) => c.id === assignedId)) {
+          if (hasFullCoverWord(file.name)) {
+            assignedFullSet.add(assignedId);
+          } else {
+            assignedFrontSet.add(assignedId);
+          }
+        }
+      });
 
       // Pre-index comics by numeric/clean issue number and annual designations for fast candidate lookup
       const comicsByIssue = new Map<string, ComicBook[]>();
@@ -140,6 +157,15 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
             addIndex(String(c.publicationYear), c);
             addIndex(String(c.publicationYear).slice(-2), c);
           }
+          const titleYearMatch = `${c.title || ''} ${c.fullTitle || ''}`.match(/\bannual\s*['’`]?(\d{2,4})\b/i);
+          if (titleYearMatch) {
+            const yStr = titleYearMatch[1];
+            addIndex(yStr, c);
+            if (yStr.length === 2) {
+              const fullY = parseInt(yStr, 10) < 50 ? `20${yStr}` : `19${yStr}`;
+              addIndex(fullY, c);
+            }
+          }
         }
       }
 
@@ -173,19 +199,29 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
 
       // Step 1: Retain manual assignments and check already linked items in vault
       syncResult.coverFiles.forEach((file) => {
+        const isFull = hasFullCoverWord(file.name);
         const currentAssignedId = updated[file.id];
         if (currentAssignedId && comics.some((c) => c.id === currentAssignedId)) {
+          if (isFull) {
+            assignedFullSet.add(currentAssignedId);
+          } else {
+            assignedFrontSet.add(currentAssignedId);
+          }
           return;
         }
 
         const alreadyLinked = comics.find((c) => isFileLinkedToComic(file, c));
         if (alreadyLinked) {
           updated[file.id] = alreadyLinked.id;
-          assignedSet.add(alreadyLinked.id);
+          if (isFull) {
+            assignedFullSet.add(alreadyLinked.id);
+          } else {
+            assignedFrontSet.add(alreadyLinked.id);
+          }
         }
       });
 
-      // Step 2: Handle Full Covers strictly
+      // Step 2: Handle Full Covers strictly using scoring
       syncResult.coverFiles.forEach((file) => {
         if (updated[file.id]) return;
         if (!hasFullCoverWord(file.name)) return;
@@ -193,13 +229,25 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         const parsed = parseStrictFullCoverFileName(file.name);
         if (!parsed.isStrictFullCover) return;
 
-        const suggested =
-          comics.find((c) => !assignedSet.has(c.id) && doesFullCoverMatchComic(parsed, c)) ||
-          comics.find((c) => doesFullCoverMatchComic(parsed, c));
+        let bestCandidate: ComicBook | null = null;
+        let bestScore = 0;
 
-        if (suggested) {
-          updated[file.id] = suggested.id;
-          assignedSet.add(suggested.id);
+        for (const c of comics) {
+          const score = scoreFullCoverMatch(parsed, c);
+          if (score < 70) continue;
+          const isUnassigned = !assignedFullSet.has(c.id);
+          if (
+            score > bestScore ||
+            (score === bestScore && isUnassigned && bestCandidate && assignedFullSet.has(bestCandidate.id))
+          ) {
+            bestScore = score;
+            bestCandidate = c;
+          }
+        }
+
+        if (bestCandidate) {
+          updated[file.id] = bestCandidate.id;
+          assignedFullSet.add(bestCandidate.id);
         }
       });
 
@@ -210,10 +258,10 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         if (hasFullCoverWord(file.name)) return;
 
         const candidateComics = getCandidatesForFile(file);
-        const match = findBestMatchingComic(file.name, candidateComics, assignedSet, 90);
+        const match = findBestMatchingComic(file.name, candidateComics, assignedFrontSet, 90);
         if (match) {
           updated[file.id] = match.id;
-          assignedSet.add(match.id);
+          assignedFrontSet.add(match.id);
         }
       });
 
@@ -223,10 +271,10 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         if (hasFullCoverWord(file.name)) return;
 
         const candidateComics = getCandidatesForFile(file);
-        const match = findBestMatchingComic(file.name, candidateComics, assignedSet, 70);
+        const match = findBestMatchingComic(file.name, candidateComics, assignedFrontSet, 70);
         if (match) {
           updated[file.id] = match.id;
-          assignedSet.add(match.id);
+          assignedFrontSet.add(match.id);
         }
       });
 
@@ -257,6 +305,13 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     });
     return list;
   }, [syncResult, stagedAssignments, comics]);
+
+  // Breakdown of pending matches by front cover vs full wraparound art
+  const pendingMatchesSummary = useMemo(() => {
+    const frontCount = pendingMatches.filter(({ file }) => !hasFullCoverWord(file.name)).length;
+    const fullCount = pendingMatches.filter(({ file }) => hasFullCoverWord(file.name)).length;
+    return { frontCount, fullCount, total: pendingMatches.length };
+  }, [pendingMatches]);
 
   // Already linked count across all files in Drive
   const alreadyLinkedCount = useMemo(() => {
@@ -322,12 +377,17 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         setUser(null);
         setAccessToken(null);
         setIsLoadingAuth(false);
-        // Leave authError as-is (set by explicit sign-in failure) or clear
-        // setAuthError('Not connected to Google Drive');
       }
     );
     return () => unsubscribe();
   }, []);
+
+  // When modal is opened with an existing active token, scan if results are not yet loaded
+  useEffect(() => {
+    if (isOpen && accessToken && !syncResult && !isScanning) {
+      handleScanDrive(accessToken);
+    }
+  }, [isOpen, accessToken, syncResult]);
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
@@ -338,7 +398,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
         setUser(res.user);
         setAccessToken(res.accessToken);
         setAuthError(null);
-        handleScanDrive(res.accessToken);
+        await handleScanDrive(res.accessToken);
       }
     } catch (err: any) {
       console.error('Sign in failed:', err);
@@ -349,30 +409,58 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
   };
 
   // Memoize comic options so React doesn't allocate thousands of option elements per card
-  const comicOptions = useMemo(() => {
+  const comicFrontOptions = useMemo(() => {
     return comics.map((c) => {
-      const issueLabel = String(c.issueNumber ?? '').trim();
-      const formattedIssue = issueLabel.startsWith('#') || issueLabel.toLowerCase().startsWith('annual')
-        ? issueLabel
-        : `#${issueLabel}`;
       return (
         <option key={c.id} value={c.id}>
-          {c.title} {formattedIssue}
+          {formatComicOptionLabel(c)}
         </option>
       );
     });
   }, [comics]);
 
-  const handleScanDrive = async (tokenToUse?: string) => {
+  // Memoize full wraparound art options with explicit [Full Art] distinction
+  const comicFullOptions = useMemo(() => {
+    return comics.map((c) => {
+      return (
+        <option key={c.id} value={c.id}>
+          {formatComicOptionLabel(c)} [Full Art]
+        </option>
+      );
+    });
+  }, [comics]);
+
+  const handleScanDrive = async (tokenToUse?: string, allowAutoPrompt = false) => {
     const tok = tokenToUse || accessToken;
-    if (!tok) return;
+    if (!tok) {
+      await handleSignIn();
+      return;
+    }
 
     setIsScanning(true);
     setScanProgressCount(0);
+    // Reset staged assignments so a fresh scan always re-evaluates matches accurately
+    setStagedAssignments({});
     try {
       const result = await scanDriveComicCovers(tok, (count) => {
         setScanProgressCount(count);
       });
+
+      if (result.authExpired) {
+        clearCachedAccessToken();
+        setAccessToken(null);
+        setAuthError('Google Drive session expired (401/403). Please sign in again with your Google Account to scan your drive.');
+        setIsScanning(false);
+        if (allowAutoPrompt) {
+          try {
+            await handleSignIn();
+          } catch {
+            // Popup closed by user
+          }
+        }
+        return;
+      }
+
       setSyncResult(result);
 
       if (result.noImageFile) {
@@ -382,6 +470,11 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       }
     } catch (err: any) {
       console.error('Failed to scan Drive:', err);
+      if (err?.isAuthError || err?.status === 401 || err?.status === 403) {
+        clearCachedAccessToken();
+        setAccessToken(null);
+        setAuthError('Google Drive session expired. Please sign in again with your Google Account.');
+      }
     } finally {
       setIsScanning(false);
     }
@@ -522,6 +615,23 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
           ) : (
             <div className="space-y-6">
               
+              {authError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                    <span>{authError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSignIn}
+                    disabled={isSigningIn}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shrink-0 cursor-pointer shadow-xs transition-colors"
+                  >
+                    Sign in with Google
+                  </button>
+                </div>
+              )}
+
               {/* Connected User Bar */}
               <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
                 <div className="flex items-center gap-2.5">
@@ -538,16 +648,29 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
-                    onClick={() => handleScanDrive()}
-                    disabled={isScanning}
+                    type="button"
+                    onClick={() => handleScanDrive(undefined, true)}
+                    disabled={isScanning || isSigningIn}
                     className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Re-scan Comic Covers using current token"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
                     <span>Re-scan Drive</span>
                   </button>
                   <button
+                    type="button"
+                    onClick={handleSignIn}
+                    disabled={isSigningIn || isScanning}
+                    className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-300 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Sign in with Google Account to refresh connection and re-scan"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Scan with Google Account</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => logout().then(() => { setUser(null); setAccessToken(null); })}
                     className="px-2.5 py-1 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium cursor-pointer"
                   >
@@ -667,7 +790,14 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
                           <Sparkles className="w-3 h-3" />
-                          {pendingMatches.length} Ready to Link
+                          <span>
+                            {pendingMatches.length} Ready to Link
+                            {pendingMatchesSummary.fullCount > 0 && pendingMatchesSummary.frontCount > 0 ? (
+                              <span className="font-normal text-[10px] ml-1 opacity-80">
+                                ({pendingMatchesSummary.frontCount} Front, {pendingMatchesSummary.fullCount} Full Art)
+                              </span>
+                            ) : null}
+                          </span>
                         </span>
                         <button
                           type="button"
@@ -752,9 +882,21 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                 )}
 
                 {syncResult?.error && (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs font-medium flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>{syncResult.error}</span>
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs font-medium flex items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>{syncResult.error}</span>
+                    </div>
+                    {syncResult.authExpired && (
+                      <button
+                        type="button"
+                        onClick={handleSignIn}
+                        disabled={isSigningIn}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shrink-0 cursor-pointer shadow-xs transition-colors"
+                      >
+                        Sign in with Google
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -773,11 +915,31 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                     )}
                   </div>
                 ) : syncResult?.coverFiles.length === 0 ? (
-                  <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-500 dark:text-slate-400 space-y-1">
+                  <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-500 dark:text-slate-400 space-y-2">
                     <p className="text-xs font-semibold">No scanned comic covers found in &ldquo;Comic Covers&rdquo; folder.</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
                       Add images named after issue titles (e.g. &ldquo;Spider-Man 300.jpg&rdquo;) to your Google Drive folder and click Re-scan!
                     </p>
+                    <div className="pt-2 flex justify-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handleScanDrive(undefined, true)}
+                        disabled={isScanning || isSigningIn}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                        <span>Re-scan Drive</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSignIn}
+                        disabled={isSigningIn || isScanning}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 cursor-pointer transition-colors"
+                      >
+                        <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <span>Scan with Google Account</span>
+                      </button>
+                    </div>
                   </div>
                 ) : sortedAndFilteredCoverFiles.length === 0 ? (
                   <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-500 dark:text-slate-400 space-y-1">
@@ -849,6 +1011,21 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                               <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate" title={file.name}>
                                 {file.name}
                               </p>
+
+                              {/* Target Field Indicator */}
+                              <div className="flex items-center justify-between text-[10px]">
+                                {isFull ? (
+                                  <span className="text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
+                                    <Layers className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
+                                    <span>Target: Full Wraparound Art</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1">
+                                    <ImageIcon className="w-3 h-3 text-slate-500 dark:text-slate-400 shrink-0" />
+                                    <span>Target: Front Cover</span>
+                                  </span>
+                                )}
+                              </div>
                               
                               {/* Vault Comic Selector */}
                               <select
@@ -868,7 +1045,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                                 }`}
                               >
                                 <option value="">(No comic assigned)</option>
-                                {comicOptions}
+                                {isFull ? comicFullOptions : comicFrontOptions}
                               </select>
 
                               {isInvalidFullFormat && (
@@ -931,6 +1108,11 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
             {pendingMatches.length > 0 && (
               <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                 • {pendingMatches.length} cover{pendingMatches.length === 1 ? '' : 's'} waiting to be linked
+                {pendingMatchesSummary.fullCount > 0 && pendingMatchesSummary.frontCount > 0 ? (
+                  <span className="font-normal text-[11px] ml-1 opacity-90">
+                    ({pendingMatchesSummary.frontCount} Front, {pendingMatchesSummary.fullCount} Full Art)
+                  </span>
+                ) : null}
               </span>
             )}
           </div>

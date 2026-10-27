@@ -95,7 +95,7 @@ export function parseIssueNumber(val?: string | number): ParsedIssueNumber {
  * Detects annuals via issue number ('Annual 1', 'Annual #20'), title ('Fantastic Four Annual'),
  * fullTitle ('Fantastic Four Annual #20'), seriesName, or tags.
  */
-export function isAnnualComic(comic?: Partial<ComicBook> | null): boolean {
+export function isAnnualComic(comic?: Partial<ComicBook> | { title?: string; issueNumber?: string | number; fullTitle?: string; seriesName?: string; tags?: string[] } | null): boolean {
   if (!comic) return false;
 
   // 1. Issue number prefix or text
@@ -138,11 +138,12 @@ export function isAnnualComic(comic?: Partial<ComicBook> | null): boolean {
  * Checks whether an Annual comic has a year-based designation (e.g. "Annual '95", "Annual 1998", "1997 Annual")
  * rather than a standard sequential integer issue number (e.g. "Annual #4").
  */
-export function isYearDesignatedAnnual(comic?: Partial<ComicBook> | null): boolean {
+export function isYearDesignatedAnnual(comic?: Partial<ComicBook> | { title?: string; issueNumber?: string | number; fullTitle?: string; seriesName?: string } | null): boolean {
   if (!comic) return false;
   const full = [comic.title, comic.fullTitle, comic.issueNumber, comic.seriesName].filter(Boolean).join(' ');
   if (/\bannual\s*['’`]\d{2}\b/i.test(full)) return true;
   if (/\bannual\s*(?:19|20)\d{2}\b/i.test(full)) return true;
+  if (/\bannual\s*(?:[5-9]\d|[0-2]\d)\b/i.test(full)) return true;
   if (/\b(?:19|20)\d{2}\s*annual\b/i.test(full)) return true;
   if (comic.issueNumber !== undefined && comic.issueNumber !== null) {
     const rawIssue = String(comic.issueNumber).trim();
@@ -150,6 +151,83 @@ export function isYearDesignatedAnnual(comic?: Partial<ComicBook> | null): boole
     if (/^(?:19|20)\d{2}$/.test(rawIssue)) return true;
   }
   return false;
+}
+
+/**
+ * Canonical formatter for comic full title (fullTitle / full_title).
+ * Invariant: For year-designated Annuals (e.g. "X-Men Annual '95"),
+ * the year functions as the issue identifier and MUST NEVER include
+ * a hash symbol or sequential issue number like "#1".
+ */
+export function formatComicFullTitle(comic: {
+  title?: string;
+  issueNumber?: string | number;
+  fullTitle?: string;
+  seriesName?: string;
+}): string {
+  const title = (comic.title || '').trim();
+  const rawIssue = comic.issueNumber !== undefined && comic.issueNumber !== null
+    ? String(comic.issueNumber).trim()
+    : '';
+  const cleanIssue = rawIssue.replace(/^#\s*/, '').trim();
+  const existingFull = (comic.fullTitle || '').trim();
+
+  if (isYearDesignatedAnnual(comic)) {
+    // 1. If title already contains Annual and a year designation (e.g. "X-Men Annual '95"),
+    // strip any accidental trailing "#..." and return clean title.
+    if (/\bannual\s*['’`]?\d{2,4}\b/i.test(title) || /\b(?:19|20)\d{2}\s*annual\b/i.test(title)) {
+      return title.replace(/\s*#.*$/, '').trim();
+    }
+
+    // 2. If existing fullTitle has Annual with a year (possibly with trailing #1 appended),
+    // strip the trailing #1 and return the clean annual title.
+    const fullMatch = existingFull.match(/^(.*?\bannual\s*['’`]?\d{2,4}\b)(?:\s*#\s*\d+.*)?$/i) ||
+      existingFull.match(/^(.*?\b(?:19|20)\d{2}\s*annual\b)(?:\s*#\s*\d+.*)?$/i);
+    if (fullMatch) {
+      return fullMatch[1].trim();
+    }
+
+    // 3. If title is e.g. "X-Men Annual" and issueNumber is the year (e.g. "'95", "1995", "95")
+    if (cleanIssue && (/^['’`]?\d{2,4}$/.test(cleanIssue) || cleanIssue.toLowerCase().includes('annual'))) {
+      const yearPart = cleanIssue.startsWith("'") || cleanIssue.startsWith("’") || cleanIssue.startsWith("`") || cleanIssue.length === 4
+        ? cleanIssue
+        : `'${cleanIssue}`;
+      if (title.toLowerCase().endsWith('annual')) {
+        return `${title} ${yearPart}`.trim();
+      }
+      return `${title} Annual ${yearPart}`.trim();
+    }
+
+    // 4. Fallback for year designated annual: strip trailing #... if present
+    const base = title || comic.seriesName || existingFull;
+    return base.replace(/\s*#.*$/, '').trim();
+  }
+
+  // Non-year-designated comics: standard format "Title #Issue"
+  const baseTitle = title || comic.seriesName || existingFull.replace(/\s*#.*$/, '').trim() || 'Untitled Comic';
+  if (cleanIssue && cleanIssue !== 'Unknown') {
+    return `${baseTitle} #${cleanIssue}`;
+  }
+  return baseTitle;
+}
+
+/**
+ * Canonical option label for comic dropdown selects.
+ * Avoids displaying "#1" on year-designated annuals.
+ */
+export function formatComicOptionLabel(comic: Partial<ComicBook>): string {
+  if (isYearDesignatedAnnual(comic)) {
+    return formatComicFullTitle(comic);
+  }
+  const cleanTitle = (comic.title || comic.seriesName || 'Untitled Comic').trim();
+  const rawIssue = comic.issueNumber !== undefined && comic.issueNumber !== null
+    ? String(comic.issueNumber).trim()
+    : '';
+  const cleanIssue = rawIssue.replace(/^#\s*/, '').trim();
+  if (cleanIssue && cleanIssue !== 'Unknown') {
+    return `${cleanTitle} #${cleanIssue}`;
+  }
+  return cleanTitle;
 }
 
 /**

@@ -302,6 +302,36 @@ export async function initDatabase(db: Pool) {
     console.warn('Auto-repair negative issue numbers warning:', negErr);
   }
 
+  // Auto-repair any year-designated annuals where full_title erroneously has '#...' appended
+  try {
+    const annualErrResult = await db.query(
+      `SELECT id, title, full_title FROM comic_books
+       WHERE (
+         title ~* 'annual\\s*[''’\`][0-9]{2}' 
+         OR title ~* 'annual\\s*(19|20)[0-9]{2}' 
+         OR title ~* '(19|20)[0-9]{2}\\s*annual'
+         OR full_title ~* 'annual\\s*[''’\`][0-9]{2}' 
+         OR full_title ~* 'annual\\s*(19|20)[0-9]{2}' 
+         OR full_title ~* '(19|20)[0-9]{2}\\s*annual'
+       ) 
+       AND full_title ~* '#\\s*\\d+'`
+    );
+    if (annualErrResult.rows.length > 0) {
+      console.log(`Found ${annualErrResult.rows.length} annual comic(s) with #issue in full_title. Auto-repairing full_title...`);
+      for (const row of annualErrResult.rows) {
+        const fullTitle = (row.full_title as string) || (row.title as string);
+        const cleanFull = fullTitle.replace(/\s*#\s*\d+.*$/i, '').trim();
+        await db.query(
+          "UPDATE comic_books SET full_title = $1, updated_at = NOW() WHERE id = $2",
+          [cleanFull, row.id]
+        );
+      }
+      console.log(`Successfully repaired ${annualErrResult.rows.length} annual full_title(s).`);
+    }
+  } catch (annRepairErr) {
+    console.warn('Auto-repair annual full_title warning:', annRepairErr);
+  }
+
   // Auto-seed series_issue_totals from CSV if table is empty
   try {
     const totalsCountRes = await db.query('SELECT COUNT(*) FROM series_issue_totals');
