@@ -33,7 +33,7 @@ interface NavbarProps {
   onOpenDriveModal: () => void;
   onOpenDataManagementModal?: () => void;
   totalComicsCount: number;
-  totalThicknessUnits: number;
+  totalThicknessUnits?: number;
   fullRunsCount?: number;
   totalRunsCount?: number;
   wishlistCount?: number;
@@ -327,19 +327,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           <nav className="flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0 py-0.5">
             <button
               onClick={() => setActiveTab('catalog')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'catalog'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <BookOpen className="w-4 h-4" />
-              <span>Catalog View</span>
+              <span>Catalog<span className="hidden sm:inline lg:hidden xl:inline"> View</span></span>
             </button>
 
             <button
               onClick={() => setActiveTab('shopping')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'shopping'
                   ? 'bg-rose-700 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-rose-600 dark:hover:text-rose-400'
@@ -362,7 +362,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('boxes')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'boxes'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -374,7 +374,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('challenge')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'challenge'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -386,38 +386,38 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('stats')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'stats'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-              <span>Reading & Box Stats</span>
+              <span><span className="hidden sm:inline lg:hidden xl:inline">Reading & </span>Box Stats</span>
             </button>
 
             <button
               onClick={() => setActiveTab('sheets')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'sheets'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-              <span>Google Sheets Import</span>
+              <span><span className="hidden sm:inline lg:hidden xl:inline">Google </span>Sheets Importer</span>
             </button>
 
             <button
               onClick={() => setActiveTab('database')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                 activeTab === 'database'
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <Database className="w-4 h-4 text-amber-500" />
-              <span>DB Schema & Export</span>
+              <span><span className="hidden sm:inline lg:hidden xl:inline">DB </span>Schema & Export</span>
             </button>
           </nav>
 
@@ -425,10 +425,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="hidden lg:flex items-center gap-2.5 text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0 pl-3 border-l border-slate-200 dark:border-slate-800">
             <div className="whitespace-nowrap">
               <span className="hidden xl:inline">Total </span>Titles: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalComicsCount}</span>
-            </div>
-            <div className="text-slate-300 dark:text-slate-700">•</div>
-            <div className="whitespace-nowrap">
-              <span className="hidden xl:inline">Issue </span>Units: <span className="text-slate-900 dark:text-slate-100 font-bold">{totalThicknessUnits.toFixed(1)}</span>
             </div>
             {fullRunsCount !== undefined && totalRunsCount !== undefined && (
               <>
