@@ -20,7 +20,7 @@ export const collectionRouter = express.Router();
 function isPlaceholderCover(cover?: unknown): boolean {
   if (!cover || typeof cover !== 'string') return true;
   const trimmed = cover.trim().toLowerCase();
-  return !trimmed || trimmed === 'noimage.png' || trimmed.includes('noimage');
+  return !trimmed || trimmed === 'noimage.webp' || trimmed === 'noimage.png' || trimmed.includes('noimage');
 }
 
 collectionRouter.get('/api/collection', requireDatabase, async (_req, res) => {
@@ -392,7 +392,7 @@ collectionRouter.post('/api/sync', requireDatabase, async (req, res) => {
                     ? incoming.coverImage
                     : !isPlaceholderCover(serverComic.coverImage)
                     ? serverComic.coverImage
-                    : incoming.coverImage || 'NoImage.png',
+                    : incoming.coverImage || 'NoImage.webp',
                 coverImageFull:
                   incoming.coverImageFull || (serverComic.coverImageFull as string | undefined),
               };

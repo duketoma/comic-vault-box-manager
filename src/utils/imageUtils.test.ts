@@ -33,7 +33,7 @@ const regularSilverSurfer2: ComicBook = {
   genre: 'Superhero',
   writer: 'Steve Englehart',
   artist: 'Marshall Rogers',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -56,7 +56,7 @@ const annualSilverSurfer2: ComicBook = {
   genre: 'Superhero',
   writer: 'Steve Englehart',
   artist: 'Ron Lim',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -79,7 +79,7 @@ const batman12: ComicBook = {
   genre: 'Superhero',
   writer: 'Bill Finger',
   artist: 'Bob Kane',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -102,7 +102,7 @@ const batmanAdventures12: ComicBook = {
   genre: 'Superhero',
   writer: 'Kelley Puckett',
   artist: 'Mike Parobeck',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -125,7 +125,7 @@ const genXAnnual97: ComicBook = {
   genre: 'Superhero',
   writer: 'Scott Lobdell',
   artist: 'Chris Bachalo',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -148,7 +148,7 @@ const avengers1: ComicBook = {
   genre: 'Superhero',
   writer: 'Stan Lee',
   artist: 'Jack Kirby',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -171,7 +171,7 @@ const newAvengers1: ComicBook = {
   genre: 'Superhero',
   writer: 'Brian Michael Bendis',
   artist: 'David Finch',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -285,7 +285,7 @@ const xmenAnn95: ComicBook = {
   genre: 'Superhero',
   writer: 'Fabian Nicieza',
   artist: 'Andy Kubert',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -308,7 +308,7 @@ const xmenAnn96: ComicBook = {
   genre: 'Superhero',
   writer: 'Fabian Nicieza',
   artist: 'Andy Kubert',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -331,7 +331,7 @@ const uncannyAnn95: ComicBook = {
   genre: 'Superhero',
   writer: 'Scott Lobdell',
   artist: 'Bryan Hitch',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -354,7 +354,7 @@ const uncannyAnn96: ComicBook = {
   genre: 'Superhero',
   writer: 'Scott Lobdell',
   artist: 'Bryan Hitch',
-  coverImage: 'NoImage.png',
+  coverImage: 'NoImage.webp',
   format: 'Single Issue',
   sizeThickness: 1.0,
   currentBoxId: 1,
@@ -449,5 +449,48 @@ assert(formatComicFullTitle(xmenAnn95) === "X-Men Annual '95", "formatComicFullT
 assert(formatComicFullTitle({ title: "X-Men Annual '95", issueNumber: "1", fullTitle: "X-Men Annual '95 #1" }) === "X-Men Annual '95", "formatComicFullTitle strips existing #1");
 assert(formatComicOptionLabel(xmenAnn95) === "X-Men Annual '95", "formatComicOptionLabel does not display #1 for year-designated annual");
 assert(formatComicOptionLabel(regularSilverSurfer2) === "Silver Surfer #2", "formatComicOptionLabel formats regular comic with #issue");
+
+// 11. WebP format matching tests
+assert(isAnnualFileName('Silver Surfer Annual #2.webp') === true, 'Silver Surfer Annual #2.webp is an Annual file');
+assert(isAnnualFileName('Silver Surfer #2.webp') === false, 'Silver Surfer #2.webp is NOT an Annual file');
+assert(doesFileNameMatchComic('Silver Surfer #2.webp', regularSilverSurfer2.title, regularSilverSurfer2.issueNumber, regularSilverSurfer2.volume, regularSilverSurfer2.seriesName, regularSilverSurfer2.fullTitle, regularSilverSurfer2.publicationYear, regularSilverSurfer2) === true, 'Silver Surfer #2.webp matches regular Silver Surfer #2');
+assert(doesFileNameMatchComic('Silver Surfer Annual #2.webp', annualSilverSurfer2.title, annualSilverSurfer2.issueNumber, annualSilverSurfer2.volume, annualSilverSurfer2.seriesName, annualSilverSurfer2.fullTitle, annualSilverSurfer2.publicationYear, annualSilverSurfer2) === true, 'Silver Surfer Annual #2.webp matches Silver Surfer Annual #2');
+
+const parsedWebpFull95 = parseStrictFullCoverFileName("X-Men Annual Full '95.webp");
+assert(parsedWebpFull95.isStrictFullCover === true, "X-Men Annual Full '95.webp parsed as strict full cover");
+assert(doesFullCoverMatchComic(parsedWebpFull95, xmenAnn95) === true, "X-Men Annual Full '95.webp matches X-Men Annual '95");
+
+const bestWebpMatch = findBestMatchingComic('Batman #12.webp', [batman12, regularSilverSurfer2]);
+assert(bestWebpMatch?.id === 'batman-12', 'Batman #12.webp correctly matches Batman #12');
+
+// 12. 4-digit title numbers (e.g. 2099 A.D. Genesis) must not be rejected by publication year check
+const genesis2099: ComicBook = {
+  id: 'genesis-2099-1',
+  title: '2099 A.D. Genesis',
+  issueNumber: '1',
+  seriesName: '2099 A.D. Genesis (1996)',
+  fullTitle: '2099 A.D. Genesis #1',
+  publisher: 'Marvel Comics',
+  publicationYear: 1996,
+  genre: 'Superhero',
+  writer: 'Warren Ellis',
+  artist: 'Mark Buckingham',
+  coverImage: 'NoImage.webp',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const genesisScore = scoreFileNameMatch('2099 A.D. Genesis #1.webp', genesis2099);
+assert(genesisScore >= 95, `2099 A.D. Genesis #1.webp scores high (${genesisScore}) for 2099 A.D. Genesis #1`);
+
+const matchedGenesis = findBestMatchingComic('2099 A.D. Genesis #1.webp', [genesis2099, batman12]);
+assert(matchedGenesis?.id === 'genesis-2099-1', '2099 A.D. Genesis #1.webp correctly matches 2099 A.D. Genesis #1');
 
 console.log('All imageUtils test assertions passed!');

@@ -33,7 +33,7 @@ function createMockComic(overrides: Partial<ComicBook>): ComicBook {
     genre: 'Superhero',
     writer: 'Ron Marz',
     artist: 'Ron Lim',
-    coverImage: 'NoImage.png',
+    coverImage: 'NoImage.webp',
     ...overrides,
   };
 }

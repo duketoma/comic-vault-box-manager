@@ -483,23 +483,25 @@ export function warpPerspectiveCanvas(
 
 /**
  * Generates a Google Drive compatible cover filename:
- * - Front cover: "<Title> #<Issue>.jpg"
- * - Wraparound full cover: "<Title> Full #<Issue>.jpg" (or "<Title> Annual Full #<Issue>.jpg")
+ * - Front cover: "<Title> #<Issue>.webp"
+ * - Wraparound full cover: "<Title> Full #<Issue>.webp" (or "<Title> Annual Full #<Issue>.webp")
  */
 export function buildCoverDownloadFilename(
   title?: string,
   issueNumber?: string,
-  isFullWraparound: boolean = false
+  isFullWraparound: boolean = false,
+  ext: string = 'webp'
 ): string {
+  const cleanExt = ext.replace(/^\./, '');
   const rawTitle = (title || 'Comic Cover').trim().replace(/[<>:"/\\|?*]+/g, '');
   const rawIssue = (issueNumber || '1').trim().replace(/^#/, '').replace(/[<>:"/\\|?*]+/g, '');
 
   if (isFullWraparound) {
     if (/\bannual\b/i.test(rawTitle)) {
-      return `${rawTitle} Full #${rawIssue || '1'}.jpg`;
+      return `${rawTitle} Full #${rawIssue || '1'}.${cleanExt}`;
     }
-    return `${rawTitle} Full #${rawIssue || '1'}.jpg`;
+    return `${rawTitle} Full #${rawIssue || '1'}.${cleanExt}`;
   }
 
-  return `${rawTitle} #${rawIssue || '1'}.jpg`;
+  return `${rawTitle} #${rawIssue || '1'}.${cleanExt}`;
 }

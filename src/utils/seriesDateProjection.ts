@@ -133,7 +133,7 @@ export function buildMissingWishlistComic(options: {
     copiesOwned: 0,
     readCount: 0,
     condition: 'Near Mint',
-    coverImage: 'NoImage.png',
+    coverImage: 'NoImage.webp',
     notes: 'Auto-generated wishlist entry for missing series issue',
     tags: [],
     createdAt: new Date().toISOString(),

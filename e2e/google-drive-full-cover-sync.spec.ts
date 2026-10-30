@@ -13,7 +13,7 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
       genre: 'Superhero',
       writer: 'David Michelinie',
       artist: 'Todd McFarlane',
-      coverImage: 'NoImage.png',
+      coverImage: 'NoImage.webp',
       format: 'Single Issue',
       sizeThickness: 1.0,
       currentBoxId: 1,
@@ -34,7 +34,7 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
       genre: 'Superhero',
       writer: 'Terry Kavanagh',
       artist: 'Steve Skroce',
-      coverImage: 'NoImage.png',
+      coverImage: 'NoImage.webp',
       format: 'Single Issue',
       sizeThickness: 1.2,
       currentBoxId: 1,
@@ -55,7 +55,7 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
       genre: 'Anthology',
       writer: 'Various',
       artist: 'Various',
-      coverImage: 'NoImage.png',
+      coverImage: 'NoImage.webp',
       format: 'Single Issue',
       sizeThickness: 1.0,
       currentBoxId: 1,
@@ -109,26 +109,26 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
             files: [
               {
                 id: 'gdrive-spiderman-front-id',
-                name: 'The Amazing Spider-Man 300.jpg',
-                mimeType: 'image/jpeg',
+                name: 'The Amazing Spider-Man 300.webp',
+                mimeType: 'image/webp',
                 thumbnailLink: 'https://lh3.googleusercontent.com/spiderman-front=s220',
               },
               {
                 id: 'gdrive-spiderman-full-id',
-                name: 'The Amazing Spider-Man Full #300.jpg',
-                mimeType: 'image/jpeg',
+                name: 'The Amazing Spider-Man Full #300.webp',
+                mimeType: 'image/webp',
                 thumbnailLink: 'https://lh3.googleusercontent.com/spiderman-full=s220',
               },
               {
                 id: 'gdrive-xman-full-id',
-                name: "X-Man Annual Full '96.jpg",
-                mimeType: 'image/jpeg',
+                name: "X-Man Annual Full '96.webp",
+                mimeType: 'image/webp',
                 thumbnailLink: 'https://lh3.googleusercontent.com/xman-full=s220',
               },
               {
                 id: 'gdrive-mcp-invalid-full-id',
-                name: 'Marvel Comics Presents #16 Full.jpg',
-                mimeType: 'image/jpeg',
+                name: 'Marvel Comics Presents #16 Full.webp',
+                mimeType: 'image/webp',
                 thumbnailLink: 'https://lh3.googleusercontent.com/mcp-invalid=s220',
               },
             ],
@@ -164,7 +164,7 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
     await expect(page.getByRole('button', { name: /Front Covers/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Full Wraparound Art/i })).toBeVisible();
 
-    // Verify "Format Error" badge appears on "Marvel Comics Presents #16 Full.jpg"
+    // Verify "Format Error" badge appears on "Marvel Comics Presents #16 Full.webp"
     await expect(page.getByText('Format Error')).toBeVisible();
 
     // Verify strict full covers matched with "Full Art" badges

@@ -677,7 +677,7 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const changedComics: ComicBook[] = [];
     const updatedList = comics.map((c) => {
-      if (!c.coverImage || c.coverImage === 'NoImage.png' || c.coverImage.toLowerCase().includes('noimage')) {
+      if (!c.coverImage || c.coverImage === 'NoImage.webp' || c.coverImage === 'NoImage.png' || c.coverImage.toLowerCase().includes('noimage')) {
         const updatedComic = { ...c, coverImage: noImageUrl, updatedAt: nowIso };
         changedComics.push(updatedComic);
         return updatedComic;

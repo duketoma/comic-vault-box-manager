@@ -80,7 +80,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
   const [writer, setWriter] = useState('');
   const [artist, setArtist] = useState('');
   const [coverArtist, setCoverArtist] = useState('');
-  const [coverImage, setCoverImage] = useState('NoImage.png');
+  const [coverImage, setCoverImage] = useState('NoImage.webp');
   const [format, setFormat] = useState<ComicFormat>('Single Issue');
   const [sizeThickness, setSizeThickness] = useState<number>(1.0);
   const [currentBoxId, setCurrentBoxId] = useState<number>(1);
@@ -199,7 +199,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       }
     });
 
-    const isNewCover = coverImage && coverImage !== 'NoImage.png';
+    const isNewCover = coverImage && coverImage !== 'NoImage.webp';
 
     const updated: ComicBook = {
       ...duplicateMatch,
@@ -280,7 +280,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       artist: artist.trim(),
       coverArtist: coverArtist.trim(),
       creatorContributions: creatorContribs,
-      coverImage: coverImage || 'NoImage.png',
+      coverImage: coverImage || 'NoImage.webp',
       format,
       sizeThickness: Number(sizeThickness) || 1.0,
       currentBoxId: finalBoxId,
@@ -375,7 +375,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
               <CoverScannerCropper
                 enableOcr={true}
                 defaultPreset="standard"
-                initialImageUrl={coverImage !== 'NoImage.png' ? coverImage : undefined}
+                initialImageUrl={coverImage !== 'NoImage.webp' ? coverImage : undefined}
                 comicTitle={title}
                 comicIssueNumber={issueNumber}
                 existingComics={existingComics}

@@ -16,7 +16,7 @@ function createMockComic(partial: Partial<ComicBook> & { id: string; issueNumber
     genre: 'Superhero',
     writer: 'Writer',
     artist: 'Artist',
-    coverImage: 'NoImage.png',
+    coverImage: 'NoImage.webp',
     publicationYear: 2000,
     publisher: 'Marvel Comics',
     readingStatus: 'Wishlist',

@@ -175,7 +175,7 @@ export async function getDriveImagesInFolder(
 
 /**
  * Complete helper to scan Google Drive for the "Comic Covers" folder,
- * extract all images inside, and isolate `NoImage.png`.
+ * extract all images inside, and isolate `NoImage.webp`.
  */
 export async function scanDriveComicCovers(
   accessToken: string,
@@ -186,7 +186,7 @@ export async function scanDriveComicCovers(
     if (!folder) {
       // Find NoImage placeholder in drive if it exists
       const noImageQuery = encodeURIComponent(
-        "trashed=false and (name='NoImage.png' or name='noimage.png' or name contains 'noimage')"
+        "trashed=false and (name='NoImage.webp' or name='noimage.webp' or name='NoImage.png' or name='noimage.png' or name contains 'noimage')"
       );
       let noImg: DriveFileItem | null = null;
       try {
@@ -225,11 +225,11 @@ export async function scanDriveComicCovers(
 
     const filesInFolder = await getDriveImagesInFolder(accessToken, folder.id, onProgress);
     const noImg = filesInFolder.find(
-      (f) => f.name.toLowerCase() === 'noimage.png' || f.name.toLowerCase().includes('noimage')
+      (f) => f.name.toLowerCase() === 'noimage.webp' || f.name.toLowerCase().includes('noimage')
     ) || null;
 
     const actualCovers = filesInFolder.filter(
-      (f) => f.name.toLowerCase() !== 'noimage.png' && !f.name.toLowerCase().includes('noimage')
+      (f) => f.name.toLowerCase() !== 'noimage.webp' && !f.name.toLowerCase().includes('noimage')
     );
 
     return {

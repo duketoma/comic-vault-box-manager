@@ -1,13 +1,13 @@
 import type { SyntheticEvent } from 'react';
-const noImageAsset = new URL('../../assets/NoImage.png', import.meta.url).href;
+const noImageAsset = new URL('../../assets/NoImage.webp', import.meta.url).href;
 import { buildApiUrl } from '../services/apiConfig';
 import { isAnnualComic, extractAnnualNumber, parseIssueNumber, isYearDesignatedAnnual } from './comicSortUtils';
 import type { ComicBook } from '../types';
 
-// Utility functions for comic cover images, Google Drive image links, and NoImage.png placeholder
+// Utility functions for comic cover images, Google Drive image links, and NoImage.webp placeholder
 
 /** Stored sentinel for comics with no linked cover yet. */
-export const DEFAULT_COVER_IMAGE = 'NoImage.png';
+export const DEFAULT_COVER_IMAGE = 'NoImage.webp';
 
 /** Bundled local fallback shown until a Google Drive placeholder is available. */
 export const DEFAULT_NO_IMAGE_PLACEHOLDER = noImageAsset;
@@ -102,7 +102,7 @@ export function formatDriveImageUrl(urlOrId: string, customFallback?: string): s
 }
 
 /**
- * Safe image resolver that falls back to NoImage.png placeholder if missing
+ * Safe image resolver that falls back to NoImage.webp placeholder if missing
  */
 export function getComicCoverUrl(coverUrlOrComic?: string | { coverImage?: string; coverImageFull?: string } | null, customFallback?: string): string {
   const fallback = customFallback || getDriveNoImageUrl();
@@ -118,7 +118,7 @@ export function getComicCoverUrl(coverUrlOrComic?: string | { coverImage?: strin
 
 /**
  * Checks if a comic book already has a valid, non-placeholder cover image linked.
- * Explicitly makes an exception for NoImage.png and placeholder images, treating them as unlinked.
+ * Explicitly makes an exception for NoImage.webp and placeholder images, treating them as unlinked.
  */
 export function isComicAlreadyLinked(coverUrl?: string, driveNoImageUrlOrId?: string): boolean {
   if (!coverUrl || !coverUrl.trim()) {
@@ -128,7 +128,7 @@ export function isComicAlreadyLinked(coverUrl?: string, driveNoImageUrlOrId?: st
   const clean = coverUrl.trim();
   const lower = clean.toLowerCase();
 
-  // If it's NoImage.png or contains 'noimage' or is the default SVG placeholder, it's NOT linked
+  // If it's NoImage.webp or contains 'noimage' or is the default SVG placeholder, it's NOT linked
   if (
     clean === DEFAULT_COVER_IMAGE ||
     lower.includes('noimage') ||
@@ -168,13 +168,14 @@ export function isComicAlreadyLinked(coverUrl?: string, driveNoImageUrlOrId?: st
 }
 
 /**
- * Checks if a comic book already has a full cover image linked to a specific Drive file ID.
+ * Checks if a comic book already has a full cover image linked to a specific Drive file ID or matching filename.
  */
-export function isComicFullCoverLinked(coverImageFullUrl?: string, driveFileId?: string): boolean {
-  if (!coverImageFullUrl || !driveFileId) return false;
-  if (coverImageFullUrl.includes(driveFileId)) return true;
+export function isComicFullCoverLinked(coverImageFullUrl?: string, driveFileId?: string, driveFileName?: string): boolean {
+  if (!coverImageFullUrl) return false;
+  if (driveFileId && coverImageFullUrl.includes(driveFileId)) return true;
+  if (driveFileName && coverImageFullUrl.toLowerCase() === driveFileName.toLowerCase()) return true;
   const currentId = extractDriveFileId(coverImageFullUrl);
-  return currentId !== null && currentId === driveFileId;
+  return currentId !== null && driveFileId !== undefined && currentId === driveFileId;
 }
 
 /**
@@ -457,13 +458,21 @@ export function scoreFileNameMatch(
   baseFileName = baseFileName.replace(/\b(\d+)\s+of\s+\d+\b/gi, '$1');
 
   // 4. Year conflict check: if file contains a 4-digit year and comic has a known year
-  const fileYearMatch = baseFileName.match(/\b(19\d\d|20\d\d)\b/);
-  if (fileYearMatch) {
-    const fileYear = parseInt(fileYearMatch[1], 10);
+  const comicTitleText = `${comic.title || ''} ${comic.fullTitle || ''} ${comic.seriesName || ''}`;
+  const fileYearMatches = Array.from(baseFileName.matchAll(/\b(19\d\d|20\d\d)\b/g));
+  for (const match of fileYearMatches) {
+    const yearStr = match[1];
+    // If the 4-digit number is part of the comic's title or series name (e.g. "2099", "1984"), do not treat it as a publication year filter
+    if (comicTitleText.includes(yearStr)) {
+      continue;
+    }
+    const fileYear = parseInt(yearStr, 10);
     let comicYear = comic.publicationYear ? Number(comic.publicationYear) : undefined;
     if (!comicYear && comic.seriesName) {
       const seriesYearMatch = String(comic.seriesName).match(/\b(19\d\d|20\d\d)\b/);
-      if (seriesYearMatch) comicYear = parseInt(seriesYearMatch[1], 10);
+      if (seriesYearMatch && !comic.title?.includes(seriesYearMatch[1])) {
+        comicYear = parseInt(seriesYearMatch[1], 10);
+      }
     }
     if (comicYear && Math.abs(comicYear - fileYear) > 1) {
       return 0;

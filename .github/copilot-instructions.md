@@ -41,7 +41,7 @@ Notes:
 
 - Environment precedence: .env.local overrides .env. Put secrets (DATABASE_URL, GEMINI_API_KEY) in .env.local when developing.
 - Local browser storage keys: `comic_vault_comics` and `comic_vault_boxes`. The app uses them as a local cache and migrates them into PostgreSQL on first DB run.
-- Image handling: cover images may be large data-URIs. The client compresses/sets `NoImage.png` for very large images before sending to the server (see src/services/postgresService.prepareComic and utils/imageUtils).
+- Image handling: cover images may be large data-URIs. The client compresses/sets `NoImage.webp` for very large images before sending to the server (see src/services/postgresService.prepareComic and utils/imageUtils).
 - API surface (server):
   - GET /api/collection
   - PUT /api/comics/:id and PUT /api/comics (replace entire set)

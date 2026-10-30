@@ -91,12 +91,12 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     if (!comic) return false;
     const isFull = hasFullCoverWord(file.name);
     if (isFull) {
-      return isComicFullCoverLinked(comic.coverImageFull, file.id);
+      return isComicFullCoverLinked(comic.coverImageFull, file.id, file.name);
     }
     if (!comic.coverImage || !isComicAlreadyLinked(comic.coverImage, syncResult?.noImageFile?.id)) {
       return false;
     }
-    if (comic.coverImage.includes(file.id)) return true;
+    if (comic.coverImage.includes(file.id) || comic.coverImage.toLowerCase() === file.name.toLowerCase()) return true;
     const currentId = extractDriveFileId(comic.coverImage);
     return currentId !== null && currentId === file.id;
   };
@@ -561,7 +561,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                 Google Drive "Comic Covers" Integration
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sync images & NoImage.png from your Google Drive folder directly to comic issues
+                Sync images & NoImage.webp from your Google Drive folder directly to comic issues
               </p>
             </div>
           </div>
@@ -585,7 +585,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
               <div className="max-w-md mx-auto space-y-1">
                 <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Connect Google Drive Account</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Allow your comic vault to read your Google Drive <strong>"Comic Covers"</strong> folder to fetch scanned covers and <strong>NoImage.png</strong>.
+                  Allow your comic vault to read your Google Drive <strong>"Comic Covers"</strong> folder to fetch scanned covers and <strong>NoImage.webp</strong>.
                 </p>
               </div>
 
@@ -705,12 +705,12 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     {syncResult?.folder
-                      ? `Contains ${syncResult.coverFiles.length} comic image(s) + NoImage.png`
+                      ? `Contains ${syncResult.coverFiles.length} comic image(s) + NoImage.webp`
                       : syncResult?.error || 'Create a folder named "Comic Covers" in your Google Drive to organize your cover photos.'}
                   </p>
                 </div>
 
-                {/* NoImage.png Card */}
+                {/* NoImage.webp Card */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -719,7 +719,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                     </span>
                     {syncResult?.noImageFile ? (
                       <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                        NoImage.png Loaded
+                        NoImage.webp Loaded
                       </span>
                     ) : (
                       <span className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
@@ -732,7 +732,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                     <div className="flex items-center gap-3 pt-1">
                       <img
                         src={mkDriveViewUrl(syncResult.noImageFile.id)}
-                        alt="NoImage.png"
+                        alt="NoImage.webp"
                         onError={handleImageError}
                         referrerPolicy="no-referrer"
                         className="w-10 h-14 object-cover rounded border border-slate-300 dark:border-slate-600 shadow-xs shrink-0"
@@ -749,7 +749,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                     </div>
                   ) : (
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Upload an image named <strong>NoImage.png</strong> into your Drive "Comic Covers" folder to customize the unscanned placeholder.
+                      Upload an image named <strong>NoImage.webp</strong> into your Drive "Comic Covers" folder to customize the unscanned placeholder.
                     </p>
                   )}
                 </div>
@@ -918,7 +918,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                   <div className="p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-500 dark:text-slate-400 space-y-2">
                     <p className="text-xs font-semibold">No scanned comic covers found in &ldquo;Comic Covers&rdquo; folder.</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      Add images named after issue titles (e.g. &ldquo;Spider-Man 300.jpg&rdquo;) to your Google Drive folder and click Re-scan!
+                      Add images named after issue titles (e.g. &ldquo;Spider-Man 300.webp&rdquo; or &ldquo;Spider-Man 300.jpg&rdquo;) to your Google Drive folder and click Re-scan!
                     </p>
                     <div className="pt-2 flex justify-center gap-2 flex-wrap">
                       <button

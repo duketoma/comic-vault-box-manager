@@ -199,7 +199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenDriveModal}
               className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
-              title="Sync Google Drive Comic Covers folder & NoImage.png"
+              title="Sync Google Drive Comic Covers folder & NoImage.webp"
               aria-label="Drive Covers"
             >
               <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />

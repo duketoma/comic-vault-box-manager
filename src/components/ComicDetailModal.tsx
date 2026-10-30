@@ -387,7 +387,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       tags,
       notes,
       sizeThickness: Number(thickness),
-      coverImage: coverImage.trim() || 'NoImage.png',
+      coverImage: coverImage.trim() || 'NoImage.webp',
       coverImageFull: coverImageFull.trim() || undefined,
       volume: volume.trim() || undefined,
       event: event.trim() || undefined,
@@ -1102,10 +1102,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCoverImage('NoImage.png')}
+                      onClick={() => setCoverImage('NoImage.webp')}
                       className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 underline font-semibold cursor-pointer"
                     >
-                      Reset to NoImage.png
+                      Reset to NoImage.webp
                     </button>
                   </div>
                 </label>

@@ -108,6 +108,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     purchasePriceCol: '',
     valueCol: '',
     imageCol: '',
+    fullImageCol: '',
   });
 
   // Creators Column Mapping
@@ -201,7 +202,8 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       const wishlistCol = findHeader(hList, ['In Wish List', 'Wish List', 'In Wishlist', 'Wishlist']);
       const valueCol = findHeader(hList, ['Estimated Value', 'Value']);
       const purchasePriceCol = findHeader(hList, ['Price Paid', 'Purchase Price'], [valueCol]);
-      const imageCol = findHeader(hList, ['Image Link', 'Cover Image Link', 'Cover Link', 'Cover Image']);
+      const imageCol = findHeader(hList, ['Image Link', 'Cover Image Link', 'Cover Link', 'Cover Image'], ['Full Cover Link', 'Full Cover Image Link', 'Full Cover']);
+      const fullImageCol = findHeader(hList, ['Full Cover Link', 'Full Cover Image Link', 'Full Art Link', 'Full Cover', 'Cover Image Full', 'Wraparound Cover Link'], [imageCol]);
 
       setComicMappings({
         titleCol: tCol,
@@ -226,6 +228,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
         valueCol,
         purchasePriceCol,
         imageCol,
+        fullImageCol,
       });
     } else if (key === 'creators') {
       const fnCol = findHeader(hList, ['First Name']);
@@ -295,14 +298,14 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
   // Load Demo Multi-Tab Data (Todd McFarlane, Jim Lee, Chris Claremont, Michelinie, etc.)
   const handleLoadDemoData = () => {
     // 1. Comics
-    const comicHeaders = ['Series Name', 'Volume', 'Full Title', 'Title', 'Issue Number', 'Publisher Name', 'Release Date', 'Genre', 'Media Format', 'Box', 'Proposed Box', 'Equivalant Comic Book Size Per Issue', 'Marked Read', 'In Wish List', 'Price Paid', 'Estimated Value', 'Image Link'];
+    const comicHeaders = ['Series Name', 'Volume', 'Full Title', 'Title', 'Issue Number', 'Publisher Name', 'Release Date', 'Genre', 'Media Format', 'Box', 'Proposed Box', 'Equivalant Comic Book Size Per Issue', 'Marked Read', 'In Wish List', 'Price Paid', 'Estimated Value', 'Image Link', 'Full Cover Image Link'];
     const comicRows = [
-      ['The Amazing Spider-Man (1963 - 1998)', '1', 'The Amazing Spider-Man #300', 'The Amazing Spider-Man', '300', 'Marvel Comics', '1988-05-01', 'Superhero', 'Single Issue', '1', '1', '1.0', '1', '0', '50.00', '650.00', 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing'],
-      ['The Amazing Spider-Man (1963 - 1998)', '1', 'The Amazing Spider-Man #316', 'The Amazing Spider-Man', '316', 'Marvel Comics', '1989-06-01', 'Superhero', 'Single Issue', '1', '1', '1.0', '1', '0', '20.00', '180.00', 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing'],
-      ['Spider-Man (1990 - 1998)', '1', 'Spider-Man #1', 'Spider-Man', '1', 'Marvel Comics', '1990-08-01', 'Superhero', 'Single Issue', '1', '1', '1.0', '1', '0', '1.75', '35.00', 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing'],
-      ['Spawn (1992 - Present)', '1', 'Spawn #1', 'Spawn', '1', 'Image Comics', '1992-05-01', 'Superhero', 'Single Issue', '2', '2', '1.0', '1', '0', '1.95', '75.00', 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing'],
-      ['Uncanny X-Men (1963 - 2011)', '1', 'Uncanny X-Men #266', 'Uncanny X-Men', '266', 'Marvel Comics', '1990-07-01', 'Superhero', 'Single Issue', '2', '2', '1.0', '1', '0', '2.50', '250.00', 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing'],
-      ['Batman (1940 - 2011)', '1', 'Batman #423', 'Batman', '423', 'DC Comics', '1988-09-01', 'Crime', 'Single Issue', '3', '3', '1.0', '1', '0', '25.00', '150.00', 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing'],
+      ['The Amazing Spider-Man (1963 - 1998)', '1', 'The Amazing Spider-Man #300', 'The Amazing Spider-Man', '300', 'Marvel Comics', '1988-05-01', 'Superhero', 'Single Issue', '1', '1', '1.0', '1', '0', '50.00', '650.00', 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing'],
+      ['The Amazing Spider-Man (1963 - 1998)', '1', 'The Amazing Spider-Man #316', 'The Amazing Spider-Man', '316', 'Marvel Comics', '1989-06-01', 'Superhero', 'Single Issue', '1', '1', '1.0', '1', '0', '20.00', '180.00', 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing'],
+      ['Spider-Man (1990 - 1998)', '1', 'Spider-Man #1', 'Spider-Man', '1', 'Marvel Comics', '1990-08-01', 'Superhero', 'Single Issue', '1', '1', '1.0', '1', '0', '1.75', '35.00', 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing'],
+      ['Spawn (1992 - Present)', '1', 'Spawn #1', 'Spawn', '1', 'Image Comics', '1992-05-01', 'Superhero', 'Single Issue', '2', '2', '1.0', '1', '0', '1.95', '75.00', 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing'],
+      ['Uncanny X-Men (1963 - 2011)', '1', 'Uncanny X-Men #266', 'Uncanny X-Men', '266', 'Marvel Comics', '1990-07-01', 'Superhero', 'Single Issue', '2', '2', '1.0', '1', '0', '2.50', '250.00', 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing'],
+      ['Batman (1940 - 2011)', '1', 'Batman #423', 'Batman', '423', 'DC Comics', '1988-09-01', 'Crime', 'Single Issue', '3', '3', '1.0', '1', '0', '25.00', '150.00', 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing'],
     ];
 
     // 2. Creators
@@ -516,6 +519,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
     const valIdx = getIdx(comicMappings.valueCol);
     const priceIdx = getIdx(comicMappings.purchasePriceCol);
     const imgIdx = getIdx(comicMappings.imageCol);
+    const fullImgIdx = getIdx(comicMappings.fullImageCol);
 
     const rawTitle = titleIdx >= 0 ? String(row[titleIdx] || '').trim() : '';
     const rawIssue = issueIdx >= 0 ? String(row[issueIdx] || '').trim() : '';
@@ -632,7 +636,8 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       artist: artistVal,
       creatorContributions: [],
       characterAppearances: [],
-      coverImage: imgIdx >= 0 && row[imgIdx] ? String(row[imgIdx]).trim() : 'https://drive.google.com/file/d/1xOiGBhYCrQZAacDNobEYqa1Ra2ZbwETE/view?usp=sharing',
+      coverImage: imgIdx >= 0 && row[imgIdx] ? String(row[imgIdx]).trim() : 'NoImage.webp',
+      coverImageFull: fullImgIdx >= 0 && row[fullImgIdx] ? String(row[fullImgIdx]).trim() || undefined : undefined,
       format: (COMIC_FORMATS as readonly string[]).includes(formatVal) || formatVal === 'Hardcover' ? (formatVal as ComicFormat) : 'Single Issue',
       sizeThickness: thicknessVal > 0 ? thicknessVal : 1.0,
       currentBoxId: boxVal >= 0 ? boxVal : 0,
@@ -1978,6 +1983,20 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                   <select
                     value={comicMappings.imageCol}
                     onChange={(e) => setComicMappings({ ...comicMappings, imageCol: e.target.value })}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="">-- Optional / None --</option>
+                    {subsheets.comics.headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Wraparound Art Link</label>
+                  <select
+                    value={comicMappings.fullImageCol}
+                    onChange={(e) => setComicMappings({ ...comicMappings, fullImageCol: e.target.value })}
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">-- Optional / None --</option>
