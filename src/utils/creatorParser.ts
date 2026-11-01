@@ -161,33 +161,42 @@ export function extractIndividualCreators(comics: ComicBook[]): string[] {
   return Array.from(creatorSet).sort((a, b) => a.localeCompare(b));
 }
 
+export type ContributorCategory = 'Artist' | 'Writer' | 'Editor' | 'Other';
+
+/**
+ * Maps any role string into one of the 4 standard contributor categories:
+ * - "Artist": Any role containing Penciller, Artist, or Inker.
+ * - "Writer": Any role containing Writer or Story (including script and plot).
+ * - "Editor": Any role containing Editor.
+ * - "Other": All remaining roles (Letterer, Colorist, Designer, etc.).
+ */
+export function getRoleCategory(role?: string | null): ContributorCategory {
+  if (!role) return 'Other';
+  const r = role.trim().toLowerCase();
+  if (r.includes('penciller') || r.includes('pencil') || r.includes('artist') || r.includes('inker') || r.includes('ink')) {
+    return 'Artist';
+  }
+  if (r.includes('writer') || r.includes('writing') || r.includes('story') || r.includes('script') || r.includes('plot')) {
+    return 'Writer';
+  }
+  if (r.includes('editor') || r.includes('edit')) {
+    return 'Editor';
+  }
+  return 'Other';
+}
+
 /**
  * Determines whether a given role string represents a writing / scripting contribution.
  */
 export function isWritingRole(role?: string | null): boolean {
-  if (!role) return false;
-  const r = role.trim().toLowerCase();
-  return (
-    r.includes('writ') ||
-    r.includes('story') ||
-    r.includes('script') ||
-    r.includes('plot') ||
-    r.includes('author')
-  );
+  return getRoleCategory(role) === 'Writer';
 }
 
 /**
- * Determines whether a given role string represents an interior / pencil art contribution.
+ * Determines whether a given role string represents an art (penciller, artist, inker) contribution.
  */
 export function isArtRole(role?: string | null): boolean {
-  if (!role) return false;
-  const r = role.trim().toLowerCase();
-  return (
-    r.includes('pencil') ||
-    r.includes('artist') ||
-    r.includes('illustrat') ||
-    r.includes('draw') ||
-    r.includes('art')
-  );
+  return getRoleCategory(role) === 'Artist';
 }
+
 
