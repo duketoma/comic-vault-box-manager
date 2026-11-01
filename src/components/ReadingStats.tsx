@@ -116,6 +116,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   const [characterRoleFilter, setCharacterRoleFilter] = useState<'all' | 'main' | 'supporting' | 'cameo'>('all');
   const [selectedCharacterForIssues, setSelectedCharacterForIssues] = useState<string | null>(null);
 
+  // Achievements State
+  const [achievementCategoryFilter, setAchievementCategoryFilter] = useState<'all' | 'collection' | 'reading' | 'events'>('all');
+
   // Aggregate stats
   const inCollectionComics = useMemo(() => comics.filter((c) => c.readingStatus !== 'Wishlist'), [comics]);
   const wishlistComics = useMemo(() => comics.filter((c) => c.readingStatus === 'Wishlist'), [comics]);
@@ -407,37 +410,114 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // 3. 100% COMPLETION ACHIEVEMENTS & BADGES
   // -------------------------------------------------------------
   const completedSeriesBadges = useMemo(() => {
-    // 1. Collect all Full Series Run Completed badges (100% Collected)
+    const BADGE_THEMES = {
+      Platinum: {
+        border: 'border-cyan-300 dark:border-cyan-700/80',
+        ribbon: 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xs',
+        badgeBg: 'bg-cyan-50/40 dark:bg-cyan-950/20',
+        iconBg: 'bg-gradient-to-br from-cyan-100 via-cyan-200 to-blue-300 dark:from-cyan-950/80 dark:via-cyan-900/60 dark:to-blue-800/80 border-cyan-300 dark:border-cyan-700 text-cyan-950 dark:text-cyan-200',
+        statBg: 'bg-cyan-50/70 dark:bg-cyan-950/40 border-cyan-200/80 dark:border-cyan-800/60',
+        tierBadge: 'bg-cyan-100 dark:bg-cyan-950/70 text-cyan-900 dark:text-cyan-200 border border-cyan-200 dark:border-cyan-800',
+        metalEmoji: '🛡️',
+      },
+      Gold: {
+        border: 'border-amber-300 dark:border-amber-700/80',
+        ribbon: 'bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-xs',
+        badgeBg: 'bg-amber-50/40 dark:bg-amber-950/20',
+        iconBg: 'bg-gradient-to-br from-amber-100 via-amber-200 to-amber-400 dark:from-amber-950/80 dark:via-amber-900/60 dark:to-amber-700/80 border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200',
+        statBg: 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/60',
+        tierBadge: 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800',
+        metalEmoji: '🥇',
+      },
+      Silver: {
+        border: 'border-slate-300 dark:border-slate-700',
+        ribbon: 'bg-gradient-to-r from-slate-500 to-slate-700 text-white shadow-xs',
+        badgeBg: 'bg-slate-50/60 dark:bg-slate-900/40',
+        iconBg: 'bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-800 dark:via-slate-700 dark:to-slate-600 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200',
+        statBg: 'bg-slate-100/70 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700',
+        tierBadge: 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700',
+        metalEmoji: '🥈',
+      },
+      Diamond: {
+        border: 'border-purple-300 dark:border-purple-700/80',
+        ribbon: 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-800 text-white shadow-xs',
+        badgeBg: 'bg-purple-50/40 dark:bg-purple-950/20',
+        iconBg: 'bg-gradient-to-br from-purple-100 via-purple-200 to-indigo-300 dark:from-purple-950/80 dark:via-purple-900/60 dark:to-indigo-800/80 border-purple-300 dark:border-purple-700 text-purple-950 dark:text-purple-200',
+        statBg: 'bg-purple-50/70 dark:bg-purple-950/40 border-purple-200/80 dark:border-purple-800/60',
+        tierBadge: 'bg-purple-100 dark:bg-purple-950/70 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800',
+        metalEmoji: '💎',
+      },
+    };
+
+    // 1. Series Collection Run Completed (100% Collected)
     const runCompleteBadges = seriesSummary
       .filter((s) => s.isRunComplete || (s.totalIssues > 0 && s.ownedCount >= s.totalIssues))
-      .map((s) => ({
-        id: `run-${s.seriesName}`,
-        name: s.seriesName,
-        type: 'Full Run Complete' as const,
-        publisher: s.publisher,
-        issueCount: s.ownedCount,
-        readCount: s.readCount,
-        totalValue: s.totalValue,
-        badgeTier: s.totalIssues >= 25 ? 'Platinum Run Master' : s.totalIssues >= 5 ? 'Gold Complete Run' : 'Complete Series Run',
-        icon: Crown,
-      }));
+      .map((s) => {
+        const tier: 'Platinum' | 'Gold' | 'Silver' =
+          s.totalIssues >= 25 ? 'Platinum' : s.totalIssues >= 5 ? 'Gold' : 'Silver';
+        const isGrandMastery = Boolean(s.is100PercentRead && s.readCount > 0);
 
-    // 2. Collect 100% Read series (where readCount === ownedCount)
+        return {
+          id: `run-${s.seriesName}`,
+          name: s.seriesName,
+          category: 'collection' as const,
+          categoryLabel: 'Series Collection',
+          type: 'Full Run Complete' as const,
+          publisher: s.publisher,
+          issueCount: s.ownedCount,
+          totalPublished: s.totalIssues,
+          readCount: s.readCount,
+          totalValue: s.totalValue,
+          metalTier: tier,
+          badgeTitle: `${tier} Series Run`,
+          badgeTier: `${tier} Series Run`, // backwards compatibility
+          description:
+            s.totalIssues >= 25
+              ? '100% full run collected (25+ issues)'
+              : s.totalIssues >= 5
+              ? '100% full run collected (5–24 issues)'
+              : '100% full run collected (1–4 issues)',
+          isGrandMastery,
+          icon: Crown,
+          theme: BADGE_THEMES[tier],
+        };
+      });
+
+    // 2. Reading Mastery (100% of owned issues read)
     const seriesReadBadges = seriesSummary
-      .filter((s) => s.ownedCount > 0 && s.is100PercentRead && !s.isRunComplete)
-      .map((s) => ({
-        id: `series-read-${s.seriesName}`,
-        name: s.seriesName,
-        type: 'Series (100% Read)' as const,
-        publisher: s.publisher,
-        issueCount: s.ownedCount,
-        readCount: s.readCount,
-        totalValue: s.totalValue,
-        badgeTier: s.ownedCount >= 5 ? 'Gold Mastery' : s.ownedCount >= 2 ? 'Silver Perfection' : 'Key Masterpiece',
-        icon: Trophy,
-      }));
+      .filter((s) => s.ownedCount > 0 && s.is100PercentRead)
+      .map((s) => {
+        const tier: 'Platinum' | 'Gold' | 'Silver' =
+          s.readCount >= 25 ? 'Platinum' : s.readCount >= 5 ? 'Gold' : 'Silver';
+        const isGrandMastery = Boolean(s.isRunComplete || (s.totalIssues > 0 && s.ownedCount >= s.totalIssues));
 
-    // 3. Collect 100% completed events
+        return {
+          id: `series-read-${s.seriesName}`,
+          name: s.seriesName,
+          category: 'reading' as const,
+          categoryLabel: 'Reading Mastery',
+          type: 'Series (100% Read)' as const,
+          publisher: s.publisher,
+          issueCount: s.ownedCount,
+          totalPublished: s.totalIssues,
+          readCount: s.readCount,
+          totalValue: s.totalValue,
+          metalTier: tier,
+          badgeTitle: `${tier} Reading Mastery`,
+          badgeTier: `${tier} Reading Mastery`, // backwards compatibility
+          description:
+            s.readCount >= 25
+              ? '100% of owned issues read (25+ issues)'
+              : s.readCount >= 5
+              ? '100% of owned issues read (5–24 issues)'
+              : '100% of owned issues read (1–4 issues)',
+          isGrandMastery,
+          icon: BookOpen,
+          theme: BADGE_THEMES[tier],
+        };
+      });
+
+    // 3. Crossover Event Champions (100% Owned & 100% Read)
     const eventMap: Record<string, { name: string; owned: number; read: number; wishlist: number; value: number }> = {};
     comics.forEach((c) => {
       if (c.event && c.event.trim()) {
@@ -458,17 +538,62 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
       .map((e) => ({
         id: `event-${e.name}`,
         name: e.name,
+        category: 'events' as const,
+        categoryLabel: 'Crossover Event',
         type: 'Crossover Event' as const,
         publisher: 'Crossover',
         issueCount: e.owned,
+        totalPublished: e.owned,
         readCount: e.read,
         totalValue: e.value,
-        badgeTier: 'Diamond Event Champion',
+        metalTier: 'Diamond' as const,
+        badgeTitle: 'Diamond Event Champion',
+        badgeTier: 'Diamond Event Champion', // backwards compatibility
+        description: 'Crossover event fully owned & 100% read',
+        isGrandMastery: true,
         icon: Sparkles,
+        theme: BADGE_THEMES.Diamond,
       }));
+
+    // Sort helper: Highest tier first (Platinum -> Gold -> Silver), then by issue count, then name
+    const TIER_RANK: Record<string, number> = {
+      Diamond: 4,
+      Platinum: 3,
+      Gold: 2,
+      Silver: 1,
+    };
+
+    const sortBadgesByTier = (a: { metalTier: string; issueCount: number; name: string }, b: { metalTier: string; issueCount: number; name: string }) => {
+      const rankDiff = (TIER_RANK[b.metalTier] || 0) - (TIER_RANK[a.metalTier] || 0);
+      if (rankDiff !== 0) return rankDiff;
+      if (b.issueCount !== a.issueCount) return b.issueCount - a.issueCount;
+      return (a.name || '').localeCompare(b.name || '');
+    };
+
+    runCompleteBadges.sort(sortBadgesByTier);
+    seriesReadBadges.sort(sortBadgesByTier);
+    eventBadges.sort(sortBadgesByTier);
 
     return [...runCompleteBadges, ...seriesReadBadges, ...eventBadges];
   }, [seriesSummary, comics]);
+
+  // Categorized badge helpers
+  const collectionBadges = useMemo(
+    () => completedSeriesBadges.filter((b) => b.category === 'collection'),
+    [completedSeriesBadges]
+  );
+  const readingBadges = useMemo(
+    () => completedSeriesBadges.filter((b) => b.category === 'reading'),
+    [completedSeriesBadges]
+  );
+  const eventBadges = useMemo(
+    () => completedSeriesBadges.filter((b) => b.category === 'events'),
+    [completedSeriesBadges]
+  );
+  const grandMasterySeriesCount = useMemo(
+    () => seriesSummary.filter((s) => (s.isRunComplete || (s.totalIssues > 0 && s.ownedCount >= s.totalIssues)) && s.is100PercentRead && s.ownedCount > 0).length,
+    [seriesSummary]
+  );
 
   // In-Progress Series Milestones (50% - 99% collected)
   const inProgressMilestones = useMemo(() => {
@@ -2820,112 +2945,277 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         <div className="space-y-6">
           
           {/* Header Banner */}
-          <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-purple-800 rounded-2xl p-6 text-white shadow-md space-y-3">
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-md border border-purple-800/40 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-amber-400 text-amber-950 font-black">
+                  <span className="p-1.5 rounded-lg bg-amber-400 text-amber-950 font-black shadow-xs">
                     <Trophy className="w-5 h-5" />
                   </span>
                   <h3 className="text-xl font-black tracking-tight text-white">
-                    100% Series & Crossover Completion Achievements
+                    100% Collection & Reading Achievements
                   </h3>
                 </div>
-                <p className="text-xs text-amber-100 max-w-xl">
-                  Celebrate fully completed comic series and crossover events where every acquired issue in your collection is read and mastered!
+                <p className="text-xs text-purple-200 max-w-xl">
+                  Celebrate milestones across your collection: complete series runs collected, reading backlogs mastered, and full crossover events conquered.
                 </p>
               </div>
 
               <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3 text-center shrink-0 min-w-[130px]">
-                <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider block">Unlocked Badges</span>
+                <span className="text-[10px] font-bold text-purple-200 uppercase tracking-wider block">Unlocked Badges</span>
                 <span className="text-3xl font-black text-amber-300">{completedSeriesBadges.length}</span>
                 <span className="text-[10px] text-white/80 block font-semibold">Trophies Earned</span>
               </div>
             </div>
+
+            {/* Quick Summary Metric Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-amber-200 block">Series Runs Collected</span>
+                <span className="text-lg font-black text-white">{collectionBadges.length}</span>
+                <span className="text-[10px] text-amber-200/80 block mt-0.5">100% published issues owned</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-cyan-200 block">Reading Masteries</span>
+                <span className="text-lg font-black text-white">{readingBadges.length}</span>
+                <span className="text-[10px] text-cyan-200/80 block mt-0.5">100% owned copies read</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-purple-200 block">Event Champions</span>
+                <span className="text-lg font-black text-white">{eventBadges.length}</span>
+                <span className="text-[10px] text-purple-200/80 block mt-0.5">Crossovers owned & read</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3">
+                <span className="text-[11px] font-medium text-emerald-200 block">Grand Masteries</span>
+                <span className="text-lg font-black text-emerald-300">{grandMasterySeriesCount}</span>
+                <span className="text-[10px] text-emerald-200/80 block mt-0.5">Both 100% owned & read</span>
+              </div>
+            </div>
           </div>
 
-          {/* 100% Completed Badges Grid */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-500" />
-                <span>Unlocked 100% Mastery Badges ({completedSeriesBadges.length})</span>
-              </h4>
+          {/* Category Filter Toolbar */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                <Filter className="w-4 h-4" />
+              </span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Filter Badges by Category:
+              </span>
             </div>
 
-            {completedSeriesBadges.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {completedSeriesBadges.map((badge) => {
-                  const IconComp = badge.icon;
-                  return (
-                    <div 
-                      key={badge.id}
-                      className="bg-white dark:bg-slate-900 border-2 border-amber-300/80 dark:border-amber-700/60 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden group space-y-4"
-                    >
-                      {/* Top Ribbon */}
-                      <div className="flex items-center justify-between border-b border-amber-100 dark:border-amber-900/40 pb-3">
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-xs">
-                          🏆 {badge.badgeTier}
+            <div className="flex items-center gap-2">
+              <select
+                value={achievementCategoryFilter}
+                onChange={(e) => setAchievementCategoryFilter(e.target.value as any)}
+                aria-label="Filter Achievements by Category"
+                className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-600 shadow-xs cursor-pointer w-full sm:w-auto"
+              >
+                <option value="all">All Categories ({completedSeriesBadges.length})</option>
+                <option value="collection">Series Collection ({collectionBadges.length})</option>
+                <option value="reading">Reading Mastery ({readingBadges.length})</option>
+                <option value="events">Crossover Events ({eventBadges.length})</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Grouped Category Sections */}
+          <div className="space-y-8">
+
+            {/* Helper to render a badge card */}
+            {(() => {
+              const renderBadgeCard = (badge: typeof completedSeriesBadges[0]) => {
+                const IconComp = badge.icon;
+                return (
+                  <div 
+                    key={badge.id}
+                    className={`bg-white dark:bg-slate-900 border-2 ${badge.theme.border} rounded-2xl p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden group space-y-4`}
+                  >
+                    {/* Top Ribbon */}
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${badge.theme.ribbon}`}>
+                          {badge.theme.metalEmoji} {badge.badgeTitle}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{badge.type}</span>
-                      </div>
-
-                      {/* Main Title & Icon */}
-                      <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 via-amber-200 to-amber-400 dark:from-amber-950/80 dark:via-amber-900/60 dark:to-amber-700/80 border border-amber-300 dark:border-amber-700 flex items-center justify-center text-amber-950 dark:text-amber-200 shrink-0 shadow-sm group-hover:scale-105 transition-all">
-                          <IconComp className="w-7 h-7" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[11px] font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider block">{badge.publisher}</span>
-                          <h5 className="font-black text-slate-900 dark:text-slate-100 text-base leading-snug line-clamp-2">{badge.name}</h5>
-                        </div>
-                      </div>
-
-                      {/* Stats & Value Footer */}
-                      <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-800/60 flex items-center justify-between text-xs">
-                        <div>
-                          <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">
-                            {badge.type === 'Full Run Complete' ? 'Run Completion' : 'Issues Read'}
+                        {badge.isGrandMastery && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-emerald-500 to-amber-500 text-white shadow-2xs">
+                            👑 100% Collected & Read
                           </span>
-                          <span className="font-bold text-slate-900 dark:text-slate-100">
-                            {badge.type === 'Full Run Complete'
-                              ? `${badge.issueCount} / ${badge.issueCount} (100% Owned)`
-                              : `${badge.readCount} / ${badge.issueCount} (100%)`}
-                          </span>
-                          {badge.type === 'Full Run Complete' && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-normal mt-0.5">
-                              {badge.readCount} of {badge.issueCount} read
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-right flex flex-col items-end">
-                          <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">Est. Value</span>
-                          <span className="font-bold text-emerald-700 dark:text-emerald-400">${badge.totalValue.toFixed(2)}</span>
-                          {onViewSeriesInCatalog && (
-                            <button
-                              type="button"
-                              onClick={() => onViewSeriesInCatalog(badge.name)}
-                              className="mt-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 cursor-pointer"
-                            >
-                              <span>View Run</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                        {badge.categoryLabel}
+                      </span>
+                    </div>
+
+                    {/* Main Title & Icon */}
+                    <div className="flex items-start gap-4">
+                      <div className={`w-14 h-14 rounded-2xl ${badge.theme.iconBg} border flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-all`}>
+                        <IconComp className="w-7 h-7" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          {badge.publisher}
+                        </span>
+                        <h5 className="font-black text-slate-900 dark:text-slate-100 text-base leading-snug line-clamp-2">
+                          {badge.name}
+                        </h5>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {badge.description}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-8 text-center space-y-3">
-                <Trophy className="w-10 h-10 text-slate-400 dark:text-slate-500 mx-auto" />
-                <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm">No 100% Completed Series Badges Yet</h5>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                  Collect all published issues in a series to earn your first 100% Full Run Mastery Achievement Badge!
-                </p>
-              </div>
-            )}
+
+                    {/* Stats & Value Footer */}
+                    <div className={`p-3 rounded-xl border flex items-center justify-between text-xs ${badge.theme.statBg}`}>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">
+                          {badge.category === 'collection' ? 'Collection Run' : badge.category === 'reading' ? 'Reading Progress' : 'Event Status'}
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          {badge.category === 'collection'
+                            ? `${badge.issueCount} / ${badge.totalPublished} (100% Owned)`
+                            : badge.category === 'reading'
+                            ? `${badge.readCount} / ${badge.issueCount} (100% Read)`
+                            : `${badge.issueCount} Issues (100% Owned & Read)`}
+                        </span>
+                        {badge.category === 'collection' && (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-normal mt-0.5">
+                            {badge.readCount} of {badge.issueCount} read
+                          </span>
+                        )}
+                        {badge.category === 'reading' && (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-normal mt-0.5">
+                            {badge.issueCount} of {badge.totalPublished} owned
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-slate-500 dark:text-slate-400 text-[10px] block font-medium">Est. Value</span>
+                        <span className="font-bold text-emerald-700 dark:text-emerald-400">${badge.totalValue.toFixed(2)}</span>
+                        {onViewSeriesInCatalog && (
+                          <button
+                            type="button"
+                            onClick={() => onViewSeriesInCatalog(badge.name)}
+                            className="mt-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <span>View Run</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  {/* SECTION 1: SERIES COLLECTION ACHIEVEMENTS (100% OWNED) */}
+                  {(achievementCategoryFilter === 'all' || achievementCategoryFilter === 'collection') && (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 gap-2">
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                            <Crown className="w-5 h-5 text-amber-500" />
+                            <span>Series Collection Achievements (100% Owned)</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 font-black">
+                              {collectionBadges.length}
+                            </span>
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Awarded for collecting 100% of published issues in a series run. Tiers scale from Silver (1–4 issues) and Gold (5–24 issues) to Platinum (25+ issues).
+                          </p>
+                        </div>
+                      </div>
+
+                      {collectionBadges.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {collectionBadges.map(renderBadgeCard)}
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center space-y-2">
+                          <Crown className="w-8 h-8 text-slate-400 mx-auto" />
+                          <h5 className="font-bold text-slate-700 dark:text-slate-300 text-xs">No Series Collection Badges Yet</h5>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                            Collect all published issues of any series to unlock your first Series Run badge!
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SECTION 2: READING MASTERY ACHIEVEMENTS (100% READ) */}
+                  {(achievementCategoryFilter === 'all' || achievementCategoryFilter === 'reading') && (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 gap-2">
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                            <span>Reading Mastery Achievements (100% Read)</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/70 text-cyan-900 dark:text-cyan-200 font-black">
+                              {readingBadges.length}
+                            </span>
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Awarded when 100% of the issues you own in a series have been read. Tiers scale from Silver (1–4 issues) and Gold (5–24 issues) to Platinum (25+ issues).
+                          </p>
+                        </div>
+                      </div>
+
+                      {readingBadges.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {readingBadges.map(renderBadgeCard)}
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center space-y-2">
+                          <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+                          <h5 className="font-bold text-slate-700 dark:text-slate-300 text-xs">No Reading Mastery Badges Yet</h5>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                            Read all owned issues in any series to earn your first Reading Mastery badge!
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SECTION 3: CROSSOVER EVENT CHAMPIONS */}
+                  {(achievementCategoryFilter === 'all' || achievementCategoryFilter === 'events') && (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 gap-2">
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                            <span>Crossover Event Champions</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/70 text-purple-900 dark:text-purple-200 font-black">
+                              {eventBadges.length}
+                            </span>
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Awarded for completing and reading entire crossover story arcs with 0 missing issues on your wishlist.
+                          </p>
+                        </div>
+                      </div>
+
+                      {eventBadges.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {eventBadges.map(renderBadgeCard)}
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center space-y-2">
+                          <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
+                          <h5 className="font-bold text-slate-700 dark:text-slate-300 text-xs">No Crossover Event Badges Yet</h5>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                            Collect and read every issue assigned to a crossover event to unlock your first Diamond Event Champion badge!
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
           </div>
 
           {/* In-Progress Series Milestones (50% - 99%) */}
