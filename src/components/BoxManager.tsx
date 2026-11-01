@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ComicBook, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes, isTrueProposedMove } from '../utils/boxUtils';
@@ -406,6 +406,56 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     isProposedOverCapacity: false,
   };
 
+  // Dynamic Inspector Sizing to stretch and match Left Shelf Grid
+  const leftShelfRef = useRef<HTMLDivElement | null>(null);
+  const cardTopControlsRef = useRef<HTMLDivElement | null>(null);
+  const comicsListRef = useRef<HTMLDivElement | null>(null);
+  const [dynamicMaxHeight, setDynamicMaxHeight] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (typeof window === 'undefined') return;
+      // On mobile / tablet screens (< 1024px), keep default 380px max-height
+      if (window.innerWidth < 1024) {
+        setDynamicMaxHeight(undefined);
+        return;
+      }
+
+      const shelfEl = leftShelfRef.current;
+      const controlsEl = cardTopControlsRef.current;
+
+      if (!shelfEl) return;
+
+      const shelfHeight = shelfEl.offsetHeight;
+      // Card padding p-5 (40px) + border (2px) + gap before list (8px) = 50px
+      const overhead = (controlsEl ? controlsEl.offsetHeight : 210) + 50;
+
+      const availableForList = shelfHeight - overhead;
+      const targetMax = Math.max(380, Math.round(availableForList));
+      setDynamicMaxHeight(targetMax);
+    };
+
+    updateHeight();
+
+    const shelfEl = leftShelfRef.current;
+    if (!shelfEl || typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    observer.observe(shelfEl);
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [boxes.length, activeBoxId, selectedBoxStat.currentComics.length, includeWishlistInStats]);
+
   return (
     <div className="space-y-6">
       
@@ -605,10 +655,10 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
       </div>
 
       {/* Main 2-Column Desktop Storage View */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Left Column: Configured Boxes Shelf Grid */}
-        <div className="lg:col-span-7 space-y-4">
+        <div ref={leftShelfRef} className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
               <MapPin className="w-4 h-4 text-slate-700 dark:text-slate-300" />
@@ -749,123 +799,131 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm sticky top-20">
             
-            {/* Inspector Box Header */}
-            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="w-4 h-12 rounded-md shrink-0 border border-slate-200 dark:border-slate-700 shadow-xs"
-                  style={{ backgroundColor: selectedBoxStat.box.colorTag || '#F59E0B' }}
-                />
-                <div className="min-w-0">
-                  <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base truncate">
-                    {selectedBoxStat.box.id === 0 ? 'Box 0: Unallocated Staging Queue' : `Box #${selectedBoxStat.box.id}: ${selectedBoxStat.box.name}`}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                    <span className="truncate">{selectedBoxStat.box.location}</span>
-                  </p>
+            <div ref={cardTopControlsRef}>
+              {/* Inspector Box Header */}
+              <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-4 h-12 rounded-md shrink-0 border border-slate-200 dark:border-slate-700 shadow-xs"
+                    style={{ backgroundColor: selectedBoxStat.box.colorTag || '#F59E0B' }}
+                  />
+                  <div className="min-w-0">
+                    <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base truncate">
+                      {selectedBoxStat.box.id === 0 ? 'Box 0: Unallocated Staging Queue' : `Box #${selectedBoxStat.box.id}: ${selectedBoxStat.box.name}`}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                      <span className="truncate">{selectedBoxStat.box.location}</span>
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              {selectedBoxStat.box.id !== 0 && (
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => handleOpenEditBoxModal(selectedBoxStat.box)}
-                    className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
-                    title="Edit Box Settings"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Edit</span>
-                  </button>
-                  {onDeleteBox && boxes.length > 1 && (
+                {selectedBoxStat.box.id !== 0 && (
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
-                      onClick={() => handleDeleteCurrentBox(selectedBoxStat.box.id)}
-                      className="p-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs border border-rose-200 dark:border-rose-800 cursor-pointer"
-                      title="Delete Storage Box"
+                      onClick={() => handleOpenEditBoxModal(selectedBoxStat.box)}
+                      className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
+                      title="Edit Box Settings"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Edit</span>
                     </button>
-                  )}
+                    {onDeleteBox && boxes.length > 1 && (
+                      <button
+                        onClick={() => handleDeleteCurrentBox(selectedBoxStat.box.id)}
+                        className="p-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs border border-rose-200 dark:border-rose-800 cursor-pointer"
+                        title="Delete Storage Box"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Capacity Meter Card */}
+              <div className="my-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-700 dark:text-slate-300">
+                    {selectedBoxStat.box.id === 0 ? 'Staging Volume' : 'Box Fill Capacity'}
+                  </span>
+                  <span className={selectedBoxStat.isCurrentOverCapacity ? 'text-rose-600' : 'text-slate-900 dark:text-slate-100'}>
+                    {selectedBoxStat.currentUsedThickness.toFixed(1)} {selectedBoxStat.box.id === 0 ? 'units unallocated' : `/ ${selectedBoxStat.box.maxCapacity} units (${selectedBoxStat.currentPercent.toFixed(1)}%)`}
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-white dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+                  <div
+                    className={`h-full ${
+                      selectedBoxStat.box.id === 0
+                        ? 'bg-amber-500'
+                        : selectedBoxStat.isCurrentOverCapacity
+                        ? 'bg-rose-500'
+                        : selectedBoxStat.currentPercent > 85
+                        ? 'bg-orange-500'
+                        : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(selectedBoxStat.currentPercent, 100)}%` }}
+                  />
+                </div>
+
+                {selectedBoxStat.isCurrentOverCapacity && (
+                  <div className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 pt-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    Warning: Box exceeds recommended capacity! Rebalance to avoid spine crush.
+                  </div>
+                )}
+              </div>
+
+              {/* Bulk Allocate Controls for Box 0 */}
+              {selectedBoxStat.box.id === 0 && selectedBoxStat.currentComics.length > 0 && (
+                <div className="my-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2 overflow-hidden">
+                  <div className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center justify-between">
+                    <span>Bulk Allocate Box 0 Items</span>
+                    <span className="text-[10px] text-amber-800 dark:text-amber-300 font-normal">{selectedBoxStat.currentComics.length} items waiting</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
+                    <select
+                      value={targetBulkBoxId}
+                      onChange={(e) => setTargetBulkBoxId(Number(e.target.value))}
+                      className="flex-1 min-w-0 w-full truncate bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs text-slate-800 dark:text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                    >
+                      {sortedBoxes.map((b) => {
+                        const cleanName = b.name.replace(/^\d+\s*[-–]\s*/, '').replace(/^Box\s*\d+\s*[-–]\s*/i, '').trim();
+                        const displayName = cleanName.length > 32 ? `${cleanName.slice(0, 30)}...` : (cleanName || b.name);
+                        return (
+                          <option key={b.id} value={b.id} title={`Box #${b.id}: ${b.name}`}>
+                            Box #{b.id}: {displayName}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <button
+                      onClick={handleBulkMoveBoxZeroToTarget}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0 cursor-pointer text-center"
+                    >
+                      Allocate All
+                    </button>
+                  </div>
                 </div>
               )}
-            </div>
 
-            {/* Capacity Meter Card */}
-            <div className="my-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-700 dark:text-slate-300">
-                  {selectedBoxStat.box.id === 0 ? 'Staging Volume' : 'Box Fill Capacity'}
-                </span>
-                <span className={selectedBoxStat.isCurrentOverCapacity ? 'text-rose-600' : 'text-slate-900 dark:text-slate-100'}>
-                  {selectedBoxStat.currentUsedThickness.toFixed(1)} {selectedBoxStat.box.id === 0 ? 'units unallocated' : `/ ${selectedBoxStat.box.maxCapacity} units (${selectedBoxStat.currentPercent.toFixed(1)}%)`}
-                </span>
-              </div>
-              <div className="w-full h-3 bg-white dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
-                <div
-                  className={`h-full ${
-                    selectedBoxStat.box.id === 0
-                      ? 'bg-amber-500'
-                      : selectedBoxStat.isCurrentOverCapacity
-                      ? 'bg-rose-500'
-                      : selectedBoxStat.currentPercent > 85
-                      ? 'bg-orange-500'
-                      : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${Math.min(selectedBoxStat.currentPercent, 100)}%` }}
-                />
-              </div>
-
-              {selectedBoxStat.isCurrentOverCapacity && (
-                <div className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 pt-1">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  Warning: Box exceeds recommended capacity! Rebalance to avoid spine crush.
-                </div>
-              )}
-            </div>
-
-            {/* Bulk Allocate Controls for Box 0 */}
-            {selectedBoxStat.box.id === 0 && selectedBoxStat.currentComics.length > 0 && (
-              <div className="my-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2 overflow-hidden">
-                <div className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center justify-between">
-                  <span>Bulk Allocate Box 0 Items</span>
-                  <span className="text-[10px] text-amber-800 dark:text-amber-300 font-normal">{selectedBoxStat.currentComics.length} items waiting</span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
-                  <select
-                    value={targetBulkBoxId}
-                    onChange={(e) => setTargetBulkBoxId(Number(e.target.value))}
-                    className="flex-1 min-w-0 w-full truncate bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs text-slate-800 dark:text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                  >
-                    {sortedBoxes.map((b) => {
-                      const cleanName = b.name.replace(/^\d+\s*[-–]\s*/, '').replace(/^Box\s*\d+\s*[-–]\s*/i, '').trim();
-                      const displayName = cleanName.length > 32 ? `${cleanName.slice(0, 30)}...` : (cleanName || b.name);
-                      return (
-                        <option key={b.id} value={b.id} title={`Box #${b.id}: ${b.name}`}>
-                          Box #{b.id}: {displayName}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <button
-                    onClick={handleBulkMoveBoxZeroToTarget}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0 cursor-pointer text-center"
-                  >
-                    Allocate All
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* List of Comics Inside Active Box */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              {/* List of Comics Header */}
+              <div className="flex items-center justify-between pb-2">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">
                   Comics inside Box #{selectedBoxStat.box.id} ({selectedBoxStat.currentComics.length})
                 </h4>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500">Drag item to switch box</span>
               </div>
+            </div>
 
-              <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+            {/* List of Comics Inside Active Box */}
+            <div className="space-y-2">
+
+              <div 
+                ref={comicsListRef}
+                style={{ maxHeight: dynamicMaxHeight ? `${dynamicMaxHeight}px` : undefined }}
+                className="max-h-[380px] overflow-y-auto space-y-2 pr-1 scrollbar-thin"
+              >
                 {selectedBoxStat.currentComics.length === 0 ? (
                   <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
                     Box #{selectedBoxStat.box.id} is currently empty. Drag comics here to store them.
