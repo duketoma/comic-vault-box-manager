@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { sortBoxes } from '../utils/boxUtils';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
@@ -74,8 +74,8 @@ interface ReadingStatsProps {
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
-const CHUNK_SIZE_EVENTS = 4;
-const CHUNK_SIZE_EVENT_COMICS = 24;
+const CHUNK_SIZE_EVENTS = 10;
+const CHUNK_SIZE_EVENT_COMICS = 25;
 
 interface IndexedComic {
   comic: ComicBook;
@@ -111,6 +111,42 @@ const compareIndexedComics = (a: IndexedComic, b: IndexedComic): number => {
   return a.issueSuffix.localeCompare(b.issueSuffix);
 };
 
+// Independent IntersectionObserver Sentinel for progressively loading issues in an expanded event
+const ExpandedEventSentinel: React.FC<{
+  eventName: string;
+  currentCount: number;
+  totalCount: number;
+  onLoadMore: () => void;
+}> = ({ eventName, currentCount, totalCount, onLoadMore }) => {
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onLoadMore]);
+
+  return (
+    <div ref={sentinelRef} className="py-4 flex flex-col items-center justify-center gap-1.5 col-span-full">
+      <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+        Loading more {eventName} issues ({currentCount} of {totalCount})...
+      </span>
+    </div>
+  );
+};
+
 export const ReadingStats: React.FC<ReadingStatsProps> = ({ 
   comics, 
   boxes, 
@@ -125,8 +161,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // Navigation & Sub-Tab State
   const [activeStatsTab, setActiveStatsTab] = useState<'events' | 'series' | 'creators' | 'characters' | 'achievements' | 'general'>(initialSubTab);
 
+  const prevInitialSubTabRef = useRef(initialSubTab);
   useEffect(() => {
-    if (initialSubTab) {
+    if (prevInitialSubTabRef.current !== initialSubTab && initialSubTab) {
+      prevInitialSubTabRef.current = initialSubTab;
       setActiveStatsTab(initialSubTab);
     }
   }, [initialSubTab]);
@@ -134,10 +172,17 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // Box Inspector State
   const [selectedBoxId, setSelectedBoxId] = useState<number | 'all'>('all');
   
-  // Event Filter State
+  // Event Filter & Progressive Loading State
   const [selectedEvent, setSelectedEvent] = useState<string>('all');
   const [visibleEventsCount, setVisibleEventsCount] = useState<number>(CHUNK_SIZE_EVENTS);
   const [visibleEventComicsCount, setVisibleEventComicsCount] = useState<number>(CHUNK_SIZE_EVENT_COMICS);
+
+  // Set of event names expanded to show issues in "All Events" view
+  const [expandedEventNames, setExpandedEventNames] = useState<Set<string>>(new Set());
+  // Per-event progressive visible comics count map (e.g. { "Civil War": 25 })
+  const [eventVisibleCounts, setEventVisibleCounts] = useState<Record<string, number>>({});
+  // Single-event view toggle: whether issues are shown (defaults to true)
+  const [singleEventShowIssues, setSingleEventShowIssues] = useState<boolean>(true);
 
   // Progressive rendering intersection sentinel refs
   const eventsSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -166,18 +211,84 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // Achievements State
   const [achievementCategoryFilter, setAchievementCategoryFilter] = useState<'all' | 'collection' | 'reading' | 'events'>('all');
 
-  // Aggregate stats
-  const inCollectionComics = useMemo(() => comics.filter((c) => c.readingStatus !== 'Wishlist'), [comics]);
-  const wishlistComics = useMemo(() => comics.filter((c) => c.readingStatus === 'Wishlist'), [comics]);
+  // Aggregate stats — Single-pass collection aggregations (GEMINI.md Rule 4)
+  const collectionStats = useMemo(() => {
+    let totalComics = 0;
+    let totalThickness = 0;
+    let totalValue = 0;
+    let readCount = 0;
+    let readingCount = 0;
+    let unreadCount = 0;
+    let wishlistCount = 0;
 
-  const totalComics = inCollectionComics.length;
-  const totalThickness = inCollectionComics.reduce((acc, c) => acc + (c.sizeThickness || 1.0), 0);
-  const totalValue = inCollectionComics.reduce((acc, c) => acc + (c.estimatedValue || 0), 0);
-  const readCount = inCollectionComics.filter((c) => c.readingStatus === 'Read').length;
-  const readingCount = inCollectionComics.filter((c) => c.readingStatus === 'Reading').length;
-  const unreadCount = inCollectionComics.filter((c) => c.readingStatus === 'Unread').length;
-  const wishlistCount = wishlistComics.length;
-  const readPercentage = totalComics > 0 ? Math.round((readCount / totalComics) * 100) : 0;
+    for (const c of comics) {
+      if (c.readingStatus === 'Wishlist') {
+        wishlistCount++;
+      } else {
+        totalComics++;
+        totalThickness += (c.sizeThickness || 1.0);
+        totalValue += (c.estimatedValue || 0);
+        if (c.readingStatus === 'Read') readCount++;
+        else if (c.readingStatus === 'Reading') readingCount++;
+        else unreadCount++;
+      }
+    }
+    const readPercentage = totalComics > 0 ? Math.round((readCount / totalComics) * 100) : 0;
+    return { totalComics, totalThickness, totalValue, readCount, readingCount, unreadCount, wishlistCount, readPercentage };
+  }, [comics]);
+
+  const { totalComics, totalThickness, totalValue, readCount, readingCount, unreadCount, wishlistCount, readPercentage } = collectionStats;
+
+  const inCollectionComics = useMemo(() => comics.filter((c) => c.readingStatus !== 'Wishlist'), [comics]);
+
+  // Fast single-pass unique counters for Sub-Tab Badges (< 2ms) without executing full tab pipelines
+  const subTabCounts = useMemo(() => {
+    const seriesSet = new Set<string>();
+    const creatorSet = new Set<string>();
+    const characterSet = new Set<string>();
+    const eventSet = new Set<string>();
+
+    for (const c of comics) {
+      const s = c.seriesName?.trim() || c.title?.trim();
+      if (s) seriesSet.add(s.toLowerCase());
+
+      if (c.event?.trim()) eventSet.add(c.event.trim());
+
+      if (c.creatorContributions && c.creatorContributions.length > 0) {
+        for (const cc of c.creatorContributions) {
+          if (cc.creatorName?.trim()) creatorSet.add(cc.creatorName.trim());
+        }
+      } else {
+        if (c.writer?.trim()) {
+          const parts = c.writer.split(/[,;&]/);
+          for (const p of parts) {
+            const tr = p.trim();
+            if (tr) creatorSet.add(tr);
+          }
+        }
+        if (c.artist?.trim()) {
+          const parts = c.artist.split(/[,;&]/);
+          for (const p of parts) {
+            const tr = p.trim();
+            if (tr) creatorSet.add(tr);
+          }
+        }
+      }
+
+      if (c.characterAppearances && c.characterAppearances.length > 0) {
+        for (const ca of c.characterAppearances) {
+          if (ca.characterName?.trim()) characterSet.add(ca.characterName.trim());
+        }
+      }
+    }
+
+    return {
+      eventsCount: eventSet.size,
+      seriesCount: seriesSet.size,
+      creatorsCount: creatorSet.size,
+      charactersCount: characterSet.size,
+    };
+  }, [comics]);
 
   // -------------------------------------------------------------
   // 1. EVENT COLLECTION DATA & ANALYTICS
@@ -240,32 +351,25 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     return (issueA.suffix || '').localeCompare(issueB.suffix || '');
   };
 
-  // Selected Event Filtered Comics (pre-indexed & sorted chronologically by release date, title, and issue)
-  const filteredEventComics = useMemo(() => {
-    let list: ComicBook[] = [];
-    if (selectedEvent === 'all') {
-      const matching = comics.filter((c) => Boolean(c.event && c.event.trim()));
-      const indexed = matching.map(preIndexComic);
-      indexed.sort((a, b) => {
-        const evA = (a.comic.event || '').trim().toLowerCase();
-        const evB = (b.comic.event || '').trim().toLowerCase();
-        if (evA !== evB) {
-          return evA.localeCompare(evB);
-        }
-        return compareIndexedComics(a, b);
-      });
-      list = indexed.map((item) => item.comic);
-    } else {
-      const targetEvent = selectedEvent.trim().toLowerCase();
-      const matching = comics.filter((c) => c.event && c.event.trim().toLowerCase() === targetEvent);
-      const indexed = matching.map(preIndexComic);
-      indexed.sort(compareIndexedComics);
-      list = indexed.map((item) => item.comic);
-    }
-    return list;
-  }, [comics, selectedEvent]);
+  // All comics tagged with a crossover event (raw list for fast O(N) aggregate metrics)
+  const allEventComics = useMemo(() => {
+    return comics.filter((c) => Boolean(c.event && c.event.trim()));
+  }, [comics]);
 
-  // Grouped Event Comics for "All Crossover Events" View
+  // Selected Event Filtered Comics (chronologically sorted when viewing a single event)
+  const filteredEventComics = useMemo(() => {
+    if (selectedEvent === 'all') {
+      return allEventComics;
+    }
+    const targetEvent = selectedEvent.trim().toLowerCase();
+    const matching = comics.filter((c) => c.event && c.event.trim().toLowerCase() === targetEvent);
+    const indexed = matching.map(preIndexComic);
+    indexed.sort(compareIndexedComics);
+    return indexed.map((item) => item.comic);
+  }, [comics, selectedEvent, allEventComics]);
+
+  // Grouped Event Summaries for "All Crossover Events" View
+  // Computes group counts in a single fast pass without sorting every comic in every event upfront
   const groupedEvents = useMemo(() => {
     if (selectedEvent !== 'all') return [];
 
@@ -282,6 +386,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     const sortedGroups: Array<{
       eventName: string;
       comics: ComicBook[];
+      totalIssues: number;
       readCount: number;
       ownedCount: number;
       unreadCount: number;
@@ -293,24 +398,21 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
 
     eventNames.forEach((evt) => {
       const groupComics = map.get(evt)!;
-      const indexed = groupComics.map(preIndexComic);
-      indexed.sort(compareIndexedComics);
-      const sortedComics = indexed.map((item) => item.comic);
-
       let read = 0;
       let unread = 0;
       let wishlist = 0;
-      sortedComics.forEach((c) => {
+      groupComics.forEach((c) => {
         if (c.readingStatus === 'Read') read++;
         else if (c.readingStatus === 'Unread') unread++;
         else if (c.readingStatus === 'Wishlist') wishlist++;
       });
-      const owned = sortedComics.length - wishlist;
+      const owned = groupComics.length - wishlist;
       const completionPct = owned > 0 ? Math.round((read / owned) * 100) : 0;
 
       sortedGroups.push({
         eventName: evt,
-        comics: sortedComics,
+        comics: groupComics,
+        totalIssues: groupComics.length,
         readCount: read,
         ownedCount: owned,
         unreadCount: unread,
@@ -327,18 +429,65 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     return groupedEvents.slice(0, visibleEventsCount);
   }, [groupedEvents, visibleEventsCount]);
 
+  // Cache of sorted comics only for events that are currently expanded
+  const sortedExpandedEventComics = useMemo(() => {
+    const cache = new Map<string, ComicBook[]>();
+    expandedEventNames.forEach((evtName) => {
+      const group = groupedEvents.find((g) => g.eventName === evtName);
+      if (!group) return;
+      const indexed = group.comics.map(preIndexComic);
+      indexed.sort(compareIndexedComics);
+      cache.set(evtName, indexed.map((item) => item.comic));
+    });
+    return cache;
+  }, [expandedEventNames, groupedEvents]);
+
+  // Toggle issues visibility for an event in "All Events" view
+  const toggleEventIssues = useCallback((eventName: string) => {
+    setExpandedEventNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventName)) {
+        next.delete(eventName);
+      } else {
+        next.add(eventName);
+        setEventVisibleCounts((counts) => {
+          if (!counts[eventName]) {
+            return { ...counts, [eventName]: CHUNK_SIZE_EVENT_COMICS };
+          }
+          return counts;
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  // Progressive load more issues for an expanded event
+  const loadMoreEventIssues = useCallback((eventName: string) => {
+    setEventVisibleCounts((prev) => {
+      const current = prev[eventName] || CHUNK_SIZE_EVENT_COMICS;
+      return { ...prev, [eventName]: current + CHUNK_SIZE_EVENT_COMICS };
+    });
+  }, []);
+
   // Sliced comics for progressive loading in single event view
   const visibleEventComics = useMemo(() => {
     return filteredEventComics.slice(0, visibleEventComicsCount);
   }, [filteredEventComics, visibleEventComicsCount]);
 
-  // Reset event pagination counters when active tab or selected event changes
+  // Reset event pagination counters and states ONLY when selected event changes (never redundant on initial mount)
+  const prevSelectedEventRef = useRef<string>(selectedEvent);
   useEffect(() => {
-    setVisibleEventsCount(CHUNK_SIZE_EVENTS);
-    setVisibleEventComicsCount(CHUNK_SIZE_EVENT_COMICS);
-  }, [selectedEvent, activeStatsTab]);
+    if (prevSelectedEventRef.current !== selectedEvent) {
+      prevSelectedEventRef.current = selectedEvent;
+      setVisibleEventsCount(CHUNK_SIZE_EVENTS);
+      setVisibleEventComicsCount(CHUNK_SIZE_EVENT_COMICS);
+      setSingleEventShowIssues(true);
+      setExpandedEventNames(new Set());
+      setEventVisibleCounts({});
+    }
+  }, [selectedEvent]);
 
-  // Progressive infinite scroll observer for All Crossover Events view
+  // Progressive infinite scroll observer for All Crossover Events view (loads next batch of 10 events)
   useEffect(() => {
     if (activeStatsTab !== 'events' || selectedEvent !== 'all') return;
     if (visibleEventsCount >= groupedEvents.length) return;
@@ -352,7 +501,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
           setVisibleEventsCount((prev) => Math.min(prev + CHUNK_SIZE_EVENTS, groupedEvents.length));
         }
       },
-      { rootMargin: '300px' }
+      { rootMargin: '100px' }
     );
 
     observer.observe(sentinel);
@@ -361,7 +510,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
 
   // Progressive infinite scroll observer for Single Event comic cards view
   useEffect(() => {
-    if (activeStatsTab !== 'events' || selectedEvent === 'all') return;
+    if (activeStatsTab !== 'events' || selectedEvent === 'all' || !singleEventShowIssues) return;
     if (visibleEventComicsCount >= filteredEventComics.length) return;
 
     const sentinel = eventComicsSentinelRef.current;
@@ -373,23 +522,32 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
           setVisibleEventComicsCount((prev) => Math.min(prev + CHUNK_SIZE_EVENT_COMICS, filteredEventComics.length));
         }
       },
-      { rootMargin: '300px' }
+      { rootMargin: '100px' }
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [activeStatsTab, selectedEvent, visibleEventComicsCount, filteredEventComics.length]);
+  }, [activeStatsTab, selectedEvent, singleEventShowIssues, visibleEventComicsCount, filteredEventComics.length]);
 
-  // Event Stats Breakdown
+  // Event Stats Breakdown — Single-pass calculation (GEMINI.md Rule 4)
   const eventStats = useMemo(() => {
-    const total = filteredEventComics.length;
-    const read = filteredEventComics.filter((c) => c.readingStatus === 'Read').length;
-    const reading = filteredEventComics.filter((c) => c.readingStatus === 'Reading').length;
-    const unread = filteredEventComics.filter((c) => c.readingStatus === 'Unread').length;
-    const wishlist = filteredEventComics.filter((c) => c.readingStatus === 'Wishlist').length;
+    let total = 0;
+    let read = 0;
+    let reading = 0;
+    let unread = 0;
+    let wishlist = 0;
+    let totalValue = 0;
+
+    for (const c of filteredEventComics) {
+      total++;
+      totalValue += (c.estimatedValue || 0);
+      if (c.readingStatus === 'Read') read++;
+      else if (c.readingStatus === 'Reading') reading++;
+      else if (c.readingStatus === 'Wishlist') wishlist++;
+      else unread++;
+    }
     const owned = total - wishlist;
     const completionRate = owned > 0 ? Math.round((read / owned) * 100) : 0;
-    const totalValue = filteredEventComics.reduce((sum, c) => sum + (c.estimatedValue || 0), 0);
 
     return { total, owned, read, reading, unread, wishlist, completionRate, totalValue };
   }, [filteredEventComics]);
@@ -719,7 +877,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   }, [seriesSummary]);
 
   // -------------------------------------------------------------
-  // CREATORS & CONTRIBUTOR ROLES ANALYTICS
+  // CREATORS & CONTRIBUTOR ROLES ANALYTICS (Deferred when not on creators or characters tabs)
   // -------------------------------------------------------------
   const {
     creatorList,
@@ -730,6 +888,18 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     allUniqueRoles,
     characterRankingList,
   } = useMemo(() => {
+    if (activeStatsTab !== 'creators' && activeStatsTab !== 'characters') {
+      return {
+        creatorList: [],
+        roleDistributionData: [],
+        artistsWhoWriteList: [],
+        pencillersWhoWroteList: [],
+        totalCreditsCount: 0,
+        allUniqueRoles: [],
+        characterRankingList: [],
+      };
+    }
+
     interface CreatorIssueItem {
       id: string | number;
       title: string;
@@ -937,9 +1107,6 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         .map(([series, count]) => ({ series, count }))
         .sort((a, b) => b.count - a.count);
 
-      // Sort contributed issues chronologically by publication release date
-      const sortedIssues = [...cr.issues].sort((a, b) => compareComicReleaseDates(a.comic, b.comic));
-
       return {
         ...cr,
         roleKeys,
@@ -954,7 +1121,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         editorIssuesCount: categoryCredits.Editor,
         otherIssuesCount: categoryCredits.Other,
         topSeries,
-        issues: sortedIssues,
+        issues: cr.issues,
       };
     }).sort((a, b) => b.totalIssues - a.totalIssues);
 
@@ -968,13 +1135,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     const allUniqueRoles = Object.keys(roleCountMap).sort((a, b) => a.localeCompare(b));
 
     const characterRankingList = Object.values(charMap).map((chr) => {
-      const sortedIssues = [...chr.issues].sort((a, b) => compareComicReleaseDates(a.comic, b.comic));
       const topSeries = Object.entries(chr.series)
         .map(([series, count]) => ({ series, count }))
         .sort((a, b) => b.count - a.count);
       return {
         ...chr,
-        issues: sortedIssues,
+        issues: chr.issues,
         topSeries,
       };
     }).sort((a, b) => b.total - a.total);
@@ -988,7 +1154,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
       allUniqueRoles,
       characterRankingList,
     };
-  }, [comics]);
+  }, [comics, activeStatsTab]);
 
   // Filtered Creators based on search query, 4-role-category filter, and Artists Who Write toggle
   const filteredCreators = useMemo(() => {
@@ -1059,9 +1225,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   }, [characterRankingList, characterSearchQuery, characterRoleFilter]);
 
   // -------------------------------------------------------------
-  // GENERAL STATS CHARTS (Box Capacity, Publisher, Genre, Format)
+  // GENERAL STATS CHARTS (Box Capacity, Publisher, Genre, Format - Deferred when not on general tab)
   // -------------------------------------------------------------
   const boxCapacityData = useMemo(() => {
+    if (activeStatsTab !== 'general') return [];
     return sortBoxes(boxes).map((box) => {
       const boxComics = inCollectionComics.filter((c) => c.currentBoxId === box.id);
       const usedThickness = boxComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
@@ -1072,19 +1239,21 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         itemCount: boxComics.length,
       };
     });
-  }, [boxes, inCollectionComics]);
+  }, [boxes, inCollectionComics, activeStatsTab]);
 
   const publisherData = useMemo(() => {
+    if (activeStatsTab !== 'general') return [];
     const map: Record<string, number> = {};
     comics.forEach((c) => {
       const pub = c.publisher || 'Independent';
       map[pub] = (map[pub] || 0) + 1;
     });
     return Object.keys(map).map((pub) => ({ name: pub, count: map[pub] }));
-  }, [comics]);
+  }, [comics, activeStatsTab]);
 
   // Per-Box Contents & Breakdown Data
   const boxBreakdowns = useMemo(() => {
+    if (activeStatsTab !== 'general') return [];
     const sorted = sortBoxes(boxes);
     const unallocatedComics = inCollectionComics.filter((c) => c.currentBoxId === 0);
     const boxList = [...sorted];
@@ -1139,9 +1308,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         inProgressCount,
       };
     });
-  }, [boxes, inCollectionComics]);
+  }, [boxes, inCollectionComics, activeStatsTab]);
 
   const allBoxesSeriesData = useMemo(() => {
+    if (activeStatsTab !== 'general') return [];
     const seriesMap: Record<string, number> = {};
     inCollectionComics.forEach((c) => {
       const title = c.title || 'Untitled';
@@ -1151,9 +1321,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
       .map((title) => ({ name: title, count: seriesMap[title] }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [inCollectionComics]);
+  }, [inCollectionComics, activeStatsTab]);
 
   const boxReadingStatusComparison = useMemo(() => {
+    if (activeStatsTab !== 'general') return [];
     return boxBreakdowns
       .filter((b) => b.boxId !== 0)
       .map((b) => ({
@@ -1162,7 +1333,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         Unread: b.unreadCount,
         'In Progress': b.inProgressCount,
       }));
-  }, [boxBreakdowns]);
+  }, [boxBreakdowns, activeStatsTab]);
 
   return (
     <div className="space-y-6">
@@ -1261,7 +1432,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
           <BarChart3 className="w-4 h-4 text-indigo-400 shrink-0" />
           <span>Titles & Series</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'series' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-            {seriesSummary.length}
+            {subTabCounts.seriesCount}
           </span>
         </button>
 
@@ -1275,9 +1446,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         >
           <Palette className="w-4 h-4 text-violet-400 shrink-0" />
           <span>Creators & Roles</span>
-          {creatorList.length > 0 && (
+          {subTabCounts.creatorsCount > 0 && (
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'creators' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-              {creatorList.length}
+              {subTabCounts.creatorsCount}
             </span>
           )}
         </button>
@@ -1292,9 +1463,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
         >
           <Users className="w-4 h-4 text-pink-400 shrink-0" />
           <span>Character Appearances</span>
-          {characterRankingList.length > 0 && (
+          {subTabCounts.charactersCount > 0 && (
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeStatsTab === 'characters' ? 'bg-slate-700 dark:bg-indigo-800 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-              {characterRankingList.length}
+              {subTabCounts.charactersCount}
             </span>
           )}
         </button>
@@ -1432,6 +1603,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                         outerRadius={90}
                         paddingAngle={5}
                         dataKey="value"
+                        isAnimationActive={false}
                         label={({ name, value }) => `${name}: ${value}`}
                       >
                         {eventPieData.map((entry, index) => (
@@ -1472,9 +1644,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                       <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-25} textAnchor="end" />
                       <YAxis stroke="#64748b" fontSize={10} />
                       <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
-                      <Bar dataKey="read" name="Read" fill="#10B981" stackId="a" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="owned" name="Owned (Unread)" fill="#6366F1" stackId="a" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="wishlist" name="Wishlist" fill="#F43F5E" stackId="a" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="read" name="Read" fill="#10B981" stackId="a" radius={[0, 0, 0, 0]} isAnimationActive={false} />
+                      <Bar dataKey="owned" name="Owned (Unread)" fill="#6366F1" stackId="a" radius={[0, 0, 0, 0]} isAnimationActive={false} />
+                      <Bar dataKey="wishlist" name="Wishlist" fill="#F43F5E" stackId="a" radius={[4, 4, 0, 0]} isAnimationActive={false} />
                       <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: '11px' }} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1506,82 +1678,112 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   </span>
                 </div>
 
-                {visibleGroupedEvents.map((group) => (
-                  <div key={group.eventName} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-bold flex items-center justify-center">
-                          ⚡
-                        </span>
-                        <div>
-                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
-                            <span>{group.eventName}</span>
-                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                              ({group.comics.length} {group.comics.length === 1 ? 'issue' : 'issues'})
-                            </span>
-                          </h4>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {group.readCount} of {group.ownedCount} Read ({group.completionPct}%)
-                            {group.wishlistCount > 0 && ` · ${group.wishlistCount} in wishlist`}
-                          </p>
-                        </div>
-                      </div>
+                {visibleGroupedEvents.map((group) => {
+                  const isExpanded = expandedEventNames.has(group.eventName);
+                  const sortedComics = sortedExpandedEventComics.get(group.eventName) || [];
+                  const visibleLimit = eventVisibleCounts[group.eventName] || CHUNK_SIZE_EVENT_COMICS;
+                  const displayedComics = sortedComics.slice(0, visibleLimit);
+                  const hasMoreIssues = visibleLimit < sortedComics.length;
 
-                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-                        {onStartEventChallenge && (
-                          <button
-                            type="button"
-                            onClick={() => onStartEventChallenge(group.eventName)}
-                            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
-                            title={`Create Reading Challenge for ${group.eventName}`}
-                          >
-                            <Trophy className="w-3.5 h-3.5" />
-                            <span>Create Reading Challenge</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
-                      {group.comics.map((comic) => (
-                        <div key={comic.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                          <img
-                            src={getComicCoverUrl(comic.coverImage)}
-                            onError={handleImageError}
-                            alt={comic.title}
-                            loading="lazy"
-                            decoding="async"
-                            referrerPolicy="no-referrer"
-                            className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
-                          />
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-                                {comic.publisher}
+                  return (
+                    <div key={group.eventName} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <span className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-bold flex items-center justify-center">
+                            ⚡
+                          </span>
+                          <div>
+                            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                              <span>{group.eventName}</span>
+                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                ({group.totalIssues} {group.totalIssues === 1 ? 'issue' : 'issues'})
                               </span>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                comic.readingStatus === 'Read'
-                                  ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border dark:border-emerald-800'
-                                  : comic.readingStatus === 'Reading'
-                                  ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border dark:border-amber-800'
-                                  : comic.readingStatus === 'Wishlist'
-                                  ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border dark:border-rose-800'
-                                  : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border dark:border-indigo-800'
-                              }`}>
-                                {comic.readingStatus}
-                              </span>
-                            </div>
-                            <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate leading-snug">{comic.title}</h5>
-                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Issue #{comic.issueNumber}</p>
-                            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                              📅 {formatPublicationDate(comic.publicationYear, comic.publicationMonth) || 'Undated'}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {group.readCount} of {group.ownedCount} Read ({group.completionPct}%)
+                              {group.wishlistCount > 0 && ` · ${group.wishlistCount} in wishlist`}
                             </p>
                           </div>
                         </div>
-                      ))}
+
+                        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => toggleEventIssues(group.eventName)}
+                            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                            title={isExpanded ? `Hide issues for ${group.eventName}` : `View issues for ${group.eventName}`}
+                          >
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <span>{isExpanded ? 'Hide Issues' : `View Issues (${group.totalIssues})`}</span>
+                          </button>
+
+                          {onStartEventChallenge && (
+                            <button
+                              type="button"
+                              onClick={() => onStartEventChallenge(group.eventName)}
+                              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                              title={`Create Reading Challenge for ${group.eventName}`}
+                            >
+                              <Trophy className="w-3.5 h-3.5" />
+                              <span>Create Reading Challenge</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* On-Demand Progressive Issue Grid */}
+                      {isExpanded && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+                          {displayedComics.map((comic) => (
+                            <div key={comic.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                              <img
+                                src={getComicCoverUrl(comic.coverImage)}
+                                onError={handleImageError}
+                                alt={comic.title}
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
+                                className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
+                              />
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+                                    {comic.publisher}
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                    comic.readingStatus === 'Read'
+                                      ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border dark:border-emerald-800'
+                                      : comic.readingStatus === 'Reading'
+                                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border dark:border-amber-800'
+                                      : comic.readingStatus === 'Wishlist'
+                                      ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border dark:border-rose-800'
+                                      : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border dark:border-indigo-800'
+                                  }`}>
+                                    {comic.readingStatus}
+                                  </span>
+                                </div>
+                                <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate leading-snug">{comic.title}</h5>
+                                <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Issue #{comic.issueNumber}</p>
+                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                  📅 {formatPublicationDate(comic.publicationYear, comic.publicationMonth) || 'Undated'}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+
+                          {hasMoreIssues && (
+                            <ExpandedEventSentinel
+                              eventName={group.eventName}
+                              currentCount={displayedComics.length}
+                              totalCount={sortedComics.length}
+                              onLoadMore={() => loadMoreEventIssues(group.eventName)}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {visibleEventsCount < groupedEvents.length && (
                   <div ref={eventsSentinelRef} className="py-6 flex flex-col items-center justify-center gap-2">
@@ -1616,6 +1818,16 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setSingleEventShowIssues((prev) => !prev)}
+                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                      title={singleEventShowIssues ? `Hide issues for ${selectedEvent}` : `View issues for ${selectedEvent}`}
+                    >
+                      {singleEventShowIssues ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      <span>{singleEventShowIssues ? 'Hide Issues' : `View Issues (${filteredEventComics.length})`}</span>
+                    </button>
+
                     {onStartEventChallenge && (
                       <button
                         type="button"
@@ -1630,52 +1842,54 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
-                  {visibleEventComics.map((comic) => (
-                    <div key={comic.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                      <img
-                        src={getComicCoverUrl(comic.coverImage)}
-                        onError={handleImageError}
-                        alt={comic.title}
-                        loading="lazy"
-                        decoding="async"
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
-                      />
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-                            {comic.publisher}
-                          </span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            comic.readingStatus === 'Read'
-                              ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border dark:border-emerald-800'
-                              : comic.readingStatus === 'Reading'
-                              ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border dark:border-amber-800'
-                              : comic.readingStatus === 'Wishlist'
-                              ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border dark:border-rose-800'
-                              : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border dark:border-indigo-800'
-                          }`}>
-                            {comic.readingStatus}
-                          </span>
+                {singleEventShowIssues && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+                    {visibleEventComics.map((comic) => (
+                      <div key={comic.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                        <img
+                          src={getComicCoverUrl(comic.coverImage)}
+                          onError={handleImageError}
+                          alt={comic.title}
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                          className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
+                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+                              {comic.publisher}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              comic.readingStatus === 'Read'
+                                ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border dark:border-emerald-800'
+                                : comic.readingStatus === 'Reading'
+                                ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border dark:border-amber-800'
+                                : comic.readingStatus === 'Wishlist'
+                                ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border dark:border-rose-800'
+                                : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border dark:border-indigo-800'
+                            }`}>
+                              {comic.readingStatus}
+                            </span>
+                          </div>
+                          <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate leading-snug">{comic.title}</h5>
+                          <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Issue #{comic.issueNumber}</p>
+                          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                            📅 {formatPublicationDate(comic.publicationYear, comic.publicationMonth) || 'Undated'}
+                          </p>
                         </div>
-                        <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate leading-snug">{comic.title}</h5>
-                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Issue #{comic.issueNumber}</p>
-                        <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                          📅 {formatPublicationDate(comic.publicationYear, comic.publicationMonth) || 'Undated'}
-                        </p>
                       </div>
-                    </div>
-                  ))}
-                  {visibleEventComicsCount < filteredEventComics.length && (
-                    <div ref={eventComicsSentinelRef} className="py-6 flex flex-col items-center justify-center gap-2 col-span-full">
-                      <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                        Loading more issues ({visibleEventComics.length} of {filteredEventComics.length})...
-                      </span>
-                    </div>
-                  )}
-                </div>
+                    ))}
+                    {visibleEventComicsCount < filteredEventComics.length && (
+                      <div ref={eventComicsSentinelRef} className="py-6 flex flex-col items-center justify-center gap-2 col-span-full">
+                        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                          Loading more issues ({visibleEventComics.length} of {filteredEventComics.length})...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           )}
@@ -2369,6 +2583,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
           {selectedCreatorForIssues && (() => {
             const cr = creatorList.find((c) => c.name === selectedCreatorForIssues);
             if (!cr) return null;
+            const sortedIssues = [...cr.issues].sort((a, b) => compareComicReleaseDates(a.comic, b.comic));
 
             return (
               <div className="bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 shadow-sm space-y-4">
@@ -2414,7 +2629,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto pr-1">
-                  {cr.issues.map((iss) => (
+                  {sortedIssues.map((iss) => (
                     <div key={iss.id} className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 flex flex-col justify-between shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-500 transition-all">
                       <div className="flex gap-2 items-start">
                         <img
@@ -2837,6 +3052,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
           {selectedCharacterForIssues && (() => {
             const chr = characterRankingList.find((c) => c.name === selectedCharacterForIssues);
             if (!chr) return null;
+            const sortedIssues = [...chr.issues].sort((a, b) => compareComicReleaseDates(a.comic, b.comic));
 
             return (
               <div className="bg-white dark:bg-slate-900 border-2 border-pink-300 dark:border-pink-800 rounded-2xl p-5 shadow-sm space-y-4">
@@ -2880,7 +3096,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto pr-1">
-                  {chr.issues.map((iss) => (
+                  {sortedIssues.map((iss) => (
                     <div key={iss.id} className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 flex flex-col justify-between shadow-2xs hover:border-pink-300 dark:hover:border-pink-500 transition-all">
                       <div className="flex gap-2 items-start">
                         <img
