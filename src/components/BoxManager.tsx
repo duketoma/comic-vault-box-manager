@@ -14,7 +14,6 @@ import {
   GripVertical, 
   MapPin, 
   Sliders, 
-  Sparkles,
   Plus,
   Trash2,
   Edit2,
@@ -393,78 +392,6 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     onUpdateComics(updated);
   };
 
-  // Helper for sorting comics alphabetically/numerically before rebalancing
-  const sortComicsForStorage = (list: ComicBook[]) => {
-    return sortComicsByTitleAndIssue(list);
-  };
-
-  // Auto-balance storage allocation across all available boxes (including empty/new boxes)
-  const handleAutoBalanceProposal = () => {
-    const targetBoxes = sortBoxes(boxes);
-    if (targetBoxes.length === 0) {
-      alert('Please add at least one storage box before rebalancing.');
-      return;
-    }
-
-    const updatedComics = sortComicsForStorage(activeStatsComics);
-    const totalThickness = updatedComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
-    const totalCapacity = targetBoxes.reduce((sum, b) => sum + (b.maxCapacity || 140), 0);
-
-    // Target fill ratio equalizes percentage utilization across ALL available boxes
-    const targetRatio = totalCapacity > 0 ? Math.min(1.0, totalThickness / totalCapacity) : 1.0;
-
-    // Track assigned capacities
-    const boxTracker = targetBoxes.map((b) => ({
-      id: b.id,
-      maxCapacity: b.maxCapacity || 140,
-      targetCapacity: Math.max(1, (b.maxCapacity || 140) * targetRatio),
-      currentUsed: 0,
-    }));
-
-    let currentBoxIdx = 0;
-
-    for (const comic of updatedComics) {
-      const comicThickness = comic.sizeThickness || 1.0;
-
-      // Advance to next box if current box hit its proportional target capacity and isn't the last box
-      while (
-        currentBoxIdx < boxTracker.length - 1 &&
-        boxTracker[currentBoxIdx].currentUsed >= boxTracker[currentBoxIdx].targetCapacity
-      ) {
-        currentBoxIdx++;
-      }
-
-      // If current box is at physical max capacity and isn't the last box, advance
-      while (
-        currentBoxIdx < boxTracker.length - 1 &&
-        boxTracker[currentBoxIdx].currentUsed + comicThickness > boxTracker[currentBoxIdx].maxCapacity
-      ) {
-        currentBoxIdx++;
-      }
-
-      const assignedBox = boxTracker[currentBoxIdx];
-      // Check if even the final box exceeds physical max capacity
-      if (assignedBox.currentUsed + comicThickness > assignedBox.maxCapacity && currentBoxIdx === boxTracker.length - 1) {
-        // Overflow comics stay in Box 0 staging
-        comic.proposedBoxId = 0;
-      } else {
-        comic.proposedBoxId = assignedBox.id;
-        assignedBox.currentUsed += comicThickness;
-      }
-    }
-
-    // Merge proposedBoxIds back into full comics array
-    const proposedMap = new Map(updatedComics.map((c) => [c.id, c.proposedBoxId]));
-    const fullUpdated = comics.map((c) => {
-      if (proposedMap.has(c.id)) {
-        return { ...c, proposedBoxId: proposedMap.get(c.id) };
-      }
-      return c;
-    });
-
-    onUpdateComics(fullUpdated);
-  };
-
   const selectedBoxStat = boxStats.find((s) => s.box.id === activeBoxId) || boxStats[0] || {
     box: boxes[0] || { id: 1, name: 'Box 01', location: 'Rack', maxCapacity: 150, colorTag: '#3B82F6' },
     currentComics: [],
@@ -535,44 +462,6 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                 <Plus className="w-4 h-4" />
                 <span>Add Storage Box</span>
               </button>
-            )}
-
-            <button
-              onClick={handleAutoBalanceProposal}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer"
-              title="Calculate optimal distribution across boxes"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Auto-Suggest Rebalance</span>
-            </button>
-
-            {proposedRelocationsCount > 0 && (
-              <>
-                <button
-                  onClick={() => setIsProposedMovesModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
-                  title="Inspect all proposed moves and target boxes"
-                >
-                  <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                  <span>View Moves ({proposedRelocationsCount})</span>
-                </button>
-
-                <button
-                  onClick={handleApplyAllProposedMoves}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Apply {proposedRelocationsCount} Moves</span>
-                </button>
-
-                <button
-                  onClick={handleResetProposedMoves}
-                  className="flex items-center gap-1 py-2 px-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-medium border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Discard</span>
-                </button>
-              </>
             )}
           </div>
         </div>
@@ -702,6 +591,13 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Commit Moves</span>
+              </button>
+              <button
+                onClick={handleResetProposedMoves}
+                className="flex items-center gap-1 py-1.5 px-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Discard</span>
               </button>
             </div>
           </div>

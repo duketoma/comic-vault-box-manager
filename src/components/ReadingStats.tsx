@@ -49,7 +49,8 @@ import {
   X,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  ArrowUpDown
 } from 'lucide-react';
 import { 
   isAnnualComic,
@@ -96,8 +97,9 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   const [selectedEvent, setSelectedEvent] = useState<string>('all');
   
   // Series Filter & Sort State
-  const [seriesSortBy, setSeriesSortBy] = useState<'owned' | 'collection' | 'remaining' | 'read_completion' | 'value' | 'alphabetical'>('owned');
-  const [seriesRunFilter, setSeriesRunFilter] = useState<'all' | 'complete' | 'near' | 'in_progress'>('all');
+  const [seriesSortBy, setSeriesSortBy] = useState<'completion' | 'alphabetical'>('completion');
+  const [seriesSortDirection, setSeriesSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [seriesRunFilter, setSeriesRunFilter] = useState<'in_progress_all' | 'complete' | 'near' | 'under_75'>('in_progress_all');
   const [seriesSearchQuery, setSeriesSearchQuery] = useState<string>('');
   const [expandedSeriesName, setExpandedSeriesName] = useState<string | null>(null);
   const [copiedSeriesMissing, setCopiedSeriesMissing] = useState<string | null>(null);
@@ -311,51 +313,43 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
       totalIssues: entry.effectiveTotalIssues,
     }));
 
-    if (seriesSortBy === 'owned') {
-      list.sort((a, b) => b.ownedCount - a.ownedCount);
-    } else if (seriesSortBy === 'collection') {
+    if (seriesSortBy === 'completion') {
       list.sort((a, b) => {
-        const aHasRemaining = !a.isRunComplete && a.collectionPct < 100 && a.remainingIssues > 0;
-        const bHasRemaining = !b.isRunComplete && b.collectionPct < 100 && b.remainingIssues > 0;
-        if (aHasRemaining && !bHasRemaining) return -1;
-        if (!aHasRemaining && bHasRemaining) return 1;
-        return b.collectionPct - a.collectionPct || b.ownedCount - a.ownedCount;
+        const diff = seriesSortDirection === 'desc'
+          ? b.collectionPct - a.collectionPct
+          : a.collectionPct - b.collectionPct;
+        if (diff !== 0) return diff;
+        return (a.seriesName || '').localeCompare(b.seriesName || '');
       });
-    } else if (seriesSortBy === 'remaining') {
-      list.sort((a, b) => {
-        const aHasRemaining = !a.isRunComplete && a.collectionPct < 100 && a.remainingIssues > 0;
-        const bHasRemaining = !b.isRunComplete && b.collectionPct < 100 && b.remainingIssues > 0;
-        if (aHasRemaining && !bHasRemaining) return -1;
-        if (!aHasRemaining && bHasRemaining) return 1;
-        return a.remainingIssues - b.remainingIssues || b.collectionPct - a.collectionPct;
-      });
-    } else if (seriesSortBy === 'read_completion') {
-      list.sort((a, b) => b.readPct - a.readPct || b.ownedCount - a.ownedCount);
-    } else if (seriesSortBy === 'value') {
-      list.sort((a, b) => b.totalValue - a.totalValue);
     } else if (seriesSortBy === 'alphabetical') {
-      list.sort((a, b) => a.seriesName.localeCompare(b.seriesName));
+      list.sort((a, b) => {
+        return seriesSortDirection === 'asc'
+          ? (a.seriesName || '').localeCompare(b.seriesName || '')
+          : (b.seriesName || '').localeCompare(a.seriesName || '');
+      });
     }
 
     return list;
-  }, [comics, seriesTotals, seriesSortBy]);
+  }, [comics, seriesTotals, seriesSortBy, seriesSortDirection]);
 
   // Filtered series list based on run filter and search
   const filteredSeries = useMemo(() => {
     let result = seriesSummary;
-    if (seriesRunFilter === 'complete') {
+    if (seriesRunFilter === 'in_progress_all') {
+      result = result.filter((s) => !s.isRunComplete && s.collectionPct < 100 && s.remainingIssues > 0);
+    } else if (seriesRunFilter === 'complete') {
       result = result.filter((s) => s.isRunComplete || s.collectionPct === 100);
     } else if (seriesRunFilter === 'near') {
-      result = result.filter((s) => !s.isRunComplete && s.collectionPct >= 75);
-    } else if (seriesRunFilter === 'in_progress') {
+      result = result.filter((s) => !s.isRunComplete && s.collectionPct >= 75 && s.collectionPct < 100);
+    } else if (seriesRunFilter === 'under_75') {
       result = result.filter((s) => !s.isRunComplete && s.collectionPct < 75);
     }
     if (seriesSearchQuery.trim()) {
       const q = seriesSearchQuery.toLowerCase();
       result = result.filter((s) =>
-        s.seriesName.toLowerCase().includes(q) ||
-        s.title.toLowerCase().includes(q) ||
-        s.publisher.toLowerCase().includes(q)
+        (s.seriesName || '').toLowerCase().includes(q) ||
+        (s.title || '').toLowerCase().includes(q) ||
+        (s.publisher || '').toLowerCase().includes(q)
       );
     }
     return result;
@@ -364,15 +358,19 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // Aggregate Series Overview Metrics
   const seriesOverviewStats = useMemo(() => {
     const totalRuns = seriesSummary.length;
+    const inProgressRuns = seriesSummary.filter((s) => !s.isRunComplete && s.collectionPct < 100 && s.remainingIssues > 0).length;
     const completedRuns = seriesSummary.filter((s) => s.isRunComplete || s.collectionPct === 100).length;
-    const nearCompleteRuns = seriesSummary.filter((s) => !s.isRunComplete && s.collectionPct >= 75).length;
+    const nearCompleteRuns = seriesSummary.filter((s) => !s.isRunComplete && s.collectionPct >= 75 && s.collectionPct < 100).length;
+    const under75Runs = seriesSummary.filter((s) => !s.isRunComplete && s.collectionPct < 75).length;
     const totalPublishedIssues = seriesSummary.reduce((acc, s) => acc + s.totalIssues, 0);
     const totalOwnedInSeries = seriesSummary.reduce((acc, s) => acc + s.ownedCount, 0);
     const overallRunCollectionPct = totalPublishedIssues > 0 ? Math.round((totalOwnedInSeries / totalPublishedIssues) * 100) : 0;
     return {
       totalRuns,
+      inProgressRuns,
       completedRuns,
       nearCompleteRuns,
+      under75Runs,
       totalPublishedIssues,
       totalOwnedInSeries,
       overallRunCollectionPct,
@@ -382,12 +380,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   // Top 10 Series for Bar Chart (Showing Owned vs Total Published Issues)
   const topSeriesChartData = useMemo(() => {
     let source = seriesSummary;
-    if (seriesSortBy === 'collection' || seriesSortBy === 'remaining') {
+    if (seriesSortBy === 'completion') {
       source = source.filter((s) => !s.isRunComplete && s.collectionPct < 100 && s.remainingIssues > 0);
     }
     return source.slice(0, 10).map((s) => ({
-      name: s.seriesName.length > 20 ? `${s.seriesName.slice(0, 18)}...` : s.seriesName,
-      fullName: s.seriesName,
+      name: (s.seriesName || '').length > 20 ? `${(s.seriesName || '').slice(0, 18)}...` : (s.seriesName || ''),
+      fullName: s.seriesName || '',
       Owned: s.ownedCount,
       TotalIssues: s.totalIssues,
       Remaining: s.remainingIssues,
@@ -1328,26 +1326,6 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   Track how close you are to completing every series run in your collection, with verified issue counts from SeriesIssueTotal.
                 </p>
               </div>
-
-              {/* Sort Selector for Series */}
-              <div className="flex items-center gap-2 shrink-0">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                  Sort Series By:
-                </label>
-                <select
-                  value={seriesSortBy}
-                  onChange={(e) => setSeriesSortBy(e.target.value as any)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500 shadow-xs"
-                >
-                  <option value="collection">Collection Progress % (Run Completion)</option>
-                  <option value="remaining">Closest to Completion (Fewest Remaining)</option>
-                  <option value="owned">Most Owned Issues</option>
-                  <option value="read_completion">Highest Read Completion %</option>
-                  <option value="value">Highest Total Value ($)</option>
-                  <option value="alphabetical">Alphabetical (A-Z)</option>
-                </select>
-              </div>
             </div>
 
             {/* Top 10 Series Stacked Bar Chart */}
@@ -1358,7 +1336,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   <span>Top Series Run Breakdown (Owned vs Total Published Issues)</span>
                 </h4>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {['collection', 'remaining'].includes(seriesSortBy) ? 'Showing top 10 series with issues remaining' : 'Showing top 10 series'}
+                  {seriesSortBy === 'completion' ? 'Showing top 10 series closest to completion' : 'Showing top 10 series'}
                 </span>
               </div>
 
@@ -1389,18 +1367,19 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
             </div>
           </div>
 
-          {/* Filter & Search Bar for Series */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+          {/* Filter, Sort & Search Toolbar for Series */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 xl:pb-0">
               <button
-                onClick={() => setSeriesRunFilter('all')}
+                onClick={() => setSeriesRunFilter('in_progress_all')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  seriesRunFilter === 'all'
+                  seriesRunFilter === 'in_progress_all'
                     ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                All Series ({seriesSummary.length})
+                All In Progress ({seriesOverviewStats.inProgressRuns})
               </button>
               <button
                 onClick={() => setSeriesRunFilter('complete')}
@@ -1425,44 +1404,93 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                 <span>Near Complete ≥75% ({seriesOverviewStats.nearCompleteRuns})</span>
               </button>
               <button
-                onClick={() => setSeriesRunFilter('in_progress')}
+                onClick={() => setSeriesRunFilter('under_75')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  seriesRunFilter === 'in_progress'
+                  seriesRunFilter === 'under_75'
                     ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                In Progress &lt;75% ({seriesSummary.length - seriesOverviewStats.completedRuns - seriesOverviewStats.nearCompleteRuns})
+                In Progress &lt;75% ({seriesOverviewStats.under75Runs})
               </button>
             </div>
 
-            <div className="relative min-w-[220px]">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search series or publisher..."
-                value={seriesSearchQuery}
-                onChange={(e) => setSeriesSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {seriesSearchQuery && (
-                <button
-                  onClick={() => setSeriesSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            {/* Sort & Search Controls */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              {/* Sort By Dropdown & Direction Toggle */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">Sort:</span>
+                </label>
+                <select
+                  value={seriesSortBy}
+                  onChange={(e) => setSeriesSortBy(e.target.value as 'completion' | 'alphabetical')}
+                  aria-label="Sort Series By"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <option value="completion">Closest to Completion</option>
+                  <option value="alphabetical">Alphabetical (A-Z)</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setSeriesSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                  title={
+                    seriesSortBy === 'completion'
+                      ? (seriesSortDirection === 'desc' ? 'Sorted: Highest completion % to lowest (Click to reverse)' : 'Sorted: Lowest completion % to highest (Click to reverse)')
+                      : (seriesSortDirection === 'asc' ? 'Sorted: A to Z (Click to reverse)' : 'Sorted: Z to A (Click to reverse)')
+                  }
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer shadow-xs"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                  <span className="text-xs">
+                    {seriesSortBy === 'completion'
+                      ? (seriesSortDirection === 'desc' ? 'High → Low' : 'Low → High')
+                      : (seriesSortDirection === 'asc' ? 'A → Z' : 'Z → A')}
+                  </span>
                 </button>
-              )}
+              </div>
+
+              {/* Series Search */}
+              <div className="relative min-w-[200px]">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search series or publisher..."
+                  value={seriesSearchQuery}
+                  onChange={(e) => setSeriesSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                {seriesSearchQuery && (
+                  <button
+                    onClick={() => setSeriesSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Complete Series Grid View */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                 <Layers3 className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-                <span>All Series & Title Runs ({filteredSeries.length} Shown)</span>
+                <span>
+                  {seriesRunFilter === 'in_progress_all' && 'In Progress Series Runs'}
+                  {seriesRunFilter === 'complete' && 'Completed Series Runs'}
+                  {seriesRunFilter === 'near' && 'Near Complete Series Runs (≥75%)'}
+                  {seriesRunFilter === 'under_75' && 'In Progress Series Runs (<75%)'}
+                  {' '}({filteredSeries.length} Shown)
+                </span>
               </h4>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Sorted by: <strong className="text-slate-700 dark:text-slate-300">{seriesSortBy === 'completion' ? 'Completion %' : 'Alphabetical'}</strong> ({seriesSortBy === 'completion'
+                  ? (seriesSortDirection === 'desc' ? 'Highest first' : 'Lowest first')
+                  : (seriesSortDirection === 'asc' ? 'A → Z' : 'Z → A')})
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
