@@ -39,6 +39,8 @@ interface ReadingChallengeViewProps {
   onRefreshCollection?: () => void;
   initialEventCriterion?: string | null;
   onClearInitialEventCriterion?: () => void;
+  initialCriterion?: { type: 'event' | 'creator' | 'character'; name: string } | null;
+  onClearInitialCriterion?: () => void;
 }
 
 export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
@@ -48,20 +50,22 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
   onRefreshCollection,
   initialEventCriterion,
   onClearInitialEventCriterion,
+  initialCriterion,
+  onClearInitialCriterion,
 }) => {
   const [activeChallenge, setActiveChallenge] = useState<ReadingChallengeSummary | null>(null);
   const [history, setHistory] = useState<ChallengeHistorySummary[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [activeSubTab, setActiveSubTab] = useState<'queue' | 'insights' | 'history' | 'new'>(() => {
-    return initialEventCriterion ? 'new' : 'queue';
+    return (initialCriterion || initialEventCriterion) ? 'new' : 'queue';
   });
 
   useEffect(() => {
-    if (initialEventCriterion) {
+    if (initialCriterion || initialEventCriterion) {
       setActiveSubTab('new');
     }
-  }, [initialEventCriterion]);
+  }, [initialCriterion, initialEventCriterion]);
   const [inspectingHistoryChallengeId, setInspectingHistoryChallengeId] = useState<number | null>(null);
   const [lastReadItemId, setLastReadItemId] = useState<number | null>(null);
 
@@ -429,10 +433,12 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
               <ChallengeSetupForm
                 comics={inCollectionComics}
                 onChallengeStarted={(c) => {
+                  if (onClearInitialCriterion) onClearInitialCriterion();
                   if (onClearInitialEventCriterion) onClearInitialEventCriterion();
                   handleChallengeStarted(c);
                 }}
                 hasActiveChallenge={activeChallenge !== null && activeChallenge.status === 'Active'}
+                initialCriterion={initialCriterion}
                 initialEventCriterion={initialEventCriterion}
               />
 

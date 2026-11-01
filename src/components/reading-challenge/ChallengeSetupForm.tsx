@@ -38,23 +38,58 @@ interface ChallengeSetupFormProps {
   onChallengeStarted: (challenge: any) => void;
   hasActiveChallenge?: boolean;
   initialEventCriterion?: string | null;
+  initialCriterion?: { type: 'event' | 'creator' | 'character'; name: string } | null;
 }
+
+const getInitialChallengeSetup = (
+  initialCriterion?: { type: 'event' | 'creator' | 'character'; name: string } | null,
+  initialEventCriterion?: string | null
+): { name: string; leaves: CriterionLeaf[] } => {
+  if (initialCriterion) {
+    if (initialCriterion.type === 'event') {
+      return {
+        name: `${initialCriterion.name} Reading Challenge`,
+        leaves: [{ type: 'storyArc', ids: [initialCriterion.name] }]
+      };
+    }
+    if (initialCriterion.type === 'creator') {
+      return {
+        name: `${initialCriterion.name} Creator Challenge`,
+        leaves: [{ type: 'creator', ids: [initialCriterion.name], roles: [] }]
+      };
+    }
+    if (initialCriterion.type === 'character') {
+      return {
+        name: `${initialCriterion.name} Character Challenge`,
+        leaves: [{ type: 'character', ids: [initialCriterion.name] }]
+      };
+    }
+  }
+  if (initialEventCriterion) {
+    return {
+      name: `${initialEventCriterion} Reading Challenge`,
+      leaves: [{ type: 'storyArc', ids: [initialEventCriterion] }]
+    };
+  }
+  return {
+    name: '',
+    leaves: [{ type: 'collection' }]
+  };
+};
 
 export const ChallengeSetupForm: React.FC<ChallengeSetupFormProps> = ({
   comics,
   onChallengeStarted,
   hasActiveChallenge = false,
   initialEventCriterion,
+  initialCriterion,
 }) => {
   const [challengeName, setChallengeName] = useState(() => {
-    return initialEventCriterion ? `${initialEventCriterion} Reading Challenge` : '';
+    return getInitialChallengeSetup(initialCriterion, initialEventCriterion).name;
   });
   const [operator, setOperator] = useState<'AND' | 'OR'>('AND');
   const [criteriaLeaves, setCriteriaLeaves] = useState<CriterionLeaf[]>(() => {
-    if (initialEventCriterion) {
-      return [{ type: 'storyArc', ids: [initialEventCriterion] }];
-    }
-    return [{ type: 'collection' }];
+    return getInitialChallengeSetup(initialCriterion, initialEventCriterion).leaves;
   });
   const [readingOrder, setReadingOrder] = useState<'PublicationDate'>('PublicationDate');
   const [sortDirection, setSortDirection] = useState<'Ascending' | 'Descending'>('Ascending');
@@ -64,13 +99,14 @@ export const ChallengeSetupForm: React.FC<ChallengeSetupFormProps> = ({
   const [abandonExisting, setAbandonExisting] = useState(false);
 
   useEffect(() => {
-    if (initialEventCriterion) {
-      setChallengeName(`${initialEventCriterion} Reading Challenge`);
-      setCriteriaLeaves([{ type: 'storyArc', ids: [initialEventCriterion] }]);
+    if (initialCriterion || initialEventCriterion) {
+      const setup = getInitialChallengeSetup(initialCriterion, initialEventCriterion);
+      setChallengeName(setup.name);
+      setCriteriaLeaves(setup.leaves);
       setReadingOrder('PublicationDate');
       setSortDirection('Ascending');
     }
-  }, [initialEventCriterion]);
+  }, [initialCriterion, initialEventCriterion]);
 
   // Only include owned collection comics; wishlist and unowned items are excluded from reading challenges
   const eligibleComics = useMemo(() => {
@@ -417,6 +453,9 @@ export const ChallengeSetupForm: React.FC<ChallengeSetupFormProps> = ({
                       onChange={(e) => handleUpdateCriterion(index, { ...leaf, ids: [e.target.value] })}
                       className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 min-w-[160px]"
                     >
+                      {leaf.ids[0] && !catalogOptions.creators.includes(leaf.ids[0]) && (
+                        <option key={leaf.ids[0]} value={leaf.ids[0]}>{leaf.ids[0]}</option>
+                      )}
                       {catalogOptions.creators.map((c) => (
                         <option key={c} value={c}>{c}</option>
                       ))}
@@ -425,10 +464,11 @@ export const ChallengeSetupForm: React.FC<ChallengeSetupFormProps> = ({
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] text-slate-500 font-semibold">as</span>
                       <select
-                        value={leaf.roles[0] || 'Writer'}
-                        onChange={(e) => handleUpdateCriterion(index, { ...leaf, roles: [e.target.value] })}
+                        value={!leaf.roles || leaf.roles.length === 0 ? 'Any' : (leaf.roles[0] || 'Any')}
+                        onChange={(e) => handleUpdateCriterion(index, { ...leaf, roles: e.target.value === 'Any' ? [] : [e.target.value] })}
                         className="px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200"
                       >
+                        <option value="Any">Any Role</option>
                         <option value="Writer">Writer</option>
                         <option value="Artist">Penciller / Artist</option>
                         <option value="Cover Artist">Cover Artist</option>
@@ -446,6 +486,9 @@ export const ChallengeSetupForm: React.FC<ChallengeSetupFormProps> = ({
                       onChange={(e) => handleUpdateCriterion(index, { type: 'character', ids: [e.target.value] })}
                       className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 flex-1"
                     >
+                      {leaf.ids[0] && !catalogOptions.characters.includes(leaf.ids[0]) && (
+                        <option key={leaf.ids[0]} value={leaf.ids[0]}>{leaf.ids[0]}</option>
+                      )}
                       {catalogOptions.characters.map((char) => (
                         <option key={char} value={char}>{char}</option>
                       ))}

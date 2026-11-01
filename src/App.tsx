@@ -55,9 +55,26 @@ export default function App() {
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [challengePrefillEvent, setChallengePrefillEvent] = useState<string | null>(null);
+  const [challengePrefillCriterion, setChallengePrefillCriterion] = useState<{
+    type: 'event' | 'creator' | 'character';
+    name: string;
+  } | null>(null);
 
   const handleStartEventChallenge = (eventName: string) => {
+    setChallengePrefillCriterion({ type: 'event', name: eventName });
     setChallengePrefillEvent(eventName);
+    setActiveTab('challenge');
+  };
+
+  const handleStartCreatorChallenge = (creatorName: string) => {
+    setChallengePrefillCriterion({ type: 'creator', name: creatorName });
+    setChallengePrefillEvent(null);
+    setActiveTab('challenge');
+  };
+
+  const handleStartCharacterChallenge = (characterName: string) => {
+    setChallengePrefillCriterion({ type: 'character', name: characterName });
+    setChallengePrefillEvent(null);
     setActiveTab('challenge');
   };
 
@@ -860,6 +877,11 @@ export default function App() {
             boxes={boxes}
             onSelectComic={setSelectedComic}
             onRefreshCollection={handleRefreshCollection}
+            initialCriterion={challengePrefillCriterion}
+            onClearInitialCriterion={() => {
+              setChallengePrefillCriterion(null);
+              setChallengePrefillEvent(null);
+            }}
             initialEventCriterion={challengePrefillEvent}
             onClearInitialEventCriterion={() => setChallengePrefillEvent(null)}
           />
@@ -873,6 +895,8 @@ export default function App() {
             onViewSeriesInCatalog={handleViewSeriesInCatalog}
             onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
             onStartEventChallenge={handleStartEventChallenge}
+            onStartCreatorChallenge={handleStartCreatorChallenge}
+            onStartCharacterChallenge={handleStartCharacterChallenge}
             initialSubTab={statsSubTab}
           />
         )}

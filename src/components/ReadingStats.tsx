@@ -67,6 +67,8 @@ interface ReadingStatsProps {
   onViewSeriesInCatalog?: (seriesName: string) => void;
   onOpenGenerateWishlist?: (seriesName?: string) => void;
   onStartEventChallenge?: (eventName: string) => void;
+  onStartCreatorChallenge?: (creatorName: string) => void;
+  onStartCharacterChallenge?: (characterName: string) => void;
   initialSubTab?: 'events' | 'series' | 'creators' | 'characters' | 'achievements' | 'general';
 }
 
@@ -116,6 +118,8 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   onViewSeriesInCatalog,
   onOpenGenerateWishlist,
   onStartEventChallenge,
+  onStartCreatorChallenge,
+  onStartCharacterChallenge,
   initialSubTab = 'events' 
 }) => {
   // Navigation & Sub-Tab State
@@ -1523,12 +1527,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
                         {onStartEventChallenge && (
                           <button
                             type="button"
                             onClick={() => onStartEventChallenge(group.eventName)}
-                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
                             title={`Create Reading Challenge for ${group.eventName}`}
                           >
                             <Trophy className="w-3.5 h-3.5" />
@@ -1611,12 +1615,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
                     {onStartEventChallenge && (
                       <button
                         type="button"
                         onClick={() => onStartEventChallenge(selectedEvent)}
-                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
                         title={`Create Reading Challenge for ${selectedEvent}`}
                       >
                         <Trophy className="w-3.5 h-3.5" />
@@ -2368,32 +2372,45 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
 
             return (
               <div className="bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold shrink-0">
                       <Palette className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h4 className="font-black text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-black text-slate-900 dark:text-slate-100 text-base flex items-center gap-2 flex-wrap">
                         <span>{cr.name}</span>
                         {cr.isArtistWhoWrites && (
-                          <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded-full shrink-0">
                             🎨 Artist & Writer ✍️
                           </span>
                         )}
                       </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate sm:text-clip">
                         Contributed to {cr.totalIssues} issues (sorted chronologically by release date) • Roles: {Object.entries(cr.roles).map(([r, count]) => `${r} (${count})`).join(', ')}
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setSelectedCreatorForIssues(null)}
-                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                    {onStartCreatorChallenge && (
+                      <button
+                        type="button"
+                        onClick={() => onStartCreatorChallenge(cr.name)}
+                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                        title={`Create Reading Challenge for ${cr.name}`}
+                      >
+                        <Trophy className="w-3.5 h-3.5" />
+                        <span>Create Reading Challenge</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedCreatorForIssues(null)}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto pr-1">
@@ -2792,14 +2809,19 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto pb-2">
+              <div className="overflow-x-auto overflow-y-hidden pb-2">
                 <div className="min-w-[750px] h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={characterRankingList.slice(0, 18)} margin={{ top: 10, right: 10, left: -20, bottom: 45 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis dataKey="name" stroke="#64748b" fontSize={10} interval={0} angle={-30} textAnchor="end" />
                       <YAxis stroke="#64748b" fontSize={10} />
-                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' }}
+                        isAnimationActive={false}
+                        allowEscapeViewBox={{ x: false, y: false }}
+                        wrapperStyle={{ pointerEvents: 'none', zIndex: 50 }}
+                      />
                       <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: '11px', paddingBottom: '10px' }} />
                       <Bar dataKey="main" name="Main Role" fill="#EC4899" stackId="a" radius={[0, 0, 0, 0]} />
                       <Bar dataKey="supporting" name="Supporting" fill="#8B5CF6" stackId="a" radius={[0, 0, 0, 0]} />
@@ -2818,30 +2840,43 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
 
             return (
               <div className="bg-white dark:bg-slate-900 border-2 border-pink-300 dark:border-pink-800 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-950/60 border border-pink-200 dark:border-pink-800 flex items-center justify-center text-pink-700 dark:text-pink-400 font-bold">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-950/60 border border-pink-200 dark:border-pink-800 flex items-center justify-center text-pink-700 dark:text-pink-400 font-bold shrink-0">
                       <Users className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h4 className="font-black text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-black text-slate-900 dark:text-slate-100 text-base flex items-center gap-2 flex-wrap">
                         <span>{chr.name}</span>
-                        <span className="text-xs font-black text-pink-800 dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-black text-pink-800 dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 px-2 py-0.5 rounded-full shrink-0">
                           {chr.total} Issues
                         </span>
                       </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate sm:text-clip">
                         Appeared in {chr.total} issues (sorted chronologically by release date) • Breakdown: Main ({chr.main}), Supporting ({chr.supporting}), Cameo ({chr.cameo})
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setSelectedCharacterForIssues(null)}
-                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                    {onStartCharacterChallenge && (
+                      <button
+                        type="button"
+                        onClick={() => onStartCharacterChallenge(chr.name)}
+                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                        title={`Create Reading Challenge for ${chr.name}`}
+                      >
+                        <Trophy className="w-3.5 h-3.5" />
+                        <span>Create Reading Challenge</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedCharacterForIssues(null)}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto pr-1">
