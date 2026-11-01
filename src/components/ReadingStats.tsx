@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
 import { sortBoxes } from '../utils/boxUtils';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
@@ -72,6 +72,43 @@ interface ReadingStatsProps {
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
+const CHUNK_SIZE_EVENTS = 4;
+const CHUNK_SIZE_EVENT_COMICS = 24;
+
+interface IndexedComic {
+  comic: ComicBook;
+  dateKey: number;
+  titleKey: string;
+  issueMajor: number;
+  issueSuffix: string;
+}
+
+const preIndexComic = (c: ComicBook): IndexedComic => {
+  const norm = getNormalizedComicDate(c);
+  const issue = parseIssueNumber(c.issueNumber);
+  return {
+    comic: c,
+    dateKey: norm.sortKey > 0 ? norm.sortKey : 99999999,
+    titleKey: (c.seriesName || c.title || '').toLowerCase(),
+    issueMajor: issue.major,
+    issueSuffix: issue.suffix || '',
+  };
+};
+
+const compareIndexedComics = (a: IndexedComic, b: IndexedComic): number => {
+  if (a.dateKey !== b.dateKey) {
+    return a.dateKey - b.dateKey;
+  }
+  const titleCmp = a.titleKey.localeCompare(b.titleKey);
+  if (titleCmp !== 0) {
+    return titleCmp;
+  }
+  if (a.issueMajor !== b.issueMajor) {
+    return a.issueMajor - b.issueMajor;
+  }
+  return a.issueSuffix.localeCompare(b.issueSuffix);
+};
+
 export const ReadingStats: React.FC<ReadingStatsProps> = ({ 
   comics, 
   boxes, 
@@ -95,6 +132,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
   
   // Event Filter State
   const [selectedEvent, setSelectedEvent] = useState<string>('all');
+  const [visibleEventsCount, setVisibleEventsCount] = useState<number>(CHUNK_SIZE_EVENTS);
+  const [visibleEventComicsCount, setVisibleEventComicsCount] = useState<number>(CHUNK_SIZE_EVENT_COMICS);
+
+  // Progressive rendering intersection sentinel refs
+  const eventsSentinelRef = useRef<HTMLDivElement | null>(null);
+  const eventComicsSentinelRef = useRef<HTMLDivElement | null>(null);
   
   // Series Filter & Sort State
   const [seriesSortBy, setSeriesSortBy] = useState<'completion' | 'alphabetical'>('completion');
@@ -193,24 +236,27 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     return (issueA.suffix || '').localeCompare(issueB.suffix || '');
   };
 
-  const compareEventComics = compareComicReleaseDates;
-
-  // Selected Event Filtered Comics (sorted chronologically by release date, title, and issue)
+  // Selected Event Filtered Comics (pre-indexed & sorted chronologically by release date, title, and issue)
   const filteredEventComics = useMemo(() => {
     let list: ComicBook[] = [];
     if (selectedEvent === 'all') {
-      list = comics.filter((c) => Boolean(c.event && c.event.trim()));
-      list.sort((a, b) => {
-        const evA = (a.event || '').trim().toLowerCase();
-        const evB = (b.event || '').trim().toLowerCase();
+      const matching = comics.filter((c) => Boolean(c.event && c.event.trim()));
+      const indexed = matching.map(preIndexComic);
+      indexed.sort((a, b) => {
+        const evA = (a.comic.event || '').trim().toLowerCase();
+        const evB = (b.comic.event || '').trim().toLowerCase();
         if (evA !== evB) {
           return evA.localeCompare(evB);
         }
-        return compareEventComics(a, b);
+        return compareIndexedComics(a, b);
       });
+      list = indexed.map((item) => item.comic);
     } else {
-      list = comics.filter((c) => c.event && c.event.trim().toLowerCase() === selectedEvent.toLowerCase());
-      list.sort(compareEventComics);
+      const targetEvent = selectedEvent.trim().toLowerCase();
+      const matching = comics.filter((c) => c.event && c.event.trim().toLowerCase() === targetEvent);
+      const indexed = matching.map(preIndexComic);
+      indexed.sort(compareIndexedComics);
+      list = indexed.map((item) => item.comic);
     }
     return list;
   }, [comics, selectedEvent]);
@@ -242,17 +288,25 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
     const eventNames = Array.from(map.keys()).sort((a, b) => a.localeCompare(b));
 
     eventNames.forEach((evt) => {
-      const groupComics = [...map.get(evt)!];
-      groupComics.sort(compareEventComics);
-      const read = groupComics.filter((c) => c.readingStatus === 'Read').length;
-      const unread = groupComics.filter((c) => c.readingStatus === 'Unread').length;
-      const wishlist = groupComics.filter((c) => c.readingStatus === 'Wishlist').length;
-      const owned = groupComics.length - wishlist;
+      const groupComics = map.get(evt)!;
+      const indexed = groupComics.map(preIndexComic);
+      indexed.sort(compareIndexedComics);
+      const sortedComics = indexed.map((item) => item.comic);
+
+      let read = 0;
+      let unread = 0;
+      let wishlist = 0;
+      sortedComics.forEach((c) => {
+        if (c.readingStatus === 'Read') read++;
+        else if (c.readingStatus === 'Unread') unread++;
+        else if (c.readingStatus === 'Wishlist') wishlist++;
+      });
+      const owned = sortedComics.length - wishlist;
       const completionPct = owned > 0 ? Math.round((read / owned) * 100) : 0;
 
       sortedGroups.push({
         eventName: evt,
-        comics: groupComics,
+        comics: sortedComics,
         readCount: read,
         ownedCount: owned,
         unreadCount: unread,
@@ -263,6 +317,64 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
 
     return sortedGroups;
   }, [comics, selectedEvent]);
+
+  // Sliced events for progressive loading in "All Crossover Events" view
+  const visibleGroupedEvents = useMemo(() => {
+    return groupedEvents.slice(0, visibleEventsCount);
+  }, [groupedEvents, visibleEventsCount]);
+
+  // Sliced comics for progressive loading in single event view
+  const visibleEventComics = useMemo(() => {
+    return filteredEventComics.slice(0, visibleEventComicsCount);
+  }, [filteredEventComics, visibleEventComicsCount]);
+
+  // Reset event pagination counters when active tab or selected event changes
+  useEffect(() => {
+    setVisibleEventsCount(CHUNK_SIZE_EVENTS);
+    setVisibleEventComicsCount(CHUNK_SIZE_EVENT_COMICS);
+  }, [selectedEvent, activeStatsTab]);
+
+  // Progressive infinite scroll observer for All Crossover Events view
+  useEffect(() => {
+    if (activeStatsTab !== 'events' || selectedEvent !== 'all') return;
+    if (visibleEventsCount >= groupedEvents.length) return;
+
+    const sentinel = eventsSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleEventsCount((prev) => Math.min(prev + CHUNK_SIZE_EVENTS, groupedEvents.length));
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeStatsTab, selectedEvent, visibleEventsCount, groupedEvents.length]);
+
+  // Progressive infinite scroll observer for Single Event comic cards view
+  useEffect(() => {
+    if (activeStatsTab !== 'events' || selectedEvent === 'all') return;
+    if (visibleEventComicsCount >= filteredEventComics.length) return;
+
+    const sentinel = eventComicsSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleEventComicsCount((prev) => Math.min(prev + CHUNK_SIZE_EVENT_COMICS, filteredEventComics.length));
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeStatsTab, selectedEvent, visibleEventComicsCount, filteredEventComics.length]);
 
   // Event Stats Breakdown
   const eventStats = useMemo(() => {
@@ -1390,7 +1502,7 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                   </span>
                 </div>
 
-                {groupedEvents.map((group) => (
+                {visibleGroupedEvents.map((group) => (
                   <div key={group.eventName} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
                       <div className="flex items-center gap-2.5">
@@ -1433,6 +1545,8 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                             src={getComicCoverUrl(comic.coverImage)}
                             onError={handleImageError}
                             alt={comic.title}
+                            loading="lazy"
+                            decoding="async"
                             referrerPolicy="no-referrer"
                             className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
                           />
@@ -1464,6 +1578,15 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                     </div>
                   </div>
                 ))}
+
+                {visibleEventsCount < groupedEvents.length && (
+                  <div ref={eventsSentinelRef} className="py-6 flex flex-col items-center justify-center gap-2">
+                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                      Loading more events ({visibleGroupedEvents.length} of {groupedEvents.length})...
+                    </span>
+                  </div>
+                )}
               </div>
             )
           ) : (
@@ -1504,12 +1627,14 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
-                  {filteredEventComics.map((comic) => (
+                  {visibleEventComics.map((comic) => (
                     <div key={comic.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl p-2.5 flex items-start gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
                       <img
                         src={getComicCoverUrl(comic.coverImage)}
                         onError={handleImageError}
                         alt={comic.title}
+                        loading="lazy"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         className="w-12 h-16 object-cover rounded-md border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
                       />
@@ -1538,6 +1663,14 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                       </div>
                     </div>
                   ))}
+                  {visibleEventComicsCount < filteredEventComics.length && (
+                    <div ref={eventComicsSentinelRef} className="py-6 flex flex-col items-center justify-center gap-2 col-span-full">
+                      <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                        Loading more issues ({visibleEventComics.length} of {filteredEventComics.length})...
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -2270,6 +2403,8 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                         <img
                           src={getComicCoverUrl(iss.coverImage)}
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                           onError={handleImageError}
                           referrerPolicy="no-referrer"
                           className="w-10 h-14 object-cover rounded shrink-0 border border-slate-200 dark:border-slate-700"
@@ -2716,6 +2851,8 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                         <img
                           src={getComicCoverUrl(iss.coverImage)}
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                           onError={handleImageError}
                           referrerPolicy="no-referrer"
                           className="w-10 h-14 object-cover rounded shrink-0 border border-slate-200 dark:border-slate-700"
@@ -3530,6 +3667,8 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                                 <img
                                   src={getComicCoverUrl(comic.coverImage)}
                                   alt=""
+                                  loading="lazy"
+                                  decoding="async"
                                   onError={handleImageError}
                                   referrerPolicy="no-referrer"
                                   className="w-10 h-14 object-cover rounded shrink-0 border border-slate-100 dark:border-slate-700"
