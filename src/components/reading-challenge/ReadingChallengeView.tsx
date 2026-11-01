@@ -37,6 +37,8 @@ interface ReadingChallengeViewProps {
   boxes: StorageBox[];
   onSelectComic?: (comic: ComicBook) => void;
   onRefreshCollection?: () => void;
+  initialEventCriterion?: string | null;
+  onClearInitialEventCriterion?: () => void;
 }
 
 export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
@@ -44,12 +46,22 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
   boxes,
   onSelectComic,
   onRefreshCollection,
+  initialEventCriterion,
+  onClearInitialEventCriterion,
 }) => {
   const [activeChallenge, setActiveChallenge] = useState<ReadingChallengeSummary | null>(null);
   const [history, setHistory] = useState<ChallengeHistorySummary[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'queue' | 'insights' | 'history' | 'new'>('queue');
+  const [activeSubTab, setActiveSubTab] = useState<'queue' | 'insights' | 'history' | 'new'>(() => {
+    return initialEventCriterion ? 'new' : 'queue';
+  });
+
+  useEffect(() => {
+    if (initialEventCriterion) {
+      setActiveSubTab('new');
+    }
+  }, [initialEventCriterion]);
   const [inspectingHistoryChallengeId, setInspectingHistoryChallengeId] = useState<number | null>(null);
   const [lastReadItemId, setLastReadItemId] = useState<number | null>(null);
 
@@ -416,8 +428,12 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
             <div className="space-y-6">
               <ChallengeSetupForm
                 comics={inCollectionComics}
-                onChallengeStarted={handleChallengeStarted}
+                onChallengeStarted={(c) => {
+                  if (onClearInitialEventCriterion) onClearInitialEventCriterion();
+                  handleChallengeStarted(c);
+                }}
                 hasActiveChallenge={activeChallenge !== null && activeChallenge.status === 'Active'}
+                initialEventCriterion={initialEventCriterion}
               />
 
               {!activeChallenge && history.length > 0 && (

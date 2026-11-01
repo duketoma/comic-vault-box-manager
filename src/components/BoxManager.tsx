@@ -102,7 +102,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     return comics.filter((c) => c.readingStatus === 'Wishlist');
   }, [comics]);
 
-  // Wishlist Projection Metrics
+  // Wishlist Projection Metrics based on comfortable fill density
   const projectionMetrics = useMemo(() => {
     const inColCount = inCollectionComics.length;
     const wishCount = wishlistComics.length;
@@ -113,10 +113,27 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     const totalProjectedCount = inColCount + wishCount;
     const totalProjectedThickness = inColThickness + wishThickness;
 
-    // Standard box size cap = 150 equivalent issue units
-    const currentTotalCapacity = boxes.reduce((sum, b) => sum + (b.maxCapacity || 150), 0);
-    const totalBoxesRequired = Math.ceil(totalProjectedThickness / 150) || 1;
-    const additionalBoxesNeeded = Math.max(0, totalBoxesRequired - boxes.length);
+    // Derive comfortable working capacity per box (~82% of max capacity, e.g. ~115 units for a 140 max box)
+    // to allow easy browsing and prevent overstuffing
+    const avgMaxCapacity = boxes.length > 0
+      ? boxes.reduce((sum, b) => sum + (b.maxCapacity || 140), 0) / boxes.length
+      : 140;
+    const currentTotalCapacity = boxes.reduce((sum, b) => sum + (b.maxCapacity || 140), 0);
+
+    const COMFORTABLE_RATIO = 0.82;
+    const comfortableBoxCapacity = Math.max(1, Math.round(avgMaxCapacity * COMFORTABLE_RATIO));
+
+    // Calculate current comfortable headroom across existing boxes
+    const currentComfortableTotal = boxes.reduce(
+      (sum, b) => sum + Math.round((b.maxCapacity || 140) * COMFORTABLE_RATIO),
+      0
+    );
+    const availableComfortableHeadroom = Math.max(0, currentComfortableTotal - inColThickness);
+
+    // Any wishlisted comics that cannot fit into comfortable headroom require new expansion boxes
+    const unaccommodatedWishThickness = Math.max(0, wishThickness - availableComfortableHeadroom);
+    const additionalBoxesNeeded = Math.ceil(unaccommodatedWishThickness / comfortableBoxCapacity);
+    const totalBoxesRequired = boxes.length + additionalBoxesNeeded;
 
     return {
       inColCount,
@@ -126,6 +143,8 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
       totalProjectedCount,
       totalProjectedThickness,
       currentTotalCapacity,
+      avgMaxCapacity: Math.round(avgMaxCapacity),
+      comfortableBoxCapacity,
       totalBoxesRequired,
       additionalBoxesNeeded,
     };
@@ -186,10 +205,11 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
   // Modal Handlers
   const handleOpenAddBoxModal = () => {
     const nextId = boxes.length > 0 ? Math.max(...boxes.map((b) => b.id)) + 1 : 1;
+    const defaultCap = projectionMetrics.avgMaxCapacity || 140;
     setEditingBox(null);
     setModalBoxName(`Box ${nextId.toString().padStart(2, '0')} - New Short Box`);
     setModalBoxLocation('Storage Rack');
-    setModalBoxCapacity(150);
+    setModalBoxCapacity(defaultCap);
     setModalBoxColor(PRESET_COLORS[(nextId - 1) % PRESET_COLORS.length]);
     setModalBoxNotes('');
     setIsBoxModalOpen(true);
@@ -282,12 +302,13 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
   const handleAutoAddRequiredWishlistBoxes = () => {
     if (!onAddBox) return;
     const needed = projectionMetrics.additionalBoxesNeeded;
+    const defaultCap = projectionMetrics.avgMaxCapacity || 140;
     for (let i = 0; i < needed; i++) {
       const nextId = boxes.length + 1 + i;
       onAddBox({
         name: `Box ${nextId.toString().padStart(2, '0')} - Wishlist Expansion Box`,
         location: 'Storage Rack',
-        maxCapacity: 150,
+        maxCapacity: defaultCap,
         colorTag: PRESET_COLORS[(nextId - 1) % PRESET_COLORS.length],
         notes: 'Auto-added for wishlist capacity projection',
       });
@@ -387,7 +408,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
     const updatedComics = sortComicsForStorage(activeStatsComics);
     const totalThickness = updatedComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
-    const totalCapacity = targetBoxes.reduce((sum, b) => sum + (b.maxCapacity || 150), 0);
+    const totalCapacity = targetBoxes.reduce((sum, b) => sum + (b.maxCapacity || 140), 0);
 
     // Target fill ratio equalizes percentage utilization across ALL available boxes
     const targetRatio = totalCapacity > 0 ? Math.min(1.0, totalThickness / totalCapacity) : 1.0;
@@ -395,8 +416,8 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     // Track assigned capacities
     const boxTracker = targetBoxes.map((b) => ({
       id: b.id,
-      maxCapacity: b.maxCapacity || 150,
-      targetCapacity: Math.max(1, (b.maxCapacity || 150) * targetRatio),
+      maxCapacity: b.maxCapacity || 140,
+      targetCapacity: Math.max(1, (b.maxCapacity || 140) * targetRatio),
       currentUsed: 0,
     }));
 
@@ -566,7 +587,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   Storage & Wishlist Projection Summary
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Calculated based on max 150 equivalent issue size per short box
+                  Calculated based on comfortable ~{projectionMetrics.comfortableBoxCapacity} issue capacity per box (~82% of max to prevent overstuffing)
                 </p>
               </div>
             </div>
@@ -632,7 +653,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                 {projectionMetrics.totalBoxesRequired} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">boxes</span>
               </span>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                ({boxes.length} currently configured)
+                ({boxes.length} configured{projectionMetrics.additionalBoxesNeeded > 0 ? `, +${projectionMetrics.additionalBoxesNeeded} needed` : ''})
               </div>
             </div>
           </div>
@@ -643,7 +664,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span>
-                  <strong>Storage Capacity Alert:</strong> Acquiring all {projectionMetrics.wishCount} wishlisted comics will require <strong>+{projectionMetrics.additionalBoxesNeeded} additional short box{projectionMetrics.additionalBoxesNeeded > 1 ? 'es' : ''}</strong> (at 150 max capacity each).
+                  <strong>Storage Capacity Alert:</strong> Acquiring all {projectionMetrics.wishCount} wishlisted comics will require <strong>+{projectionMetrics.additionalBoxesNeeded} additional short box{projectionMetrics.additionalBoxesNeeded > 1 ? 'es' : ''}</strong> (at comfortable ~{projectionMetrics.comfortableBoxCapacity} capacity each).
                 </span>
               </div>
             </div>

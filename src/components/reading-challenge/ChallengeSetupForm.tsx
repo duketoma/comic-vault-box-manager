@@ -37,24 +37,40 @@ interface ChallengeSetupFormProps {
   comics: ComicBook[];
   onChallengeStarted: (challenge: any) => void;
   hasActiveChallenge?: boolean;
+  initialEventCriterion?: string | null;
 }
 
 export const ChallengeSetupForm: React.FC<ChallengeSetupFormProps> = ({
   comics,
   onChallengeStarted,
   hasActiveChallenge = false,
+  initialEventCriterion,
 }) => {
-  const [challengeName, setChallengeName] = useState('');
+  const [challengeName, setChallengeName] = useState(() => {
+    return initialEventCriterion ? `${initialEventCriterion} Reading Challenge` : '';
+  });
   const [operator, setOperator] = useState<'AND' | 'OR'>('AND');
-  const [criteriaLeaves, setCriteriaLeaves] = useState<CriterionLeaf[]>([
-    { type: 'collection' }
-  ]);
+  const [criteriaLeaves, setCriteriaLeaves] = useState<CriterionLeaf[]>(() => {
+    if (initialEventCriterion) {
+      return [{ type: 'storyArc', ids: [initialEventCriterion] }];
+    }
+    return [{ type: 'collection' }];
+  });
   const [readingOrder, setReadingOrder] = useState<'PublicationDate'>('PublicationDate');
   const [sortDirection, setSortDirection] = useState<'Ascending' | 'Descending'>('Ascending');
   const [batchSize, setBatchSize] = useState<number>(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [abandonExisting, setAbandonExisting] = useState(false);
+
+  useEffect(() => {
+    if (initialEventCriterion) {
+      setChallengeName(`${initialEventCriterion} Reading Challenge`);
+      setCriteriaLeaves([{ type: 'storyArc', ids: [initialEventCriterion] }]);
+      setReadingOrder('PublicationDate');
+      setSortDirection('Ascending');
+    }
+  }, [initialEventCriterion]);
 
   // Only include owned collection comics; wishlist and unowned items are excluded from reading challenges
   const eligibleComics = useMemo(() => {

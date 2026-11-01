@@ -42,11 +42,24 @@ import {
 } from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
 import { getSeriesOverviewSummary } from './utils/seriesUtils';
+import {
+  CatalogFilters,
+  DEFAULT_CATALOG_FILTERS,
+  loadSavedCatalogFilters,
+  saveCatalogFilters,
+  sanitizeCatalogFilters,
+} from './utils/catalogFilterUtils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [challengePrefillEvent, setChallengePrefillEvent] = useState<string | null>(null);
+
+  const handleStartEventChallenge = (eventName: string) => {
+    setChallengePrefillEvent(eventName);
+    setActiveTab('challenge');
+  };
 
   const handleSetActiveTab = (tab: 'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping') => {
     setActiveTab(tab);
@@ -105,7 +118,9 @@ export default function App() {
   const [isGenerateWishlistModalOpen, setIsGenerateWishlistModalOpen] = useState<boolean>(false);
   const [generateWishlistSeriesName, setGenerateWishlistSeriesName] = useState<string>('');
   const [selectedComic, setSelectedComic] = useState<ComicBook | null>(null);
-  const [selectedSeriesFilter, setSelectedSeriesFilter] = useState<string>('all');
+  const [catalogFilters, setCatalogFilters] = useState<CatalogFilters>(() => {
+    return loadSavedCatalogFilters();
+  });
   const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState<boolean>(false);
   const [isServerModalOpen, setIsServerModalOpen] = useState<boolean>(false);
@@ -126,9 +141,23 @@ export default function App() {
   };
 
   const handleViewSeriesInCatalog = (seriesName: string) => {
-    setSelectedSeriesFilter(seriesName);
+    setCatalogFilters((prev) => ({
+      ...DEFAULT_CATALOG_FILTERS,
+      viewMode: prev.viewMode,
+      selectedSeries: seriesName,
+    }));
     handleSetActiveTab('catalog');
   };
+
+  // Persist catalog filters whenever they change
+  useEffect(() => {
+    saveCatalogFilters(catalogFilters);
+  }, [catalogFilters]);
+
+  // Sanitize catalog filters when storage boxes change (e.g., box deletion)
+  useEffect(() => {
+    setCatalogFilters((prev) => sanitizeCatalogFilters(prev, boxes));
+  }, [boxes]);
 
   // Browser storage remains a local cache; IndexedDB & PostgreSQL are the system of record.
   useEffect(() => {
@@ -344,8 +373,17 @@ export default function App() {
   const handleUpdateComic = (updatedComic: ComicBook) => {
     const existing = comics.find((c) => c.id === updatedComic.id);
     const nowIso = new Date().toISOString();
+
+    // Defensively ensure that if currentBoxId was directly changed and proposedBoxId was still
+    // pointing to the old box, proposedBoxId is synchronized to prevent a phantom proposed move.
+    const isBoxChanged = existing && updatedComic.currentBoxId !== existing.currentBoxId;
+    const resolvedProposedBoxId = isBoxChanged && updatedComic.proposedBoxId === existing.currentBoxId
+      ? updatedComic.currentBoxId
+      : updatedComic.proposedBoxId ?? updatedComic.currentBoxId;
+
     const cleanComic: ComicBook = {
       ...updatedComic,
+      proposedBoxId: resolvedProposedBoxId,
       copiesOwned: updatedComic.readingStatus === 'Wishlist' ? 0 : updatedComic.copiesOwned,
       updatedAt: nowIso,
     };
@@ -430,11 +468,13 @@ export default function App() {
     const updatedList = comics.map((c) => {
       if (idSet.has(c.id)) {
         baseStatuses.set(c.id, c.readingStatus);
+        const targetBox = targetBoxId !== undefined ? targetBoxId : c.currentBoxId || 1;
         const updatedComic: ComicBook = {
           ...c,
           readingStatus: 'Unread' as const,
           copiesOwned: c.copiesOwned && c.copiesOwned > 0 ? c.copiesOwned : 1,
-          currentBoxId: targetBoxId !== undefined ? targetBoxId : c.currentBoxId || 1,
+          currentBoxId: targetBox,
+          proposedBoxId: targetBox,
           updatedAt: nowIso,
         };
         updatedComicsToPersist.push(updatedComic);
@@ -509,7 +549,7 @@ export default function App() {
     const reassignedComics: ComicBook[] = [];
     const updatedComics = comics.map((c) => {
       if (c.currentBoxId === boxId) {
-        const updated = { ...c, currentBoxId: fallbackBoxId, updatedAt: nowIso };
+        const updated = { ...c, currentBoxId: fallbackBoxId, proposedBoxId: fallbackBoxId, updatedAt: nowIso };
         reassignedComics.push(updated);
         return updated;
       }
@@ -780,8 +820,12 @@ export default function App() {
             onSelectComic={setSelectedComic}
             onQuickStatusChange={handleQuickStatusChange}
             seriesTotals={seriesTotals}
-            selectedSeries={selectedSeriesFilter}
-            onSelectSeries={setSelectedSeriesFilter}
+            filters={catalogFilters}
+            onUpdateFilters={setCatalogFilters}
+            selectedSeries={catalogFilters.selectedSeries}
+            onSelectSeries={(series) =>
+              setCatalogFilters((prev) => ({ ...prev, selectedSeries: series }))
+            }
             onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
             isLoading={isLoadingCollection}
           />
@@ -816,6 +860,8 @@ export default function App() {
             boxes={boxes}
             onSelectComic={setSelectedComic}
             onRefreshCollection={handleRefreshCollection}
+            initialEventCriterion={challengePrefillEvent}
+            onClearInitialEventCriterion={() => setChallengePrefillEvent(null)}
           />
         )}
 
@@ -826,6 +872,7 @@ export default function App() {
             seriesTotals={seriesTotals}
             onViewSeriesInCatalog={handleViewSeriesInCatalog}
             onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
+            onStartEventChallenge={handleStartEventChallenge}
             initialSubTab={statsSubTab}
           />
         )}

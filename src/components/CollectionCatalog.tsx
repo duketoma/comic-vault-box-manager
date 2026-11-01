@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
 import { ComicBook, StorageBox, SeriesIssueTotal, COMIC_FORMATS } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
@@ -18,6 +18,12 @@ import {
   getSortDirectionLabel,
 } from '../utils/comicSortUtils';
 import { computeSeriesCompletionMap, buildSeriesTotalsMap } from '../utils/seriesUtils';
+import { 
+  CatalogFilters, 
+  DEFAULT_CATALOG_FILTERS, 
+  MAX_CATALOG_PUBLISH_YEAR, 
+  MIN_CATALOG_PUBLISH_YEAR 
+} from '../utils/catalogFilterUtils';
 import { CatalogSortModal } from './CatalogSortModal';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
 import { 
@@ -125,7 +131,7 @@ export const CatalogSkeletonGrid: React.FC<{ count?: number; viewMode?: 'grid' |
   );
 };
 
-interface CollectionCatalogProps {
+export interface CollectionCatalogProps {
   comics: ComicBook[];
   boxes: StorageBox[];
   searchQuery: string;
@@ -136,6 +142,8 @@ interface CollectionCatalogProps {
   onSelectSeries?: (series: string) => void;
   onOpenGenerateWishlist?: (seriesName?: string) => void;
   isLoading?: boolean;
+  filters?: CatalogFilters;
+  onUpdateFilters?: React.Dispatch<React.SetStateAction<CatalogFilters>>;
 }
 
 interface CatalogMetadataCache {
@@ -200,9 +208,27 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   onSelectSeries: onSelectSeriesProp,
   onOpenGenerateWishlist,
   isLoading = false,
+  filters,
+  onUpdateFilters,
 }) => {
-  const MAX_PUBLISH_YEAR = Math.max(new Date().getFullYear() + 2, 2026);
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const MAX_PUBLISH_YEAR = MAX_CATALOG_PUBLISH_YEAR;
+  const [internalFilters, setInternalFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
+  const activeFilters = filters ?? internalFilters;
+
+  const updateFilter = useCallback(
+    <K extends keyof CatalogFilters>(key: K, value: CatalogFilters[K]) => {
+      if (onUpdateFilters) {
+        onUpdateFilters((prev) => ({ ...prev, [key]: value }));
+      } else {
+        setInternalFilters((prev) => ({ ...prev, [key]: value }));
+      }
+    },
+    [onUpdateFilters]
+  );
+
+  const viewMode = activeFilters.viewMode;
+  const setViewMode = (mode: 'grid' | 'table') => updateFilter('viewMode', mode);
+
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [visibleCount, setVisibleCount] = useState<number>(() => (viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE));
   const isInitialMount = useRef<boolean>(true);
@@ -226,27 +252,40 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     return { totalOwnedCount: owned, totalWishlistCount: wishlist };
   }, [comics]);
 
-  const [internalSelectedSeries, setInternalSelectedSeries] = useState<string>('all');
-  const selectedSeries = controlledSelectedSeries !== undefined ? controlledSelectedSeries : internalSelectedSeries;
+  const selectedSeries = controlledSelectedSeries !== undefined ? controlledSelectedSeries : activeFilters.selectedSeries;
   const setSelectedSeries = (val: string) => {
-    setInternalSelectedSeries(val);
+    updateFilter('selectedSeries', val);
     if (onSelectSeriesProp) onSelectSeriesProp(val);
   };
-  const [selectedRunProgress, setSelectedRunProgress] = useState<'all' | 'complete' | 'near' | 'in_progress'>('all');
+  const selectedRunProgress = activeFilters.selectedRunProgress;
+  const setSelectedRunProgress = (val: 'all' | 'complete' | 'near' | 'in_progress') =>
+    updateFilter('selectedRunProgress', val);
   const [showRunMatrix, setShowRunMatrix] = useState<boolean>(true);
   const [copiedMissing, setCopiedMissing] = useState<boolean>(false);
-  const [selectedGenre, setSelectedGenre] = useState<string>('all');
-  const [selectedPublisher, setSelectedPublisher] = useState<string>('all');
-  const [selectedAuthor, setSelectedAuthor] = useState<string>('all');
-  const [selectedCharacter, setSelectedCharacter] = useState<string>('all');
-  const [selectedBoxId, setSelectedBoxId] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedFormat, setSelectedFormat] = useState<string>('all');
-  const [selectedEvent, setSelectedEvent] = useState<string>('all');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [yearRange, setYearRange] = useState<[number, number]>([1930, MAX_PUBLISH_YEAR]);
-  const [onlyFullArt, setOnlyFullArt] = useState<boolean>(false);
+  const selectedGenre = activeFilters.selectedGenre;
+  const setSelectedGenre = (val: string) => updateFilter('selectedGenre', val);
+  const selectedPublisher = activeFilters.selectedPublisher;
+  const setSelectedPublisher = (val: string) => updateFilter('selectedPublisher', val);
+  const selectedAuthor = activeFilters.selectedAuthor;
+  const setSelectedAuthor = (val: string) => updateFilter('selectedAuthor', val);
+  const selectedCharacter = activeFilters.selectedCharacter;
+  const setSelectedCharacter = (val: string) => updateFilter('selectedCharacter', val);
+  const selectedBoxId = activeFilters.selectedBoxId;
+  const setSelectedBoxId = (val: string) => updateFilter('selectedBoxId', val);
+  const selectedStatus = activeFilters.selectedStatus;
+  const setSelectedStatus = (val: string) => updateFilter('selectedStatus', val);
+  const selectedFormat = activeFilters.selectedFormat;
+  const setSelectedFormat = (val: string) => updateFilter('selectedFormat', val);
+  const selectedEvent = activeFilters.selectedEvent;
+  const setSelectedEvent = (val: string) => updateFilter('selectedEvent', val);
+  const startDate = activeFilters.startDate;
+  const setStartDate = (val: string) => updateFilter('startDate', val);
+  const endDate = activeFilters.endDate;
+  const setEndDate = (val: string) => updateFilter('endDate', val);
+  const yearRange = activeFilters.yearRange;
+  const setYearRange = (val: [number, number]) => updateFilter('yearRange', val);
+  const onlyFullArt = activeFilters.onlyFullArt;
+  const setOnlyFullArt = (val: boolean) => updateFilter('onlyFullArt', val);
   const [fullArtComic, setFullArtComic] = useState<ComicBook | null>(null);
   const [multiSortOptions, setMultiSortOptions] = useState<MultiSortOptions>(() => {
     try {
@@ -605,24 +644,37 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   }, [hasMore, viewMode, filteredComics.length, visibleCount, isSettled, isLoading]);
 
   const resetFilters = () => {
-    setSelectedSeries('all');
-    setSelectedRunProgress('all');
-    setSelectedGenre('all');
-    setSelectedPublisher('all');
-    setSelectedAuthor('all');
-    setSelectedCharacter('all');
-    setSelectedBoxId('all');
-    setSelectedStatus('all');
-    setSelectedFormat('all');
-    setSelectedEvent('all');
-    setOnlyFullArt(false);
-    setStartDate('');
-    setEndDate('');
-    setYearRange([1930, MAX_PUBLISH_YEAR]);
-    setVisibleCount(viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE);
+    const nextFilters: CatalogFilters = {
+      ...DEFAULT_CATALOG_FILTERS,
+      viewMode: activeFilters.viewMode,
+    };
+    if (onUpdateFilters) {
+      onUpdateFilters(nextFilters);
+    } else {
+      setInternalFilters(nextFilters);
+    }
+    if (onSelectSeriesProp) {
+      onSelectSeriesProp('all');
+    }
+    setVisibleCount(activeFilters.viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE);
   };
 
-  const hasActiveFilters = selectedSeries !== 'all' || selectedRunProgress !== 'all' || selectedGenre !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedCharacter !== 'all' || selectedBoxId !== 'all' || selectedStatus !== 'all' || selectedFormat !== 'all' || selectedEvent !== 'all' || onlyFullArt || startDate !== '' || endDate !== '';
+  const hasActiveFilters =
+    selectedSeries !== 'all' ||
+    selectedRunProgress !== 'all' ||
+    selectedGenre !== 'all' ||
+    selectedPublisher !== 'all' ||
+    selectedAuthor !== 'all' ||
+    selectedCharacter !== 'all' ||
+    selectedBoxId !== 'all' ||
+    selectedStatus !== 'all' ||
+    selectedFormat !== 'all' ||
+    selectedEvent !== 'all' ||
+    onlyFullArt ||
+    startDate !== '' ||
+    endDate !== '' ||
+    yearRange[0] !== MIN_CATALOG_PUBLISH_YEAR ||
+    yearRange[1] !== MAX_CATALOG_PUBLISH_YEAR;
 
   return (
     <div className="space-y-6">

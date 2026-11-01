@@ -129,8 +129,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [expandAllCharacters, setExpandAllCharacters] = useState(false);
   const [expandAllCreators, setExpandAllCreators] = useState(false);
 
-  // Sync state when selected comic changes
-  useEffect(() => {
+  const resetFormFields = () => {
     if (!comic) return;
     setTitle(comic.title || '');
     setIssueNumber(comic.issueNumber || '1');
@@ -157,11 +156,37 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setEvent(comic.event || '');
     setPublicationYear(comic.publicationYear || 0);
     setPublicationMonth(comic.publicationMonth || '');
-    setCopiesOwned(comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1));
+    const initialCopies = comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1);
+    setCopiesOwned(initialCopies);
     setContributions(getInitialContributions(comic));
+    setNewCreatorName('');
+    setNewRoleName('Writer');
+    setCustomRoleName('');
     setCharacters(comic.characterAppearances || []);
-    setIsEditing(false);
+    setNewCharName('');
+    setNewCharType('Main');
+    setCharSearch('');
     setCropperTargetField(null);
+  };
+
+  const handleCancelEdits = () => {
+    resetFormFields();
+    setIsEditing(false);
+  };
+
+  const handleModalClose = () => {
+    if (isEditing) {
+      resetFormFields();
+      setIsEditing(false);
+    }
+    onClose();
+  };
+
+  // Sync state when selected comic changes
+  useEffect(() => {
+    if (!comic) return;
+    resetFormFields();
+    setIsEditing(false);
   }, [comic]);
 
   const availableRoles = useMemo(() => {
@@ -216,12 +241,16 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (cropperTargetField !== null) {
+          setCropperTargetField(null);
+          return;
+        }
+        handleModalClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [handleModalClose, cropperTargetField]);
 
   const filteredCharacters = useMemo(() => {
     if (!charSearch.trim()) return characters;
@@ -371,6 +400,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       ? Number(parseFloat(estimatedValue).toFixed(2))
       : undefined;
 
+    const finalBoxId = Number(boxId);
+    const boxChanged = finalBoxId !== (comic.currentBoxId ?? 0);
+    const finalProposedBoxId = boxChanged ? finalBoxId : (comic.proposedBoxId ?? finalBoxId);
+
     onUpdateComic({
       ...comic,
       title: cleanTitle,
@@ -379,7 +412,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       seriesName: seriesName.trim() || undefined,
       readingStatus,
       userRating: userRating || undefined,
-      currentBoxId: Number(boxId),
+      currentBoxId: finalBoxId,
+      proposedBoxId: finalProposedBoxId,
       condition,
       format,
       purchasePrice: parsedPurchasePrice,
@@ -407,7 +441,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   return (
     <div
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleModalClose();
       }}
       className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex justify-center p-2 sm:p-4 overflow-y-auto"
     >
@@ -425,27 +459,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {isEditing && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveQuickEdits}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Save</span>
-                </button>
-              </>
-            )}
             <button
-              onClick={onClose}
+              onClick={handleModalClose}
               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               title="Close (Esc)"
             >
@@ -690,30 +705,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           
           {/* Quick Edit Controls */}
           <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+            <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Status & Location Management
               </h3>
-              <div className="flex items-center gap-2">
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={handleSaveQuickEdits}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Save Changes</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 font-semibold cursor-pointer px-2 py-1 rounded-md hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  {isEditing ? 'Cancel' : 'Edit Values'}
-                </button>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1183,17 +1178,6 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </p>
               </div>
             )}
-
-            {isEditing && (
-              <div className="pt-2 flex justify-end">
-                <button
-                  onClick={handleSaveQuickEdits}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Issue Summary / Notes */}
@@ -1425,11 +1409,11 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           </button>
 
           <div className="flex items-center gap-2">
-            {isEditing && (
+            {isEditing ? (
               <>
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
+                  onClick={handleCancelEdits}
                   className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
                 >
                   Cancel
@@ -1443,10 +1427,19 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   <span>Save Changes</span>
                 </button>
               </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Values</span>
+              </button>
             )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleModalClose}
               className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold rounded-lg text-xs cursor-pointer"
             >
               Close
