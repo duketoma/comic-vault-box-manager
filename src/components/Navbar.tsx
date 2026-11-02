@@ -75,6 +75,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [isMobileScreen, setIsMobileScreen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 639px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobileScreen(e.matches);
+    setIsMobileScreen(mql.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
 
   // Keep local search input synchronized if search query changes externally
   React.useEffect(() => {
@@ -127,14 +139,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {connectionState === 'syncing' ? (
                     <>
                       <RefreshCw className="w-2.5 h-2.5 animate-spin text-blue-500" />
-                      <span>Syncing{pendingSyncCount > 0 ? ` (${pendingSyncCount})` : '...'}</span>
+                      <span className="hidden sm:inline">Syncing{pendingSyncCount > 0 ? ` (${pendingSyncCount})` : '...'}</span>
+                      {pendingSyncCount > 0 && (
+                        <span className="sm:hidden text-[9px] font-black bg-blue-200 dark:bg-blue-900 px-1 rounded-full">
+                          {pendingSyncCount}
+                        </span>
+                      )}
                     </>
                   ) : connectionState === 'offline' ? (
                     <>
                       <WifiOff className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                      <span>
+                      <span className="hidden sm:inline">
                         Offline{pendingSyncCount > 0 ? ` • ${pendingSyncCount} Pending` : ' Ready'}
                       </span>
+                      {pendingSyncCount > 0 && (
+                        <span className="sm:hidden text-[9px] font-black bg-amber-200 dark:bg-amber-900 px-1 rounded-full">
+                          {pendingSyncCount}
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -164,12 +186,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-xl mx-2 lg:mx-4">
+          <div className="flex flex-1 min-w-0 max-w-xl mx-1.5 sm:mx-2 lg:mx-4">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
               <input
                 type="text"
-                placeholder="Search title, writer, artist, publisher, issue #..."
+                placeholder={isMobileScreen ? 'Search collection...' : 'Search title, writer, artist, publisher, issue #...'}
                 value={localSearch}
                 onChange={(e) => setLocalSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -204,7 +226,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenValuationModal && (
               <button
                 onClick={onOpenValuationModal}
-                className="flex items-center justify-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                className="hidden md:flex items-center justify-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Update Estimated Market Values & Configure Periodic Price Refreshes"
                 aria-label="Market Values"
               >
@@ -216,7 +238,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Drive Covers */}
             <button
               onClick={onOpenDriveModal}
-              className="flex items-center justify-center p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="hidden md:flex items-center justify-center p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
               title="Sync Google Drive Comic Covers folder & NoImage.webp"
               aria-label="Drive Covers"
             >
@@ -227,7 +249,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Cover Scanner & Cropper */}
             <button
               onClick={onOpenScanModal}
-              className="flex items-center justify-center p-2 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="hidden md:flex items-center justify-center p-2 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
               title="Scan & Perspective-Crop Comic Cover with Local OCR"
               aria-label="Cover Scanner"
             >
@@ -238,7 +260,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Add Comic */}
             <button
               onClick={onOpenAddModal}
-              className="flex items-center justify-center p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="hidden md:flex items-center justify-center p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
               title="Add New Comic Manually"
               aria-label="Add Comic"
             >
@@ -250,7 +272,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenStyleStudioModal && (
               <button
                 onClick={onOpenStyleStudioModal}
-                className="flex items-center justify-center p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                className="hidden md:flex items-center justify-center p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Open Comic Style & Motion FX Studio (Swap UI Themes, 3D Tilt & Holofoil Shaders)"
                 aria-label="Style Studio"
               >
@@ -262,7 +284,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Theme Toggle Button */}
             <button
               onClick={onToggleDarkMode}
-              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
+              className="hidden md:flex p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 items-center justify-center cursor-pointer shrink-0"
               title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label="Toggle dark mode"
             >
@@ -303,50 +325,115 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Mobile More Options Menu */}
-            {(onOpenDataManagementModal || onOpenServerSettings) && (
-              <div className="relative md:hidden shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center"
-                  title="More options"
-                  aria-label="More options"
-                >
-                  <MoreVertical className="w-3.5 h-3.5" />
-                </button>
-                {isMobileMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 mt-1.5 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                      {onOpenStyleStudioModal && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMobileMenuOpen(false);
-                            onOpenStyleStudioModal();
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 text-left transition-colors cursor-pointer"
-                        >
-                          <Palette className="w-3.5 h-3.5 shrink-0" />
-                          <span>Style Studio</span>
-                        </button>
-                      )}
-                      {onOpenValuationModal && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMobileMenuOpen(false);
-                            onOpenValuationModal();
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-left transition-colors cursor-pointer"
-                        >
-                          <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-                          <span>Market Values</span>
-                        </button>
-                      )}
+            <div className="relative md:hidden shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+                title="More options"
+                aria-label="More options"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+              {isMobileMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100 dark:divide-slate-700/60">
+                    
+                    {/* Comic Actions */}
+                    <div className="py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          onOpenAddModal();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 text-left transition-colors cursor-pointer"
+                      >
+                        <PlusCircle className="w-4 h-4 text-slate-600 dark:text-slate-400 shrink-0" />
+                        <span>Add Comic</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          onOpenScanModal();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-left transition-colors cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span>Scan Covers</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          onOpenDriveModal();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 text-left transition-colors cursor-pointer"
+                      >
+                        <Cloud className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span>Sync Covers</span>
+                      </button>
+                    </div>
+
+                    {/* Tools */}
+                    {(onOpenValuationModal || onOpenStyleStudioModal) && (
+                      <div className="py-0.5">
+                        {onOpenValuationModal && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMobileMenuOpen(false);
+                              onOpenValuationModal();
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-left transition-colors cursor-pointer"
+                          >
+                            <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>Market Values</span>
+                          </button>
+                        )}
+                        {onOpenStyleStudioModal && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMobileMenuOpen(false);
+                              onOpenStyleStudioModal();
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 text-left transition-colors cursor-pointer"
+                          >
+                            <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                            <span>Style Studio</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* System & Settings */}
+                    <div className="py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          onToggleDarkMode();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-left transition-colors cursor-pointer"
+                      >
+                        {darkMode ? (
+                          <>
+                            <Sun className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                            <span>Switch to Light Mode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Moon className="w-4 h-4 text-slate-700 shrink-0" />
+                            <span>Switch to Dark Mode</span>
+                          </>
+                        )}
+                      </button>
                       {onOpenDataManagementModal && (
                         <button
                           type="button"
@@ -354,10 +441,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setIsMobileMenuOpen(false);
                             onOpenDataManagementModal();
                           }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-left transition-colors cursor-pointer"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-left transition-colors cursor-pointer"
                         >
-                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                          <span>Manage Data</span>
+                          <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                          <span>Manage Collection</span>
                         </button>
                       )}
                       {onOpenServerSettings && (
@@ -367,17 +454,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setIsMobileMenuOpen(false);
                             onOpenServerSettings();
                           }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-left transition-colors cursor-pointer"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-left transition-colors cursor-pointer"
                         >
-                          <Server className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <Server className="w-4 h-4 text-indigo-500 shrink-0" />
                           <span>Server Settings</span>
                         </button>
                       )}
                     </div>
-                  </>
-                )}
-              </div>
-            )}
+
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
