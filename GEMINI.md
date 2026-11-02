@@ -13,6 +13,11 @@
    - Clear (X) buttons, `Escape`, and `Enter` key presses must execute immediately with zero debounce delay.
    - Search inputs with embedded clear buttons must include sufficient right padding (e.g., `pr-16`) to prevent text from clipping behind the clear button.
 
+2b. **Navbar Top-Bar Icon Density & Brand Protection**:
+   - Quick action buttons in the top navigation bar (`Market Values`, `Drive Covers`, `Cover Scanner`, `Add Comic`, `Style Studio`, `Dark/Light Mode`, `Manage Data`, `Server Settings`) must remain icon-only across all screen widths (`p-2 rounded-lg` with `w-4 h-4` icons). Do not add responsive text labels at `lg:` or `xl:` breakpoints that consume horizontal space.
+   - All icon buttons must retain explicit `title` tooltips, `aria-label`, and `<span className="sr-only">` text to maintain full screen-reader accessibility and Playwright `getByRole('button', { name: ... })` locator compatibility.
+   - App branding (`Comic Archive Pro`) and subtitles must include `shrink-0` and `whitespace-nowrap` to prevent truncation.
+
 3. **Defensive Metadata Access**:
    - Comic records may contain sparse or null fields. Never invoke string methods (e.g., `.toLowerCase()`, `.trim()`) or array methods on comic fields without null/undefined guards or default fallbacks (e.g., `(c.title || '').toLowerCase()`, `c.tags?.some(...)`).
 
@@ -55,5 +60,17 @@
    - Any server-side deletion of comics or storage boxes in PostgreSQL must record tombstones in the `deleted_records` table via `recordDeletionTombstones(client, entityType, ids)`, and any upsert must clear tombstones via `clearDeletionTombstones(client, entityType, ids)` so delta syncs (`POST /api/sync`) propagate deletions to mobile devices.
    - In `node-postgres` (`pg`), never run `Promise.all([client.query(...), client.query(...)])` concurrently on the same checked-out `PoolClient` instance inside a transaction (which triggers `pg` deprecation warnings and serializes over one socket anyway). Execute queries sequentially with `await client.query(...)` on a checked-out `PoolClient`, or use `pool.query(...)` only for non-transactional parallel reads.
    - Defensively ensure numeric fields with database `NOT NULL` constraints (such as `copies_owned`) are always guarded in `comicValues()` with appropriate fallbacks (`Math.max(1, Number(value) || 1)` for owned comics, `0` for wishlist items).
+
+## Market Valuation & Scraper Comp Invariants (`server/services/valuationEngine.ts`)
+11. **Multi-Source Scraping & Grade-Tier Resolution**:
+   - Price regexes targeting external price guide tables (e.g., PriceCharting) must account for nested HTML elements (such as `<span class="js-price">...</span>`) rather than assuming immediate text nodes.
+   - Scraper candidate ranking must defensively filter common comic filler stop-words (`comic`, `comics`, `title`, `series`, `book`, `issue`, `vol`, `volume`) and enforce a minimum keyword match threshold so unrelated popular `#1` recommendations are never falsely selected.
+   - When a search result candidate is selected, follow its product URL to extract exact grade-tier breakdown tables (`gradeTable`) and authoritative Near Mint values (`box_only_price` / 9.2 NM-).
+   - Low-confidence fallback estimates (`confidence === 'low'`) must NEVER be stored in long-lived memory caches (`quoteCache`). When refreshing or updating an individual comic, always allow bypassing cache (`bypassCache: true`).
+
+## E2E Testing, Debounce Transitions & Spring Animation Invariants
+12. **Playwright Interactions with Debounced Inputs & Spring Physics**:
+   - When Playwright tests type into search bars or filters with debounced state transitions (250–300ms), they must submit `await searchInput.press('Enter')` or wait for transition counters (e.g. `Showing X of Y`) before taking element counts to prevent race conditions during list re-rendering.
+   - Bounding-box or geometry assertions on modals with spring-physics entrance animations (`comic-modal-spring-full` which peaks at `scale(1.038)`) must allow the entrance keyframe to complete settling before measuring bounding box dimensions.
 
 
