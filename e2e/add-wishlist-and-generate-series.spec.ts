@@ -186,8 +186,9 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
 
     // Cancel modal
     const genModal = page.locator('.fixed.inset-0').filter({ hasText: 'Generate Series Wishlist' });
-    const cancelBtn = genModal.getByRole('button', { name: 'Cancel' }).or(genModal.locator('button:has-text("Cancel")'));
-    await cancelBtn.first().click({ force: true });
+    const cancelBtn = genModal.getByRole('button', { name: 'Cancel' }).or(genModal.locator('button:has-text("Cancel")')).first();
+    await cancelBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await cancelBtn.dispatchEvent('click');
     await expect(page.getByRole('heading', { name: 'Generate Series Wishlist' })).not.toBeVisible();
   });
 });

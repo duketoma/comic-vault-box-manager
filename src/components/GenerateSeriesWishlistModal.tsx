@@ -58,6 +58,17 @@ export const GenerateSeriesWishlistModal: React.FC<GenerateSeriesWishlistModalPr
     }
   }, [isOpen, initialSeriesName, allSeriesNames]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Existing comics for the selected series
   const seriesComics = useMemo(() => {
     if (!selectedSeries) return [];
@@ -240,10 +251,14 @@ export const GenerateSeriesWishlistModal: React.FC<GenerateSeriesWishlistModalPr
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close Generate Series Wishlist Modal"
+            title="Close"
             className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
           >
             <X className="w-5 h-5" />
+            <span className="sr-only">Close</span>
           </button>
         </div>
 
