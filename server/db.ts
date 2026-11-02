@@ -35,6 +35,7 @@ export const comicColumns = [
   'artist', 'cover_artist', 'creator_contributions', 'character_appearances', 'cover_image', 'cover_image_full', 'format',
   'size_thickness', 'current_box_id', 'proposed_box_id', 'reading_status', 'read_count',
   'user_rating', 'condition', 'purchase_price', 'estimated_value',
+  'previous_estimated_value', 'value_updated_at', 'value_source', 'lock_estimated_value',
   'notes', 'tags', 'created_at', 'updated_at',
 ] as const;
 
@@ -48,7 +49,12 @@ export const comicFields: Record<(typeof comicColumns)[number], string> = {
   cover_image: 'coverImage', cover_image_full: 'coverImageFull', format: 'format',
   size_thickness: 'sizeThickness', current_box_id: 'currentBoxId', proposed_box_id: 'proposedBoxId',
   reading_status: 'readingStatus', read_count: 'readCount', user_rating: 'userRating', condition: 'condition', purchase_price: 'purchasePrice',
-  estimated_value: 'estimatedValue', notes: 'notes', tags: 'tags', created_at: 'createdAt', updated_at: 'updatedAt',
+  estimated_value: 'estimatedValue',
+  previous_estimated_value: 'previousEstimatedValue',
+  value_updated_at: 'valueUpdatedAt',
+  value_source: 'valueSource',
+  lock_estimated_value: 'lockEstimatedValue',
+  notes: 'notes', tags: 'tags', created_at: 'createdAt', updated_at: 'updatedAt',
 };
 
 const comicUpdateSetClause = [
@@ -81,8 +87,14 @@ export function comicValues(comic: Record<string, unknown>) {
       const isWishlist = comic.reading_status === 'Wishlist' || comic.readingStatus === 'Wishlist';
       return isWishlist ? 0 : Math.max(1, Number(value) || 1);
     }
+    if (column === 'lock_estimated_value') {
+      return Boolean(value);
+    }
     if (column === 'created_at' || column === 'updated_at') {
       return value ? String(value) : nowIso;
+    }
+    if (column === 'value_updated_at') {
+      return value ? String(value) : null;
     }
     return value ?? null;
   });
@@ -159,7 +171,7 @@ export function rowToComic(row: Record<string, unknown>) {
   const comic: Record<string, unknown> = {};
   const numericColumns = new Set([
     'copies_owned', 'publication_year', 'size_thickness', 'current_box_id', 'proposed_box_id',
-    'read_count', 'user_rating', 'purchase_price', 'estimated_value',
+    'read_count', 'user_rating', 'purchase_price', 'estimated_value', 'previous_estimated_value',
   ]);
   for (const column of comicColumns) {
     const value = row[column];
@@ -168,10 +180,15 @@ export function rowToComic(row: Record<string, unknown>) {
     } else if (column === 'created_at' || column === 'updated_at') {
       comic[comicFields[column]] =
         value instanceof Date ? value.toISOString() : value ? String(value) : new Date().toISOString();
+    } else if (column === 'value_updated_at') {
+      comic[comicFields[column]] =
+        value instanceof Date ? value.toISOString() : value ? String(value) : undefined;
+    } else if (column === 'lock_estimated_value') {
+      comic[comicFields[column]] = Boolean(value);
     } else if (numericColumns.has(column) && value !== null && value !== undefined) {
       comic[comicFields[column]] = Number(value);
     } else {
-      comic[comicFields[column]] = value;
+      comic[comicFields[column]] = value ?? undefined;
     }
   }
   if (!comic.title || !String(comic.title).trim()) {

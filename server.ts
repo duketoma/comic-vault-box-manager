@@ -7,6 +7,8 @@ import { collectionRouter } from './server/routes/collection';
 import { challengesRouter } from './server/routes/challenges';
 import { aiAndProxyRouter } from './server/routes/aiAndProxy';
 import { importsAndExportsRouter } from './server/routes/importsAndExports';
+import { valuationRouter } from './server/routes/valuation';
+import { valuationBatchManager } from './server/services/valuationEngine';
 
 async function startServer() {
   const app = express();
@@ -37,6 +39,7 @@ async function startServer() {
   if (pool) {
     try {
       await initDatabase(pool);
+      valuationBatchManager.initScheduler(pool);
       console.log('Database initialized with creators & character appearance tables.');
     } catch (err) {
       console.warn('Database initialization warning:', err);
@@ -48,6 +51,7 @@ async function startServer() {
   app.use(challengesRouter);
   app.use(aiAndProxyRouter);
   app.use(importsAndExportsRouter);
+  app.use(valuationRouter);
 
   // --- VITE MIDDLEWARE / PRODUCTION STATIC SETUP ---
   if (process.env.NODE_ENV?.trim() !== 'production') {

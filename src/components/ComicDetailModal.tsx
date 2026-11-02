@@ -10,8 +10,10 @@ import {
   ComicCondition,
   COMIC_FORMATS,
   FORMAT_DEFAULT_THICKNESS,
-  COMIC_CONDITIONS
+  COMIC_CONDITIONS,
+  ComicValuationResult
 } from '../types';
+import { lookupComicValuation } from '../services/postgresService';
 import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, formatIsoComicDate, MONTH_NAMES } from '../utils/dateUtils';
@@ -44,7 +46,11 @@ import {
   Search,
   Sparkles,
   Bookmark,
-  Crop
+  Crop,
+  Lock,
+  Unlock,
+  RefreshCw,
+  RotateCcw
 } from 'lucide-react';
 
 interface ComicDetailModalProps {
@@ -107,6 +113,16 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [estimatedValue, setEstimatedValue] = useState<string>(
     comic?.estimatedValue !== undefined && comic?.estimatedValue !== null ? String(comic.estimatedValue) : ''
   );
+  const [previousEstimatedValue, setPreviousEstimatedValue] = useState<number | undefined>(
+    comic?.previousEstimatedValue
+  );
+  const [valueUpdatedAt, setValueUpdatedAt] = useState<string | undefined>(comic?.valueUpdatedAt);
+  const [valueSource, setValueSource] = useState<string | undefined>(comic?.valueSource);
+  const [lockEstimatedValue, setLockEstimatedValue] = useState<boolean>(
+    Boolean(comic?.lockEstimatedValue)
+  );
+  const [isLookingUpValue, setIsLookingUpValue] = useState<boolean>(false);
+  const [lastValuationQuote, setLastValuationQuote] = useState<ComicValuationResult | null>(null);
   const [tags, setTags] = useState<string[]>(Array.isArray(comic?.tags) ? [...comic.tags] : []);
   const [newTagInput, setNewTagInput] = useState('');
   const [event, setEvent] = useState(comic?.event || '');
@@ -151,6 +167,11 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setEstimatedValue(
       comic.estimatedValue !== undefined && comic.estimatedValue !== null ? String(comic.estimatedValue) : ''
     );
+    setPreviousEstimatedValue(comic.previousEstimatedValue);
+    setValueUpdatedAt(comic.valueUpdatedAt);
+    setValueSource(comic.valueSource);
+    setLockEstimatedValue(Boolean(comic.lockEstimatedValue));
+    setLastValuationQuote(null);
     setTags(Array.isArray(comic.tags) ? [...comic.tags] : []);
     setNewTagInput('');
     setEvent(comic.event || '');
@@ -360,6 +381,110 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     }
   };
 
+  const CONDITION_CURVE: Record<ComicCondition, number> = {
+    'Gem Mint': 1.35,
+    'Mint': 1.15,
+    'Near Mint': 1.0,
+    'Very Fine': 0.75,
+    'Fine': 0.5,
+    'Very Good': 0.3,
+    'Good': 0.18,
+    'Fair': 0.1,
+    'Poor': 0.05,
+  };
+
+  const handleConditionChange = (newCnd: ComicCondition) => {
+    setCondition(newCnd);
+    if (lastValuationQuote && !lockEstimatedValue && !lastValuationQuote.isGradedApplied) {
+      const mult = CONDITION_CURVE[newCnd] ?? 1.0;
+      const adjusted = Math.max(0.5, Number((lastValuationQuote.baseNearMintValue * mult).toFixed(2)));
+      setEstimatedValue(adjusted.toFixed(2));
+      setLastValuationQuote({
+        ...lastValuationQuote,
+        conditionApplied: newCnd,
+        conditionMultiplier: mult,
+        estimatedValue: adjusted,
+      });
+    }
+  };
+
+  const handleLookupMarketValue = async (applyDirectlyInViewMode = false) => {
+    if (isLookingUpValue) return;
+    setIsLookingUpValue(true);
+    try {
+      const parsedPurchase =
+        purchasePrice.trim() !== '' && !isNaN(Number(purchasePrice))
+          ? Number(parseFloat(purchasePrice).toFixed(2))
+          : comic.purchasePrice;
+      const parsedCurrentVal =
+        estimatedValue.trim() !== '' && !isNaN(Number(estimatedValue))
+          ? Number(parseFloat(estimatedValue).toFixed(2))
+          : comic.estimatedValue;
+
+      const quote = await lookupComicValuation({
+        id: comic.id,
+        title: (isEditing ? title : comic.title) || comic.title,
+        seriesName: (isEditing ? seriesName : comic.seriesName) || comic.seriesName,
+        issueNumber: (isEditing ? issueNumber : comic.issueNumber) || '1',
+        volume: (isEditing ? volume : comic.volume) || comic.volume,
+        publicationYear: (isEditing ? Number(publicationYear) : comic.publicationYear) || comic.publicationYear,
+        publisher: comic.publisher,
+        format: isEditing ? format : comic.format,
+        condition: isEditing ? condition : comic.condition,
+        purchasePrice: parsedPurchase,
+        estimatedValue: parsedCurrentVal,
+        tags: isEditing ? tags : comic.tags,
+        notes: isEditing ? notes : comic.notes,
+      });
+
+      setLastValuationQuote(quote);
+      const prevVal = parsedCurrentVal !== undefined ? parsedCurrentVal : previousEstimatedValue;
+      setPreviousEstimatedValue(prevVal);
+      setEstimatedValue(quote.estimatedValue.toFixed(2));
+      setValueUpdatedAt(quote.updatedAt);
+      setValueSource(quote.source);
+
+      if (applyDirectlyInViewMode && !isEditing) {
+        onUpdateComic({
+          ...comic,
+          previousEstimatedValue: comic.estimatedValue ?? comic.previousEstimatedValue,
+          estimatedValue: quote.estimatedValue,
+          valueUpdatedAt: quote.updatedAt,
+          valueSource: quote.source,
+        });
+      }
+    } catch (err) {
+      console.warn('Market value lookup failed:', err);
+    } finally {
+      setIsLookingUpValue(false);
+    }
+  };
+
+  const handleToggleLockValue = () => {
+    const nextLocked = !lockEstimatedValue;
+    setLockEstimatedValue(nextLocked);
+    if (!isEditing) {
+      onUpdateComic({
+        ...comic,
+        lockEstimatedValue: nextLocked,
+      });
+    }
+  };
+
+  const handleRevertPreviousValue = () => {
+    if (previousEstimatedValue === undefined || previousEstimatedValue === null) return;
+    setEstimatedValue(previousEstimatedValue.toFixed(2));
+    setValueSource('Manual (Reverted)');
+    if (!isEditing) {
+      onUpdateComic({
+        ...comic,
+        estimatedValue: previousEstimatedValue,
+        valueSource: 'Manual (Reverted)',
+        valueUpdatedAt: new Date().toISOString(),
+      });
+    }
+  };
+
   const handleAddTag = (rawTag?: string) => {
     const candidate = (rawTag !== undefined ? rawTag : newTagInput).trim().replace(/^#/, '');
     if (!candidate) return;
@@ -418,6 +543,19 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       format,
       purchasePrice: parsedPurchasePrice,
       estimatedValue: parsedEstimatedValue,
+      previousEstimatedValue:
+        parsedEstimatedValue !== comic.estimatedValue
+          ? (comic.estimatedValue ?? previousEstimatedValue)
+          : previousEstimatedValue,
+      valueUpdatedAt:
+        parsedEstimatedValue !== comic.estimatedValue
+          ? (valueUpdatedAt || new Date().toISOString())
+          : valueUpdatedAt,
+      valueSource:
+        parsedEstimatedValue !== comic.estimatedValue
+          ? (valueSource || 'Manual')
+          : valueSource,
+      lockEstimatedValue,
       tags,
       notes,
       sizeThickness: Number(thickness),
@@ -1191,7 +1329,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           )}
 
           {/* Metadata Grid */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
             {isEditing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
@@ -1200,7 +1338,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   </label>
                   <select
                     value={condition}
-                    onChange={(e) => setCondition(e.target.value as ComicCondition)}
+                    onChange={(e) => handleConditionChange(e.target.value as ComicCondition)}
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-semibold"
                   >
                     {COMIC_CONDITIONS.map((cnd) => (
@@ -1253,9 +1391,41 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-emerald-700 dark:text-emerald-400 block text-[10px] font-bold mb-1">
-                    Est. Market Value
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-emerald-700 dark:text-emerald-400 block text-[10px] font-bold">
+                      Est. Market Value
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleLookupMarketValue(false)}
+                        disabled={isLookingUpValue}
+                        title="Lookup condition-adjusted market value (PriceCharting / eBay)"
+                        aria-label="Lookup Value"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-2.5 h-2.5 ${isLookingUpValue ? 'animate-spin' : ''}`} />
+                        <span>{isLookingUpValue ? 'Looking up...' : 'Lookup'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleLockValue}
+                        title={
+                          lockEstimatedValue
+                            ? 'Value Locked (Protected from periodic batch updates)'
+                            : 'Lock Value to protect from periodic batch updates'
+                        }
+                        aria-label={lockEstimatedValue ? 'Unlock Value' : 'Lock Value'}
+                        className={`p-0.5 rounded border transition-colors cursor-pointer ${
+                          lockEstimatedValue
+                            ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        {lockEstimatedValue ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-emerald-600 dark:text-emerald-400 text-xs pointer-events-none font-bold">
                       $
@@ -1266,7 +1436,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       min="0"
                       placeholder="0.00"
                       value={estimatedValue}
-                      onChange={(e) => setEstimatedValue(e.target.value)}
+                      onChange={(e) => {
+                        setEstimatedValue(e.target.value);
+                        setValueSource('Manual');
+                      }}
                       className="w-full pl-6 pr-2.5 py-1.5 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800/80 rounded-lg text-xs text-emerald-700 dark:text-emerald-400 font-bold"
                     />
                   </div>
@@ -1289,11 +1462,123 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Est. Market Value</span>
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                    {comic.estimatedValue ? `$${comic.estimatedValue.toFixed(2)}` : 'N/A'}
-                  </span>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Est. Market Value</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleLookupMarketValue(true)}
+                        disabled={isLookingUpValue || lockEstimatedValue}
+                        title={
+                          lockEstimatedValue
+                            ? 'Value is locked. Unlock to refresh market value.'
+                            : 'Refresh Market Value now'
+                        }
+                        aria-label="Lookup Value"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/70 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-40"
+                      >
+                        <RefreshCw className={`w-2.5 h-2.5 ${isLookingUpValue ? 'animate-spin' : ''}`} />
+                        <span>{isLookingUpValue ? '...' : 'Refresh'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleLockValue}
+                        title={
+                          lockEstimatedValue
+                            ? 'Value Locked (Protected from periodic batch updates)'
+                            : 'Lock Value to protect from periodic batch updates'
+                        }
+                        aria-label={lockEstimatedValue ? 'Unlock Value' : 'Lock Value'}
+                        className={`p-0.5 rounded border transition-colors cursor-pointer ${
+                          lockEstimatedValue
+                            ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        {lockEstimatedValue ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      {comic.estimatedValue ? `$${comic.estimatedValue.toFixed(2)}` : 'N/A'}
+                    </span>
+                    {comic.previousEstimatedValue !== undefined &&
+                      comic.estimatedValue !== undefined &&
+                      Math.abs(comic.estimatedValue - comic.previousEstimatedValue) >= 0.01 && (
+                        <span
+                          className={`text-[10px] font-bold px-1 py-0.2 rounded ${
+                            comic.estimatedValue > comic.previousEstimatedValue
+                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                          }`}
+                          title={`Previous value: $${comic.previousEstimatedValue.toFixed(2)}`}
+                        >
+                          {comic.estimatedValue > comic.previousEstimatedValue ? '▲ +' : '▼ -'}$
+                          {Math.abs(comic.estimatedValue - comic.previousEstimatedValue).toFixed(2)}
+                        </span>
+                      )}
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/* Valuation Provenance & Condition Breakdown Footer */}
+            {(valueSource || lastValuationQuote || previousEstimatedValue !== undefined || lockEstimatedValue) && (
+              <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/70 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex flex-wrap items-center gap-2">
+                  {lockEstimatedValue && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-semibold text-[10px]">
+                      <Lock className="w-2.5 h-2.5" />
+                      Value Locked
+                    </span>
+                  )}
+                  {(lastValuationQuote?.source || valueSource) && (
+                    <span className="inline-flex items-center gap-1">
+                      <span>Source:</span>
+                      {lastValuationQuote?.sourceUrl ? (
+                        <a
+                          href={lastValuationQuote.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5"
+                        >
+                          <span>{lastValuationQuote.source}</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      ) : (
+                        <strong className="text-slate-700 dark:text-slate-300">{valueSource}</strong>
+                      )}
+                    </span>
+                  )}
+                  {lastValuationQuote && (
+                    <span className="text-[10px] bg-slate-200/70 dark:bg-slate-700/70 px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-300">
+                      {lastValuationQuote.isGradedApplied
+                        ? `Graded Tier Applied (${lastValuationQuote.conditionApplied})`
+                        : `Raw NM Base $${lastValuationQuote.baseNearMintValue.toFixed(2)} × ${Math.round(
+                            lastValuationQuote.conditionMultiplier * 100
+                          )}% (${lastValuationQuote.conditionApplied})`}
+                    </span>
+                  )}
+                  {valueUpdatedAt && (
+                    <span className="text-[10px]">
+                      Updated {new Date(valueUpdatedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+
+                {previousEstimatedValue !== undefined &&
+                  Number(estimatedValue || comic.estimatedValue || 0) !== previousEstimatedValue && (
+                    <button
+                      type="button"
+                      onClick={handleRevertPreviousValue}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                      title={`Revert to previous value ($${previousEstimatedValue.toFixed(2)})`}
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>Revert to ${previousEstimatedValue.toFixed(2)}</span>
+                    </button>
+                  )}
               </div>
             )}
           </div>

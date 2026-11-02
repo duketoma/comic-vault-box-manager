@@ -15,6 +15,7 @@ import { DataManagementModal } from './components/DataManagementModal';
 import { GenerateSeriesWishlistModal } from './components/GenerateSeriesWishlistModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ServerSettingsModal } from './components/ServerSettingsModal';
+import { ValuationManagerModal } from './components/ValuationManagerModal';
 import { ReadingChallengeView } from './components/reading-challenge/ReadingChallengeView';
 import {
   deleteLocalBoxAndEnqueue,
@@ -139,6 +140,7 @@ export default function App() {
     return loadSavedCatalogFilters();
   });
   const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
+  const [isValuationModalOpen, setIsValuationModalOpen] = useState<boolean>(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState<boolean>(false);
   const [isServerModalOpen, setIsServerModalOpen] = useState<boolean>(false);
 
@@ -750,6 +752,18 @@ export default function App() {
     }
   };
 
+  const handleBatchUpdateValuations = async (updatedBatch: ComicBook[]) => {
+    if (!updatedBatch || updatedBatch.length === 0) return;
+    const byId = new Map(updatedBatch.map((c) => [c.id, c]));
+    setComics((prev) => prev.map((c) => byId.get(c.id) || c));
+    setSelectedComic((prev) => (prev && byId.has(prev.id) ? byId.get(prev.id)! : prev));
+
+    saveLocalComicsBatchAndEnqueue(updatedBatch)
+      .then(updateOutboxStatus)
+      .then(() => triggerSync());
+    await saveComicsBatch(updatedBatch).catch(() => {});
+  };
+
   const seriesOverviewSummary = useMemo(
     () => getSeriesOverviewSummary(comics, seriesTotals),
     [comics, seriesTotals]
@@ -775,6 +789,7 @@ export default function App() {
           setIsAddModalOpen(true);
         }}
         onOpenDriveModal={() => setIsDriveModalOpen(true)}
+        onOpenValuationModal={() => setIsValuationModalOpen(true)}
         onOpenDataManagementModal={() => setIsDataModalOpen(true)}
         totalComicsCount={totalComicsCount}
         totalThicknessUnits={totalThicknessUnits}
@@ -961,6 +976,17 @@ export default function App() {
         onUpdateComicFullCover={handleUpdateComicFullCover}
         onUpdateComicCoversBatch={handleUpdateComicCoversBatch}
         onApplyNoImageFallback={handleApplyNoImageFallback}
+      />
+
+      <ValuationManagerModal
+        isOpen={isValuationModalOpen}
+        onClose={() => setIsValuationModalOpen(false)}
+        comics={comics}
+        onUpdateComicsBatch={handleBatchUpdateValuations}
+        onSelectComic={(comic) => {
+          setIsValuationModalOpen(false);
+          setSelectedComic(comic);
+        }}
       />
 
       <DataManagementModal

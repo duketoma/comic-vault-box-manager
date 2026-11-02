@@ -197,10 +197,74 @@ export interface ComicBook {
   condition: ComicCondition;
   purchasePrice?: number;
   estimatedValue?: number;
+  previousEstimatedValue?: number;
+  valueUpdatedAt?: string;
+  valueSource?: string;
+  lockEstimatedValue?: boolean;
   notes?: string;
   tags: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type ValuationScope = 'all_stale' | 'missing_only' | 'owned_only' | 'wishlist_only';
+
+export interface ComicValuationResult {
+  comicId?: string;
+  matchedTitle: string;
+  source: 'PriceCharting' | 'eBay Market';
+  sourceUrl?: string;
+  baseNearMintValue: number;
+  gradedValue?: number;
+  isGradedApplied: boolean;
+  conditionApplied: ComicCondition;
+  conditionMultiplier: number;
+  estimatedValue: number;
+  confidence: 'high' | 'medium' | 'low';
+  updatedAt: string;
+}
+
+export interface ValuationCoverageStats {
+  totalOwned: number;
+  totalWishlist: number;
+  pricedOwned: number;
+  missingOwned: number;
+  staleOwned: number;
+  lockedCount: number;
+  pricedWishlist: number;
+  missingWishlist: number;
+  totalPortfolioValue: number;
+}
+
+export interface BatchValuationUpdateEntry {
+  comicId: string;
+  fullTitle: string;
+  oldValue?: number;
+  newValue: number;
+  source: string;
+  sourceUrl?: string;
+  condition: string;
+  isGraded: boolean;
+  updatedAt: string;
+}
+
+export interface BatchValuationStatus {
+  isRunning: boolean;
+  isPaused: boolean;
+  scope: ValuationScope;
+  totalQueued: number;
+  processedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  currentComicTitle?: string;
+  startedAt?: string;
+  completedAt?: string;
+  recentUpdates: BatchValuationUpdateEntry[];
+  schedulerEnabled: boolean;
+  staleThresholdDays: number;
+  dailyBatchLimit: number;
+  coverage?: ValuationCoverageStats;
 }
 
 export interface StorageBox {

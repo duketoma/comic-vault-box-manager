@@ -107,6 +107,10 @@ export const POSTGRES_INIT_SCHEMA_SQL = `
   ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS character_appearances JSONB NOT NULL DEFAULT '[]'::jsonb;
   ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS cover_image_full TEXT;
   ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS read_count INTEGER DEFAULT 0;
+  ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS previous_estimated_value NUMERIC(12, 2);
+  ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS value_updated_at TIMESTAMPTZ;
+  ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS value_source TEXT;
+  ALTER TABLE comic_books ADD COLUMN IF NOT EXISTS lock_estimated_value BOOLEAN NOT NULL DEFAULT FALSE;
 
   UPDATE comic_books
   SET read_count = 1

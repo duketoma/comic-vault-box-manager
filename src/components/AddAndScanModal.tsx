@@ -10,6 +10,7 @@ import {
   FORMAT_DEFAULT_THICKNESS,
   COMIC_CONDITIONS
 } from '../types';
+import { lookupComicValuation } from '../services/postgresService';
 import { extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { MONTH_NAMES, formatIsoComicDate } from '../utils/dateUtils';
@@ -88,6 +89,8 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
   const [condition, setCondition] = useState<ComicCondition>('Near Mint');
   const [purchasePrice, setPurchasePrice] = useState<string>('');
   const [estimatedValue, setEstimatedValue] = useState<string>('');
+  const [valueSource, setValueSource] = useState<string | undefined>(undefined);
+  const [isLookingUpValue, setIsLookingUpValue] = useState<boolean>(false);
   const [notes, setNotes] = useState('');
   const [tagsInput, setTagsInput] = useState('');
 
@@ -289,6 +292,8 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
       condition,
       purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
       estimatedValue: estimatedValue ? parseFloat(estimatedValue) : undefined,
+      valueUpdatedAt: estimatedValue ? new Date().toISOString() : undefined,
+      valueSource: estimatedValue ? (valueSource || 'Manual') : undefined,
       notes: notes.trim(),
       tags,
       createdAt: new Date().toISOString(),
@@ -766,12 +771,51 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Est. Value ($)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Est. Value ($)</label>
+                    <button
+                      type="button"
+                      disabled={isLookingUpValue || (!title.trim() && !seriesName.trim())}
+                      onClick={async () => {
+                        if (isLookingUpValue) return;
+                        setIsLookingUpValue(true);
+                        try {
+                          const quote = await lookupComicValuation({
+                            title: title.trim() || seriesName.trim(),
+                            seriesName: seriesName.trim() || undefined,
+                            issueNumber: issueNumber.trim() || '1',
+                            volume: volume.trim() || undefined,
+                            publicationYear: publicationYear || undefined,
+                            publisher: publisher.trim() || undefined,
+                            format,
+                            condition,
+                            purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
+                            tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+                            notes: notes.trim() || undefined,
+                          });
+                          setEstimatedValue(quote.estimatedValue.toFixed(2));
+                          setValueSource(quote.source);
+                        } catch (err) {
+                          console.warn('Add modal valuation lookup failed:', err);
+                        } finally {
+                          setIsLookingUpValue(false);
+                        }
+                      }}
+                      title="Auto-estimate market value from PriceCharting / eBay based on title, issue #, and condition"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      <RefreshCw className={`w-2.5 h-2.5 ${isLookingUpValue ? 'animate-spin' : ''}`} />
+                      <span>{isLookingUpValue ? 'Estimating...' : 'Lookup'}</span>
+                    </button>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     value={estimatedValue}
-                    onChange={(e) => setEstimatedValue(e.target.value)}
+                    onChange={(e) => {
+                      setEstimatedValue(e.target.value);
+                      setValueSource('Manual');
+                    }}
                     placeholder="450.00"
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                   />

@@ -1,4 +1,11 @@
-import { ComicBook, SeriesIssueTotal, StorageBox } from '../types';
+import {
+  BatchValuationStatus,
+  ComicBook,
+  ComicValuationResult,
+  SeriesIssueTotal,
+  StorageBox,
+  ValuationScope,
+} from '../types';
 import { compressBase64Image } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { buildApiUrl } from './apiConfig';
@@ -234,5 +241,93 @@ export async function fetchCreatorsList() {
  */
 export async function fetchCreatorReportsData() {
   const response = await request('/api/reports/creators');
+  return response.json();
+}
+
+/**
+ * Looks up a live condition-adjusted market value quote for a comic.
+ */
+export async function lookupComicValuation(payload: {
+  id?: string;
+  title: string;
+  seriesName?: string;
+  issueNumber: string;
+  volume?: string;
+  publicationYear?: number;
+  publisher?: string;
+  format?: string;
+  condition?: string;
+  purchasePrice?: number;
+  estimatedValue?: number;
+  tags?: string[];
+  notes?: string;
+}): Promise<ComicValuationResult> {
+  const response = await request('/api/valuation/lookup', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = (await response.json()) as { valuation: ComicValuationResult };
+  return data.valuation;
+}
+
+/**
+ * Refreshes and persists the market value for a single comic in PostgreSQL.
+ */
+export async function refreshSingleComicValuation(
+  comicId: string,
+  force = false
+): Promise<{ valuation: ComicValuationResult; comic: ComicBook }> {
+  const response = await request(`/api/valuation/comics/${encodeURIComponent(comicId)}/refresh`, {
+    method: 'POST',
+    body: JSON.stringify({ force }),
+  });
+  return response.json();
+}
+
+/**
+ * Reads the current batch valuation queue status, scheduler settings, and coverage stats.
+ */
+export async function fetchValuationStatus(): Promise<BatchValuationStatus> {
+  const response = await request('/api/valuation/status');
+  return response.json();
+}
+
+/**
+ * Starts a rolling background batch valuation update.
+ */
+export async function startValuationBatch(options?: {
+  scope?: ValuationScope;
+  limit?: number;
+  stepDelayMs?: number;
+}): Promise<BatchValuationStatus> {
+  const response = await request('/api/valuation/batch/start', {
+    method: 'POST',
+    body: JSON.stringify(options || {}),
+  });
+  return response.json();
+}
+
+/**
+ * Stops an active rolling background batch valuation update.
+ */
+export async function stopValuationBatch(): Promise<BatchValuationStatus> {
+  const response = await request('/api/valuation/batch/stop', {
+    method: 'POST',
+  });
+  return response.json();
+}
+
+/**
+ * Updates periodic background valuation scheduler configuration.
+ */
+export async function updateValuationScheduler(settings: {
+  schedulerEnabled?: boolean;
+  staleThresholdDays?: number;
+  dailyBatchLimit?: number;
+}): Promise<BatchValuationStatus> {
+  const response = await request('/api/valuation/scheduler', {
+    method: 'POST',
+    body: JSON.stringify(settings),
+  });
   return response.json();
 }

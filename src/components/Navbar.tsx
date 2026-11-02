@@ -19,6 +19,7 @@ import {
   MoreVertical,
   RefreshCw,
   WifiOff,
+  TrendingUp,
   X
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ interface NavbarProps {
   onOpenAddModal: () => void;
   onOpenScanModal: () => void;
   onOpenDriveModal: () => void;
+  onOpenValuationModal?: () => void;
   onOpenDataManagementModal?: () => void;
   totalComicsCount: number;
   totalThicknessUnits?: number;
@@ -55,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAddModal,
   onOpenScanModal,
   onOpenDriveModal,
+  onOpenValuationModal,
   onOpenDataManagementModal,
   totalComicsCount,
   totalThicknessUnits,
@@ -194,6 +197,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Market Values Updater */}
+            {onOpenValuationModal && (
+              <button
+                onClick={onOpenValuationModal}
+                className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Update Estimated Market Values & Configure Periodic Price Refreshes"
+                aria-label="Market Values"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden xl:inline">Market Values</span>
+              </button>
+            )}
+
             {/* Drive Covers */}
             <button
               onClick={onOpenDriveModal}
@@ -287,6 +303,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => setIsMobileMenuOpen(false)}
                     />
                     <div className="absolute right-0 mt-1.5 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                      {onOpenValuationModal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onOpenValuationModal();
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-left transition-colors cursor-pointer"
+                        >
+                          <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                          <span>Market Values</span>
+                        </button>
+                      )}
                       {onOpenDataManagementModal && (
                         <button
                           type="button"
