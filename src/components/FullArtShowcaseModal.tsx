@@ -441,7 +441,7 @@ export const FullArtShowcaseModal: React.FC<FullArtShowcaseModalProps> = ({
                 </span>
                 {fullArtComics.length > 1 && (
                   <span className="text-[10px] text-slate-400 font-medium">
-                    Issue {currentIndex + 1} of {fullArtComics.length} in Vault
+                    Issue {currentIndex + 1} of {fullArtComics.length} in Archive
                   </span>
                 )}
               </div>

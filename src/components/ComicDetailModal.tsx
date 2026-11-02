@@ -1397,7 +1397,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (confirm(`Remove "${comic.title} #${comic.issueNumber}" from vault?`)) {
+              if (confirm(`Remove "${comic.title} #${comic.issueNumber}" from archive?`)) {
                 onDeleteComic(comic.id);
                 onClose();
               }

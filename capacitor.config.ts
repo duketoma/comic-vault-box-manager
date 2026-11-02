@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.comicvault.boxmanager',
-  appName: 'Comic Vault',
+  appName: 'Comic Archive Pro',
   webDir: 'dist',
   server: {
     androidScheme: 'http',

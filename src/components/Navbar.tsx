@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ComicArchiveProLogo } from './ComicArchiveProLogo';
 import { 
   BookOpen, 
   Boxes, 
@@ -99,9 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Logo & Branding */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-slate-900 dark:bg-indigo-600 flex items-center justify-center text-white font-black text-sm sm:text-base tracking-wider shadow-sm transition-colors shrink-0">
-              CV
-            </div>
+            <ComicArchiveProLogo className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 shadow-sm" />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-none tracking-tight truncate">

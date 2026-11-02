@@ -310,7 +310,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
               <PlusCircle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Add New Comic to Vault</h3>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Add New Comic to Archive</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Perspective crop cover & local OCR or fill manual catalog fields</p>
             </div>
           </div>
@@ -447,7 +447,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
-                        <strong>{duplicateMatch.title} #{duplicateMatch.issueNumber}</strong> ({duplicateMatch.publisher}) already exists in your vault.
+                        <strong>{duplicateMatch.title} #{duplicateMatch.issueNumber}</strong> ({duplicateMatch.publisher}) already exists in your archive.
                       </p>
                     </div>
                   </div>

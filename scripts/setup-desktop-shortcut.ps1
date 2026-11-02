@@ -72,11 +72,11 @@ $HandlePath = New-RoundedRectPath 98 118 60 18 9
 $HandleBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 15, 23, 42))
 $G.FillPath($HandleBrush, $HandlePath)
 
-$Font = New-Object System.Drawing.Font("Segoe UI", 34, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
 $TextFormat = New-Object System.Drawing.StringFormat
 $TextFormat.Alignment = [System.Drawing.StringAlignment]::Center
 $TextFormat.LineAlignment = [System.Drawing.StringAlignment]::Center
-$G.DrawString("VAULT", $Font, $HandleBrush, (New-Object System.Drawing.RectangleF(48, 144, 160, 56)), $TextFormat)
+$G.DrawString("ARCHIVE", $Font, $HandleBrush, (New-Object System.Drawing.RectangleF(48, 144, 160, 56)), $TextFormat)
 
 # Encode 256x256 PNG into valid Windows .ICO container
 $PngStream = New-Object System.IO.MemoryStream
@@ -112,8 +112,8 @@ $WshShell = New-Object -ComObject WScript.Shell
 $VbsLauncher = Join-Path $ProjectRoot "Launch Comic Vault.vbs"
 
 $ShortcutLocations = @(
-    (Join-Path ([Environment]::GetFolderPath('Desktop')) "Comic Vault Box Manager.lnk"),
-    (Join-Path ([Environment]::GetFolderPath('Programs')) "Comic Vault Box Manager.lnk")
+    (Join-Path ([Environment]::GetFolderPath('Desktop')) "Comic Archive Pro.lnk"),
+    (Join-Path ([Environment]::GetFolderPath('Programs')) "Comic Archive Pro.lnk")
 )
 
 foreach ($ShortcutPath in $ShortcutLocations) {
@@ -122,7 +122,7 @@ foreach ($ShortcutPath in $ShortcutLocations) {
     $Shortcut.Arguments = "`"$VbsLauncher`""
     $Shortcut.WorkingDirectory = $ProjectRoot
     $Shortcut.IconLocation = "$IconPath,0"
-    $Shortcut.Description = "Launch Comic Vault Box Manager"
+    $Shortcut.Description = "Launch Comic Archive Pro"
     $Shortcut.WindowStyle = 1
     $Shortcut.Save()
     Write-Output "Created shortcut: $ShortcutPath"

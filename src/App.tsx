@@ -1003,7 +1003,7 @@ export default function App() {
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500 dark:text-slate-400 transition-colors">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
-            <strong className="text-slate-800 dark:text-slate-200">Comic Archive Pro</strong> • 15 Storage Box & Reading Manager
+            <strong className="text-slate-800 dark:text-slate-200">Comic Archive Pro</strong> • {boxes.length} Storage Box & Reading Manager
           </div>
           <div className="text-slate-400 dark:text-slate-500">
             Perspective Cover Scanner, Local OCR & Google Drive Integration

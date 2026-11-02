@@ -37,8 +37,8 @@ if (-not $ServerReady) {
     if (-not $NodeExe) {
         Add-Type -AssemblyName System.Windows.Forms
         [System.Windows.Forms.MessageBox]::Show(
-            "Node.js was not found in your PATH. Please install Node.js to run Comic Vault Box Manager.",
-            "Comic Vault Box Manager",
+            "Node.js was not found in your PATH. Please install Node.js to run Comic Archive Pro.",
+            "Comic Archive Pro",
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Error
         ) | Out-Null

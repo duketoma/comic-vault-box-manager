@@ -585,7 +585,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
               <div className="max-w-md mx-auto space-y-1">
                 <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Connect Google Drive Account</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Allow your comic vault to read your Google Drive <strong>"Comic Covers"</strong> folder to fetch scanned covers and <strong>NoImage.webp</strong>.
+                  Allow Comic Archive Pro to read your Google Drive <strong>"Comic Covers"</strong> folder to fetch scanned covers and <strong>NoImage.webp</strong>.
                 </p>
               </div>
 
@@ -743,7 +743,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                           onClick={handleApplyNoImageToAllUnscanned}
                           className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-bold rounded-lg text-[10px] shadow-xs cursor-pointer"
                         >
-                          Apply to Unscanned Vault Items
+                          Apply to Unscanned Archive Items
                         </button>
                       </div>
                     </div>
@@ -1070,7 +1070,7 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
                               ) : isLinked ? (
                                 <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 py-0.5">
                                   <Check className="w-3 h-3" />
-                                  <span>{isFull ? 'Linked as Full Art' : 'Linked to Vault'}</span>
+                                  <span>{isFull ? 'Linked as Full Art' : 'Linked to Archive'}</span>
                                 </div>
                               ) : (
                                 <div className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-0.5">

@@ -175,7 +175,7 @@ export function createProceduralCoverTexture(comic: Partial<ComicBook>): THREE.C
   const pub = (comic.publisher || '').toLowerCase();
   let primaryColor = '#1e293b';
   let accentColor = '#3b82f6';
-  let bannerText = comic.publisher || 'COMIC VAULT';
+  let bannerText = comic.publisher || 'COMIC ARCHIVE PRO';
 
   if (pub.includes('marvel')) {
     primaryColor = '#7f1d1d'; // Deep Marvel red
