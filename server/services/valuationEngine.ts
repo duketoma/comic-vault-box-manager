@@ -41,6 +41,8 @@ interface RawMarketQuote {
   source: 'PriceCharting' | 'eBay Market';
   sourceUrl: string;
   baseNearMintValue: number;
+  ungradedValue?: number;
+  gradeTable?: Record<string, number>;
   graded80Value?: number;
   graded92Value?: number;
   graded98Value?: number;
@@ -123,6 +125,69 @@ function escapeRegExp(str: string): string {
 }
 
 /**
+ * Parses a PriceCharting comic product page HTML into a RawMarketQuote with complete grade tiers.
+ */
+function parsePriceChartingProductPage(html: string, url: string): RawMarketQuote | null {
+  const pageTitleMatch = html.match(/<h1[^>]*id="product_name"[^>]*>([\s\S]*?)<\/h1>/i);
+  const matchedTitle = pageTitleMatch
+    ? pageTitleMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    : 'Comic Book';
+
+  const usedMatch = html.match(/id="used_price"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+  const cibMatch = html.match(/id="complete_price"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+  const newMatch = html.match(/id="new_price"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+  const gradedMatch = html.match(/id="graded_price"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+  const boxMatch = html.match(/id="box_only_price"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+  const manualMatch = html.match(/id="manual_only_price"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+
+  const ungraded = usedMatch ? parseDollarString(usedMatch[1]) : 0;
+  const vg = cibMatch ? parseDollarString(cibMatch[1]) : 0;
+  const fine = newMatch ? parseDollarString(newMatch[1]) : 0;
+  const vf = gradedMatch ? parseDollarString(gradedMatch[1]) : 0;
+  const nm = boxMatch ? parseDollarString(boxMatch[1]) : 0;
+  const mint98 = manualMatch ? parseDollarString(manualMatch[1]) : 0;
+
+  const gradeTable: Record<string, number> = {};
+  if (ungraded > 0) gradeTable['Ungraded'] = ungraded;
+  if (vg > 0) gradeTable['4.0'] = vg;
+  if (fine > 0) gradeTable['6.0'] = fine;
+  if (vf > 0) gradeTable['8.0'] = vf;
+  if (nm > 0) gradeTable['9.2'] = nm;
+  if (mint98 > 0) gradeTable['9.8'] = mint98;
+
+  const tableRegex = /<table>\s*(<tr>\s*<td>(?:Ungraded|\d+(?:\.\d+)?)\s*<\/td>[\s\S]*?)<\/table>/i;
+  const tableMatch = html.match(tableRegex);
+  if (tableMatch) {
+    const rowMatches = tableMatch[1].matchAll(/<tr>\s*<td>([^<]+)<\/td>\s*<td[^>]*>\s*\$([0-9,.]+)\s*<\/td>/gi);
+    for (const rm of rowMatches) {
+      const gradeLabel = rm[1].trim();
+      const val = parseDollarString(rm[2]);
+      if (val > 0) {
+        gradeTable[gradeLabel] = val;
+      }
+    }
+  }
+
+  // Base Near Mint value: PriceCharting maps NM- / Near Mint baseline to 9.2 (or box_only_price)
+  const baseNearMintValue = gradeTable['9.2'] || nm || gradeTable['9.4'] || ungraded;
+  if (baseNearMintValue <= 0) return null;
+
+  return {
+    matchedTitle,
+    source: 'PriceCharting',
+    sourceUrl: url,
+    baseNearMintValue,
+    ungradedValue: ungraded || baseNearMintValue,
+    gradeTable,
+    graded80Value: gradeTable['8.0'] || vf || Number((baseNearMintValue * 0.75).toFixed(2)),
+    graded92Value: gradeTable['9.2'] || nm || baseNearMintValue,
+    graded98Value: gradeTable['9.8'] || mint98 || Number((baseNearMintValue * 3.5).toFixed(2)),
+    confidence: 'high',
+    fetchedAt: Date.now(),
+  };
+}
+
+/**
  * Primary Free Source: PriceCharting Public Comic Book Guide
  */
 async function lookupPriceCharting(
@@ -150,40 +215,36 @@ async function lookupPriceCharting(
     const finalUrl = response.url || searchUrl;
 
     // Case 1: PriceCharting redirected directly to a single comic product page
-    if (finalUrl.includes('/game/comic-books-')) {
-      const pageTitleMatch = html.match(/<h1[^>]*id="product_name"[^>]*>([\s\S]*?)<\/h1>/i);
-      const matchedTitle = pageTitleMatch
-        ? pageTitleMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-        : `${cleanTitle} #${cleanIssue}`;
-
-      const ungradedMatch = html.match(/id="used_price"[^>]*>[\s\S]*?<span class="price[^"]*">\s*(\$[0-9,.]+)/i);
-      const graded80Match = html.match(/id="complete_price"[^>]*>[\s\S]*?<span class="price[^"]*">\s*(\$[0-9,.]+)/i);
-      const graded94Match = html.match(/id="new_price"[^>]*>[\s\S]*?<span class="price[^"]*">\s*(\$[0-9,.]+)/i);
-      const graded98Match = html.match(/id="graded_price"[^>]*>[\s\S]*?<span class="price[^"]*">\s*(\$[0-9,.]+)/i);
-
-      const baseNearMintValue = ungradedMatch ? parseDollarString(ungradedMatch[1]) : 0;
-      if (baseNearMintValue > 0) {
-        return {
-          matchedTitle,
-          source: 'PriceCharting',
-          sourceUrl: finalUrl,
-          baseNearMintValue,
-          graded80Value: graded80Match ? parseDollarString(graded80Match[1]) : undefined,
-          graded92Value: graded94Match ? parseDollarString(graded94Match[1]) : undefined,
-          graded98Value: graded98Match ? parseDollarString(graded98Match[1]) : undefined,
-          confidence: 'high',
-          fetchedAt: Date.now(),
-        };
+    if (finalUrl.includes('/game/comic-books-') || finalUrl.includes('/game/')) {
+      const directQuote = parsePriceChartingProductPage(html, finalUrl);
+      if (directQuote) {
+        return directQuote;
       }
     }
 
     // Case 2: Search results table with <tr id="product-..."> rows
     const rowRegex = /<tr[^>]*id="product-\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
     const issuePattern = new RegExp(`(?:#|\\bissue\\s*)0*${escapeRegExp(cleanIssue)}(?!\\d)`, 'i');
+    const STOP_WORDS = new Set([
+      'the',
+      'and',
+      'for',
+      'comic',
+      'comics',
+      'book',
+      'books',
+      'issue',
+      'title',
+      'series',
+      'vol',
+      'volume',
+      'with',
+      'from',
+    ]);
     const titleWords = cleanTitle
       .toLowerCase()
       .split(/[^a-z0-9]+/)
-      .filter((w) => w.length > 2 && w !== 'the' && w !== 'and');
+      .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
 
     let bestCandidate: {
       score: number;
@@ -211,18 +272,22 @@ async function lookupPriceCharting(
 
       if (!issuePattern.test(rowTitle)) continue;
 
-      const usedMatch = rowHtml.match(/<td class="price numeric used_price"[^>]*>\s*(\$[0-9,.]+)/i);
-      const cibMatch = rowHtml.match(/<td class="price numeric cib_price"[^>]*>\s*(\$[0-9,.]+)/i);
-      const newMatch = rowHtml.match(/<td class="price numeric new_price"[^>]*>\s*(\$[0-9,.]+)/i);
+      const usedMatch = rowHtml.match(/class="[^"]*used_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+      const cibMatch = rowHtml.match(/class="[^"]*cib_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+      const newMatch = rowHtml.match(/class="[^"]*new_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
 
       const ungraded = usedMatch ? parseDollarString(usedMatch[1]) : 0;
       if (ungraded <= 0) continue;
 
-      let score = 10;
+      let wordMatches = 0;
       const lowerRowTitle = rowTitle.toLowerCase();
       for (const word of titleWords) {
-        if (lowerRowTitle.includes(word)) score += 5;
+        if (lowerRowTitle.includes(word)) wordMatches++;
       }
+      const requiredMatches = titleWords.length >= 2 ? Math.ceil(titleWords.length * 0.5) : titleWords.length;
+      if (wordMatches < requiredMatches) continue;
+
+      let score = 10 + wordMatches * 6;
       if (year && rowHtml.includes(String(year))) {
         score += 8;
       }
@@ -246,7 +311,28 @@ async function lookupPriceCharting(
       }
     }
 
-    if (bestCandidate && bestCandidate.ungraded > 0) {
+    if (bestCandidate && bestCandidate.productUrl) {
+      // Fetch the product page to get the exact Near Mint price and full grade table
+      try {
+        const prodController = new AbortController();
+        const prodTimeout = setTimeout(() => prodController.abort(), 5000);
+        const prodResponse = await fetch(bestCandidate.productUrl, {
+          headers: BROWSER_HEADERS,
+          signal: prodController.signal,
+        });
+        clearTimeout(prodTimeout);
+        if (prodResponse.ok) {
+          const prodHtml = await prodResponse.text();
+          const parsedQuote = parsePriceChartingProductPage(prodHtml, bestCandidate.productUrl);
+          if (parsedQuote) {
+            parsedQuote.confidence = bestCandidate.score >= 20 ? 'high' : 'medium';
+            return parsedQuote;
+          }
+        }
+      } catch {
+        // Fall back gracefully to candidate search summary
+      }
+
       return {
         matchedTitle: bestCandidate.matchedTitle,
         source: 'PriceCharting',
@@ -439,6 +525,13 @@ function buildEraGuideFallbackQuote(
 }
 
 /**
+ * Clears the in-memory quote cache (useful for testing or forced collection refresh).
+ */
+export function clearQuoteCache(): void {
+  quoteCache.clear();
+}
+
+/**
  * Applies the Condition Multiplier Curve (or Graded Slab Tier) to a RawMarketQuote.
  */
 export function calculateConditionAdjustedValuation(
@@ -457,21 +550,33 @@ export function calculateConditionAdjustedValuation(
   let gradedValue: number | undefined;
 
   if (isGraded) {
-    if (
-      (numericGrade && numericGrade >= 9.6) ||
-      condition === 'Gem Mint' ||
-      condition === 'Mint'
-    ) {
-      gradedValue = quote.graded98Value || Number((quote.baseNearMintValue * 3.5).toFixed(2));
-    } else if (
-      (numericGrade && numericGrade >= 9.0) ||
-      condition === 'Near Mint'
-    ) {
-      gradedValue = quote.graded92Value || Number((quote.baseNearMintValue * 2.3).toFixed(2));
-    } else {
-      gradedValue =
-        quote.graded80Value ||
-        Number((quote.baseNearMintValue * Math.max(conditionMultiplier * 1.85, 1.1)).toFixed(2));
+    if (numericGrade && quote.gradeTable) {
+      const exactKey = numericGrade.toFixed(1);
+      const intKey = String(Math.round(numericGrade));
+      if (quote.gradeTable[exactKey] && quote.gradeTable[exactKey] > 0) {
+        gradedValue = quote.gradeTable[exactKey];
+      } else if (quote.gradeTable[intKey] && quote.gradeTable[intKey] > 0) {
+        gradedValue = quote.gradeTable[intKey];
+      }
+    }
+
+    if (!gradedValue) {
+      if (
+        (numericGrade && numericGrade >= 9.6) ||
+        condition === 'Gem Mint' ||
+        condition === 'Mint'
+      ) {
+        gradedValue = quote.graded98Value || Number((quote.baseNearMintValue * 3.5).toFixed(2));
+      } else if (
+        (numericGrade && numericGrade >= 9.0) ||
+        condition === 'Near Mint'
+      ) {
+        gradedValue = quote.graded92Value || Number((quote.baseNearMintValue * 2.3).toFixed(2));
+      } else {
+        gradedValue =
+          quote.graded80Value ||
+          Number((quote.baseNearMintValue * Math.max(conditionMultiplier * 1.85, 1.1)).toFixed(2));
+      }
     }
     finalValue = gradedValue;
   }
@@ -496,19 +601,22 @@ export function calculateConditionAdjustedValuation(
 
 /**
  * Main Multi-Source Free Cascade Lookup:
- * 1. Checks 6-hour in-memory quote cache
+ * 1. Checks 6-hour in-memory quote cache (unless bypassCache is set)
  * 2. Queries PriceCharting public comic book guide
  * 3. Falls back to eBay Comics (#259104) sold/completed market comps
  * 4. Falls back to Era/Format Guide baseline so batch jobs never hard-fail offline
  */
 export async function lookupComicMarketValue(
-  input: ComicValuationInput
+  input: ComicValuationInput,
+  options?: { bypassCache?: boolean }
 ): Promise<ComicValuationResult> {
   const { cleanTitle, cleanIssue, year, cacheKey } = normalizeComicSearchParts(input);
 
-  const cached = quoteCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < QUOTE_CACHE_TTL_MS) {
-    return calculateConditionAdjustedValuation(input, cached);
+  if (!options?.bypassCache) {
+    const cached = quoteCache.get(cacheKey);
+    if (cached && Date.now() - cached.fetchedAt < QUOTE_CACHE_TTL_MS) {
+      return calculateConditionAdjustedValuation(input, cached);
+    }
   }
 
   let quote = await lookupPriceCharting(cleanTitle, cleanIssue, year);
@@ -519,7 +627,13 @@ export async function lookupComicMarketValue(
     quote = buildEraGuideFallbackQuote(input, cleanTitle, cleanIssue, year);
   }
 
-  quoteCache.set(cacheKey, quote);
+  // Only cache high- or medium-confidence real quotes; never cache low-confidence fallback guesses
+  if (quote.confidence !== 'low') {
+    quoteCache.set(cacheKey, quote);
+  } else {
+    quoteCache.delete(cacheKey);
+  }
+
   return calculateConditionAdjustedValuation(input, quote);
 }
 

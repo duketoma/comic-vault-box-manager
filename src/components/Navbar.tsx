@@ -20,6 +20,7 @@ import {
   RefreshCw,
   WifiOff,
   TrendingUp,
+  Palette,
   X
 } from 'lucide-react';
 
@@ -34,6 +35,7 @@ interface NavbarProps {
   onOpenScanModal: () => void;
   onOpenDriveModal: () => void;
   onOpenValuationModal?: () => void;
+  onOpenStyleStudioModal?: () => void;
   onOpenDataManagementModal?: () => void;
   totalComicsCount: number;
   totalThicknessUnits?: number;
@@ -58,6 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenScanModal,
   onOpenDriveModal,
   onOpenValuationModal,
+  onOpenStyleStudioModal,
   onOpenDataManagementModal,
   totalComicsCount,
   totalThicknessUnits,
@@ -102,11 +105,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
           
           {/* Logo & Branding */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <ComicArchiveProLogo className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 shadow-sm" />
-            <div className="min-w-0">
+            <div className="shrink-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-none tracking-tight truncate">
+                <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-none tracking-tight whitespace-nowrap">
                   Comic Archive Pro
                 </h1>
                 <button
@@ -154,14 +157,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
               </div>
-              <p className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium truncate">
+              <p className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium whitespace-nowrap">
                 Configurable Storage Box & Collection Manager
               </p>
             </div>
           </div>
 
           {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-md mx-4">
+          <div className="hidden md:flex flex-1 max-w-xl mx-2 lg:mx-4">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
               <input
@@ -201,52 +204,65 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenValuationModal && (
               <button
                 onClick={onOpenValuationModal}
-                className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                className="flex items-center justify-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Update Estimated Market Values & Configure Periodic Price Refreshes"
                 aria-label="Market Values"
               >
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden xl:inline">Market Values</span>
+                <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="sr-only">Market Values</span>
               </button>
             )}
 
             {/* Drive Covers */}
             <button
               onClick={onOpenDriveModal}
-              className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center justify-center p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
               title="Sync Google Drive Comic Covers folder & NoImage.webp"
               aria-label="Drive Covers"
             >
-              <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="hidden xl:inline">Drive Covers</span>
+              <Cloud className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="sr-only">Drive Covers</span>
             </button>
 
             {/* Cover Scanner & Cropper */}
             <button
               onClick={onOpenScanModal}
-              className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 xl:px-3 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center justify-center p-2 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
               title="Scan & Perspective-Crop Comic Cover with Local OCR"
               aria-label="Cover Scanner"
             >
-              <Camera className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">Cover Scanner</span>
+              <Camera className="w-4 h-4" />
+              <span className="sr-only">Cover Scanner</span>
             </button>
 
             {/* Add Comic */}
             <button
               onClick={onOpenAddModal}
-              className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 lg:px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center justify-center p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
               title="Add New Comic Manually"
               aria-label="Add Comic"
             >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Add Comic</span>
+              <PlusCircle className="w-4 h-4" />
+              <span className="sr-only">Add Comic</span>
             </button>
+
+            {/* Style & FX Studio Button */}
+            {onOpenStyleStudioModal && (
+              <button
+                onClick={onOpenStyleStudioModal}
+                className="flex items-center justify-center p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-800 dark:text-purple-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Open Comic Style & Motion FX Studio (Swap UI Themes, 3D Tilt & Holofoil Shaders)"
+                aria-label="Style Studio"
+              >
+                <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="sr-only">Style Studio</span>
+              </button>
+            )}
 
             {/* Theme Toggle Button */}
             <button
               onClick={onToggleDarkMode}
-              className="p-2 sm:p-1.5 xl:px-2.5 xl:py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-xs transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
               title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label="Toggle dark mode"
             >
@@ -255,7 +271,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               ) : (
                 <Moon className="w-4 h-4 text-slate-700" />
               )}
-              <span className="hidden xl:inline text-xs">
+              <span className="sr-only">
                 {darkMode ? 'Light' : 'Dark'}
               </span>
             </button>
@@ -264,11 +280,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenDataManagementModal && (
               <button
                 onClick={onOpenDataManagementModal}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                className="hidden md:flex items-center justify-center p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Manage collection data, remove double-imports, or clear data"
+                aria-label="Manage Data"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                <span className="hidden xl:inline">Manage Data</span>
+                <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span className="sr-only">Manage Data</span>
               </button>
             )}
 
@@ -276,11 +293,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenServerSettings && (
               <button
                 onClick={onOpenServerSettings}
-                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                className="hidden lg:flex items-center justify-center p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Configure Backend Server Host (WiFi / Cloud)"
+                aria-label="Server Settings"
               >
-                <Server className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span className="hidden xl:inline">Server</span>
+                <Server className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="sr-only">Server Settings</span>
               </button>
             )}
 
@@ -303,6 +321,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => setIsMobileMenuOpen(false)}
                     />
                     <div className="absolute right-0 mt-1.5 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                      {onOpenStyleStudioModal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onOpenStyleStudioModal();
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 text-left transition-colors cursor-pointer"
+                        >
+                          <Palette className="w-3.5 h-3.5 shrink-0" />
+                          <span>Style Studio</span>
+                        </button>
+                      )}
                       {onOpenValuationModal && (
                         <button
                           type="button"

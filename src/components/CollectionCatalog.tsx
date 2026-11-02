@@ -53,6 +53,12 @@ import {
   ArrowDown,
   RotateCcw
 } from 'lucide-react';
+import {
+  DEFAULT_UI_STYLE_PREFS,
+  getSlabNumericGradeLabel,
+  isComicHolofoilEligible,
+  UiStylePreferences,
+} from '../utils/uiThemeConfig';
 
 export const CHUNK_SIZE_GRID = 48;
 export const CHUNK_SIZE_TABLE = 50;
@@ -144,6 +150,7 @@ export interface CollectionCatalogProps {
   isLoading?: boolean;
   filters?: CatalogFilters;
   onUpdateFilters?: React.Dispatch<React.SetStateAction<CatalogFilters>>;
+  uiStylePrefs?: UiStylePreferences;
 }
 
 interface CatalogMetadataCache {
@@ -210,6 +217,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   isLoading = false,
   filters,
   onUpdateFilters,
+  uiStylePrefs = DEFAULT_UI_STYLE_PREFS,
 }) => {
   const MAX_PUBLISH_YEAR = MAX_CATALOG_PUBLISH_YEAR;
   const [internalFilters, setInternalFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
@@ -1405,12 +1413,66 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {visibleComics.map((comic) => {
             const box = boxes.find(b => b.id === comic.currentBoxId);
+            const showHolofoil = isComicHolofoilEligible(comic, uiStylePrefs.holofoilMode);
+            const slabGrade =
+              uiStylePrefs.skin === 'slab'
+                ? getSlabNumericGradeLabel(comic.condition, comic.tags, comic.notes)
+                : null;
+
             return (
               <div
                 key={comic.id}
+                data-testid="comic-card"
                 onClick={() => onSelectComic(comic)}
-                className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-400 dark:hover:border-slate-700 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                onPointerMove={
+                  uiStylePrefs.enable3DTilt
+                    ? (e) => {
+                        const el = e.currentTarget;
+                        const rect = el.getBoundingClientRect();
+                        const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                        const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                        el.setAttribute('data-tilting', 'true');
+                        el.style.setProperty('--rx', `${((0.5 - py) * 14).toFixed(2)}deg`);
+                        el.style.setProperty('--ry', `${((px - 0.5) * 14).toFixed(2)}deg`);
+                        el.style.setProperty('--glare-x', `${Math.round(px * 100)}%`);
+                        el.style.setProperty('--glare-y', `${Math.round(py * 100)}%`);
+                      }
+                    : undefined
+                }
+                onPointerLeave={
+                  uiStylePrefs.enable3DTilt
+                    ? (e) => {
+                        const el = e.currentTarget;
+                        el.removeAttribute('data-tilting');
+                        el.style.removeProperty('--rx');
+                        el.style.removeProperty('--ry');
+                        el.style.removeProperty('--glare-x');
+                        el.style.removeProperty('--glare-y');
+                      }
+                    : undefined
+                }
+                className="comic-tilt-wrapper comic-card-theme group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-400 dark:hover:border-slate-700 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
               >
+                {/* Graded Slab Museum Case Header */}
+                {slabGrade && (
+                  <div
+                    data-testid="catalog-slab-header"
+                    className="mb-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-amber-400/60 shadow-xs flex items-center justify-between gap-1.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[8px] uppercase tracking-widest text-amber-300 font-extrabold truncate">
+                        {comic.publisher || 'Publisher'} • {comic.publicationYear || 'Year'}
+                      </div>
+                      <div className="text-[10px] font-black truncate">
+                        #{comic.issueNumber || '1'} • {comic.condition || 'Near Mint'}
+                      </div>
+                    </div>
+                    <div className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px] shrink-0 shadow-xs">
+                      {slabGrade.grade} {slabGrade.code}
+                    </div>
+                  </div>
+                )}
+
                 {/* Cover Image Container */}
                 <div className="relative aspect-[2/3] bg-slate-100 dark:bg-slate-800 overflow-hidden border-b border-slate-100 dark:border-slate-800">
                   <img
@@ -1422,8 +1484,12 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                     loading="lazy"
                   />
 
+                  {/* Mylar Bag Glare & Chromium Holofoil Shimmer Overlays */}
+                  {uiStylePrefs.enable3DTilt && <div className="comic-mylar-glare" />}
+                  {showHolofoil && <div className="comic-holofoil-overlay" />}
+
                   {/* Equivalent Size Thickness Badge */}
-                  <div className="absolute top-2 left-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                  <div className="comic-caption-badge absolute top-2 left-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
                     <Layers className="w-3 h-3 text-slate-600 dark:text-slate-400" />
                     <span>{comic.sizeThickness.toFixed(1)}x Size</span>
                   </div>
@@ -1445,7 +1511,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   )}
 
                   {/* Top-Right Badge: Wishlist or Box Location */}
-                  <div className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 ${
+                  <div className={`comic-caption-badge absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 ${
                     comic.readingStatus === 'Wishlist'
                       ? 'bg-rose-900 text-white'
                       : comic.currentBoxId === 0

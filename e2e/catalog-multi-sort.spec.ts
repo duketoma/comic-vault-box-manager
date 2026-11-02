@@ -206,6 +206,8 @@ test.describe('Catalog View Multi-Sort and Annuals Separation', () => {
     // Filter to Fantastic Four to verify Annuals separation within a series
     const searchInput = page.getByPlaceholder(/Search title, writer/i);
     await searchInput.fill('Fantastic Four');
+    await searchInput.press('Enter');
+    await expect(page.getByText('Showing 5 of 5')).toBeVisible();
 
     // Collect all card elements in order
     const cardLocators = page.locator('div.group.bg-white');

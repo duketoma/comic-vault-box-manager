@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ComicBook, ReadingStatus, StorageBox, SeriesIssueTotal } from './types';
 import { DEFAULT_BOXES, INITIAL_COMICS, isSampleComicId } from './data/initialData';
 import { Navbar } from './components/Navbar';
@@ -16,6 +17,17 @@ import { GenerateSeriesWishlistModal } from './components/GenerateSeriesWishlist
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ServerSettingsModal } from './components/ServerSettingsModal';
 import { ValuationManagerModal } from './components/ValuationManagerModal';
+import { StyleStudioModal } from './components/StyleStudioModal';
+import {
+  ComicActionBurstItem,
+  ComicActionBurstOverlay,
+} from './components/ComicActionBurstOverlay';
+import {
+  applyUiStyleToDocument,
+  loadUiStylePreferences,
+  saveUiStylePreferences,
+  UiStylePreferences,
+} from './utils/uiThemeConfig';
 import { ReadingChallengeView } from './components/reading-challenge/ReadingChallengeView';
 import {
   deleteLocalBoxAndEnqueue,
@@ -101,6 +113,30 @@ export default function App() {
   }, [darkMode]);
 
   const handleToggleDarkMode = () => setDarkMode((prev) => !prev);
+
+  // UI Theme Skin & Motion FX Preferences
+  const [uiStylePrefs, setUiStylePrefs] = useState<UiStylePreferences>(() =>
+    loadUiStylePreferences()
+  );
+  const [isStyleStudioModalOpen, setIsStyleStudioModalOpen] = useState<boolean>(false);
+  const [actionBursts, setActionBursts] = useState<ComicActionBurstItem[]>([]);
+
+  useEffect(() => {
+    applyUiStyleToDocument(uiStylePrefs);
+    saveUiStylePreferences(uiStylePrefs);
+  }, [uiStylePrefs]);
+
+  const triggerActionBurst = useCallback(
+    (burst: Omit<ComicActionBurstItem, 'id'>, forceShow = false) => {
+      if (!forceShow && !uiStylePrefs.enableActionStamps) return;
+      const id = `burst-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      setActionBursts((prev) => [...prev.slice(-2), { ...burst, id }]);
+      setTimeout(() => {
+        setActionBursts((prev) => prev.filter((b) => b.id !== id));
+      }, 1100);
+    },
+    [uiStylePrefs.enableActionStamps]
+  );
 
   // Local Storage Persistent State
   const [boxes, setBoxes] = useState<StorageBox[]>(() => {
@@ -472,6 +508,13 @@ export default function App() {
       updatedAt: nowIso,
     };
     setComics((prev) => prev.map((c) => (c.id === comicId ? updatedComic : c)));
+    if (newStatus === 'Read' && existing.readingStatus !== 'Read') {
+      triggerActionBurst({
+        text: 'READ! ★',
+        subtext: `${existing.title} #${existing.issueNumber}`,
+        variant: 'read',
+      });
+    }
     saveLocalComicAndEnqueue(updatedComic, existing.readingStatus)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
@@ -505,6 +548,13 @@ export default function App() {
     setComics(updatedList);
 
     if (updatedComicsToPersist.length > 0) {
+      triggerActionBurst({
+        text: 'COLLECTED! 💥',
+        subtext: `${updatedComicsToPersist.length} Wishlist ${
+          updatedComicsToPersist.length === 1 ? 'Issue' : 'Issues'
+        } Bagged`,
+        variant: 'collected',
+      });
       const outbox = await saveLocalComicsBatchAndEnqueue(updatedComicsToPersist, baseStatuses);
       updateOutboxStatus(outbox);
       void triggerSync();
@@ -790,6 +840,7 @@ export default function App() {
         }}
         onOpenDriveModal={() => setIsDriveModalOpen(true)}
         onOpenValuationModal={() => setIsValuationModalOpen(true)}
+        onOpenStyleStudioModal={() => setIsStyleStudioModalOpen(true)}
         onOpenDataManagementModal={() => setIsDataModalOpen(true)}
         totalComicsCount={totalComicsCount}
         totalThicknessUnits={totalThicknessUnits}
@@ -843,94 +894,121 @@ export default function App() {
 
       {/* Main Content View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-6">
-        
-        {activeTab === 'catalog' && (
-          <CollectionCatalog
-            comics={comics}
-            boxes={boxes}
-            searchQuery={searchQuery}
-            onSelectComic={setSelectedComic}
-            onQuickStatusChange={handleQuickStatusChange}
-            seriesTotals={seriesTotals}
-            filters={catalogFilters}
-            onUpdateFilters={setCatalogFilters}
-            selectedSeries={catalogFilters.selectedSeries}
-            onSelectSeries={(series) =>
-              setCatalogFilters((prev) => ({ ...prev, selectedSeries: series }))
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            data-testid="tab-spring-container"
+            data-motion-mode={uiStylePrefs.motionIntensity}
+            initial={
+              uiStylePrefs.motionIntensity === 'off'
+                ? false
+                : uiStylePrefs.motionIntensity === 'full'
+                ? { opacity: 0, y: 32, scale: 0.94, rotate: -0.8 }
+                : { opacity: 0, y: 12, scale: 0.985 }
             }
-            onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
-            isLoading={isLoadingCollection}
-          />
-        )}
+            animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+            exit={
+              uiStylePrefs.motionIntensity === 'off'
+                ? { opacity: 1 }
+                : { opacity: 0, y: -12, scale: 0.985, transition: { duration: 0.1 } }
+            }
+            transition={
+              uiStylePrefs.motionIntensity === 'off'
+                ? { duration: 0 }
+                : uiStylePrefs.motionIntensity === 'full'
+                ? { type: 'spring', stiffness: 320, damping: 18, mass: 0.85 }
+                : { type: 'spring', stiffness: 420, damping: 32, mass: 0.9 }
+            }
+          >
+            {activeTab === 'catalog' && (
+              <CollectionCatalog
+                comics={comics}
+                boxes={boxes}
+                searchQuery={searchQuery}
+                onSelectComic={setSelectedComic}
+                onQuickStatusChange={handleQuickStatusChange}
+                seriesTotals={seriesTotals}
+                filters={catalogFilters}
+                onUpdateFilters={setCatalogFilters}
+                selectedSeries={catalogFilters.selectedSeries}
+                onSelectSeries={(series) =>
+                  setCatalogFilters((prev) => ({ ...prev, selectedSeries: series }))
+                }
+                onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
+                isLoading={isLoadingCollection}
+                uiStylePrefs={uiStylePrefs}
+              />
+            )}
 
-        {activeTab === 'shopping' && (
-          <WishlistShoppingList
-            comics={comics}
-            boxes={boxes}
-            seriesTotals={seriesTotals}
-            onSelectComic={setSelectedComic}
-            onPurchaseComics={handlePurchaseWishlistComics}
-          />
-        )}
+            {activeTab === 'shopping' && (
+              <WishlistShoppingList
+                comics={comics}
+                boxes={boxes}
+                seriesTotals={seriesTotals}
+                onSelectComic={setSelectedComic}
+                onPurchaseComics={handlePurchaseWishlistComics}
+              />
+            )}
 
-        {activeTab === 'boxes' && (
-          <BoxManager
-            boxes={boxes}
-            comics={comics}
-            onUpdateComics={handleUpdateAllComics}
-            onUpdateBoxCapacity={handleUpdateBoxCapacity}
-            onAddBox={handleAddBox}
-            onUpdateBox={handleUpdateBox}
-            onDeleteBox={handleDeleteBox}
-            onSelectComic={setSelectedComic}
-          />
-        )}
+            {activeTab === 'boxes' && (
+              <BoxManager
+                boxes={boxes}
+                comics={comics}
+                onUpdateComics={handleUpdateAllComics}
+                onUpdateBoxCapacity={handleUpdateBoxCapacity}
+                onAddBox={handleAddBox}
+                onUpdateBox={handleUpdateBox}
+                onDeleteBox={handleDeleteBox}
+                onSelectComic={setSelectedComic}
+              />
+            )}
 
-        {activeTab === 'challenge' && (
-          <ReadingChallengeView
-            comics={inCollectionComics}
-            boxes={boxes}
-            onSelectComic={setSelectedComic}
-            onRefreshCollection={handleRefreshCollection}
-            initialCriterion={challengePrefillCriterion}
-            onClearInitialCriterion={() => {
-              setChallengePrefillCriterion(null);
-              setChallengePrefillEvent(null);
-            }}
-            initialEventCriterion={challengePrefillEvent}
-            onClearInitialEventCriterion={() => setChallengePrefillEvent(null)}
-          />
-        )}
+            {activeTab === 'challenge' && (
+              <ReadingChallengeView
+                comics={inCollectionComics}
+                boxes={boxes}
+                onSelectComic={setSelectedComic}
+                onRefreshCollection={handleRefreshCollection}
+                initialCriterion={challengePrefillCriterion}
+                onClearInitialCriterion={() => {
+                  setChallengePrefillCriterion(null);
+                  setChallengePrefillEvent(null);
+                }}
+                initialEventCriterion={challengePrefillEvent}
+                onClearInitialEventCriterion={() => setChallengePrefillEvent(null)}
+              />
+            )}
 
-        {activeTab === 'stats' && (
-          <ReadingStats
-            comics={comics}
-            boxes={boxes}
-            seriesTotals={seriesTotals}
-            onViewSeriesInCatalog={handleViewSeriesInCatalog}
-            onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
-            onStartEventChallenge={handleStartEventChallenge}
-            onStartCreatorChallenge={handleStartCreatorChallenge}
-            onStartCharacterChallenge={handleStartCharacterChallenge}
-            initialSubTab={statsSubTab}
-          />
-        )}
+            {activeTab === 'stats' && (
+              <ReadingStats
+                comics={comics}
+                boxes={boxes}
+                seriesTotals={seriesTotals}
+                onViewSeriesInCatalog={handleViewSeriesInCatalog}
+                onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
+                onStartEventChallenge={handleStartEventChallenge}
+                onStartCreatorChallenge={handleStartCreatorChallenge}
+                onStartCharacterChallenge={handleStartCharacterChallenge}
+                initialSubTab={statsSubTab}
+              />
+            )}
 
-        {activeTab === 'sheets' && (
-          <GoogleSheetsImporter 
-            boxes={boxes} 
-            onImportComics={handleImportComics}
-            onRefreshCollection={handleRefreshCollection}
-            onNavigateToTab={(tab) => handleSetActiveTab(tab)}
-            onOpenDataManagementModal={() => setIsDataModalOpen(true)}
-            comicsCount={comics.length}
-          />
-        )}
+            {activeTab === 'sheets' && (
+              <GoogleSheetsImporter 
+                boxes={boxes} 
+                onImportComics={handleImportComics}
+                onRefreshCollection={handleRefreshCollection}
+                onNavigateToTab={(tab) => handleSetActiveTab(tab)}
+                onOpenDataManagementModal={() => setIsDataModalOpen(true)}
+                comicsCount={comics.length}
+              />
+            )}
 
-        {activeTab === 'database' && (
-          <DatabasePlanner comics={comics} boxes={boxes} seriesTotals={seriesTotals} />
-        )}
-
+            {activeTab === 'database' && (
+              <DatabasePlanner comics={comics} boxes={boxes} seriesTotals={seriesTotals} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Modals */}
@@ -988,6 +1066,17 @@ export default function App() {
           setSelectedComic(comic);
         }}
       />
+
+      <StyleStudioModal
+        isOpen={isStyleStudioModalOpen}
+        onClose={() => setIsStyleStudioModalOpen(false)}
+        prefs={uiStylePrefs}
+        onUpdatePrefs={setUiStylePrefs}
+        onTriggerBurst={(burst) => triggerActionBurst(burst, true)}
+        sampleComics={comics}
+      />
+
+      <ComicActionBurstOverlay bursts={actionBursts} />
 
       <DataManagementModal
         isOpen={isDataModalOpen}

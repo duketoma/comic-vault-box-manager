@@ -85,6 +85,8 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     const viewportSize = page.viewportSize();
     expect(viewportSize).not.toBeNull();
     const modal = page.locator('.max-h-\\[92vh\\]');
+    // Wait for entrance spring animation to settle before measuring bounding box
+    await page.waitForTimeout(550);
     const modalBox = await modal.boundingBox();
     expect(modalBox).not.toBeNull();
     if (modalBox && viewportSize) {

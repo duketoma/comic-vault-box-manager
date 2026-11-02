@@ -34,7 +34,8 @@ valuationRouter.post('/api/valuation/lookup', async (req, res) => {
       notes: body.notes ? String(body.notes) : undefined,
     };
 
-    const valuation = await lookupComicMarketValue(input);
+    const bypassCache = Boolean(body.bypassCache || body.forceRefresh);
+    const valuation = await lookupComicMarketValue(input, { bypassCache });
     return res.json({ valuation });
   } catch (error) {
     const detail = databaseErrorMessage(error);
@@ -78,7 +79,7 @@ valuationRouter.post('/api/valuation/comics/:id/refresh', requireDatabase, async
         existingComic.estimatedValue !== undefined ? Number(existingComic.estimatedValue) : undefined,
       tags: Array.isArray(existingComic.tags) ? (existingComic.tags as string[]) : [],
       notes: existingComic.notes ? String(existingComic.notes) : undefined,
-    });
+    }, { bypassCache: true });
 
     const updateRes = await pool!.query(
       `UPDATE comic_books
