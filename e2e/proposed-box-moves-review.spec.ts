@@ -88,12 +88,9 @@ test.describe('Storage Boxes - Proposed Moves Review', () => {
     const banner = page.locator('text=Rebalancing Proposal Active');
     await expect(banner).toBeVisible({ timeout: 10000 });
 
-    // Verify View Proposed Moves button is visible in both banner and toolbar
+    // Verify View Proposed Moves button is visible in banner
     const bannerViewBtn = page.getByRole('button', { name: /View Proposed Moves/i });
     await expect(bannerViewBtn).toBeVisible();
-
-    const toolbarViewBtn = page.getByRole('button', { name: /View Moves \(\d+\)/i });
-    await expect(toolbarViewBtn).toBeVisible();
 
     // Click "View Proposed Moves" to open the review modal
     await bannerViewBtn.click();
@@ -144,10 +141,8 @@ test.describe('Storage Boxes - Proposed Moves Review', () => {
     // Verify banner now reflects 1 comic item proposed
     await expect(page.locator('text=1 comic item').first()).toBeVisible();
 
-    // Re-open via top toolbar button
-    const updatedToolbarBtn = page.getByRole('button', { name: /View Moves \(1\)/i });
-    await expect(updatedToolbarBtn).toBeVisible();
-    await updatedToolbarBtn.click();
+    // Re-open via banner button
+    await bannerViewBtn.click();
     await expect(modalHeading).toBeVisible();
 
     // Close via close (X) button

@@ -97,8 +97,8 @@ test.describe('Negative Comic Issue Numbers Handling (e.g. #-1)', () => {
     await expect(issueInput).toBeVisible();
     await issueInput.fill('-1');
 
-    // Click Save in header
-    const saveBtn = page.getByRole('button', { name: /^Save$/i });
+    // Click Save in modal footer
+    const saveBtn = page.getByRole('button', { name: /^Save( Changes)?$/i });
     await expect(saveBtn).toBeVisible();
     await saveBtn.click();
 

@@ -83,7 +83,7 @@ test.describe('Comic Detail Modal - Comprehensive Creator Role Types Dropdown', 
     await expect(customBadge).toContainText('Storyboard Artist');
 
     // Save changes
-    const saveBtn = modal.getByRole('button', { name: /^Save$/i }).first();
+    const saveBtn = modal.getByRole('button', { name: /^Save( Changes)?$/i }).first();
     await expect(saveBtn).toBeVisible();
     await saveBtn.click();
 

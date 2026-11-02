@@ -84,7 +84,8 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     // Verify the modal does not exceed viewport boundaries
     const viewportSize = page.viewportSize();
     expect(viewportSize).not.toBeNull();
-    const modalBox = await page.locator('.max-h-\\[92vh\\]').boundingBox();
+    const modal = page.locator('.max-h-\\[92vh\\]');
+    const modalBox = await modal.boundingBox();
     expect(modalBox).not.toBeNull();
     if (modalBox && viewportSize) {
       // Modal should not exceed 95% of viewport height
@@ -97,25 +98,20 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     await expect(page.getByRole('heading', { name: /Status & Location Management/i })).toBeVisible();
 
     // Click "Edit Values" to switch into edit mode
-    const editValuesButton = page.getByRole('button', { name: /Edit Values/i });
+    const editValuesButton = modal.getByRole('button', { name: /Edit Values/i });
     await expect(editValuesButton).toBeVisible();
     await editValuesButton.click();
 
     // In edit mode:
-    // 1. Top sticky header should show "Cancel" and "Save"
-    const topHeader = page.locator('.border-b.bg-white\\/95, .border-b.dark\\:bg-slate-900\\/95').first();
-    await expect(topHeader.getByRole('button', { name: 'Save' })).toBeVisible();
-
-    // 2. Status & Location header should show "Save Changes" and "Cancel"
-    const topSaveButton = page.getByRole('button', { name: 'Save Changes' }).first();
-    await expect(topSaveButton).toBeVisible();
+    // 1. Bottom sticky footer should show "Cancel" and "Save Changes"
+    await expect(modal.getByRole('button', { name: 'Save Changes' })).toBeVisible();
+    await expect(modal.getByRole('button', { name: 'Cancel' })).toBeVisible();
 
     // 3. Top inputs (e.g. Stored Box Location, Reading Status) should be enabled & visible
     const boxSelect = page.locator('select').filter({ hasText: /Box #/ }).first();
     await expect(boxSelect).toBeEnabled();
 
     // 4. Character appearances section should show count and search bar
-    const modal = page.locator('.max-h-\\[92vh\\]');
     await expect(modal.getByText('Character Appearances (113)')).toBeVisible();
     const searchInput = modal.getByPlaceholder(/Filter 113 characters/i);
     await expect(searchInput).toBeVisible();

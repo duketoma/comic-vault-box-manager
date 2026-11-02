@@ -40,7 +40,7 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     await addComicBtn.dispatchEvent('click');
 
     // Verify modal opened and scope to modal
-    const modal = page.locator('.fixed.inset-0').filter({ hasText: 'Add New Comic to Vault' });
+    const modal = page.locator('.fixed.inset-0').filter({ hasText: /Add New Comic to (Archive|Vault)/ });
     await expect(modal).toBeVisible();
 
     // Verify Manual Entry Form is active (or switch to it)

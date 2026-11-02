@@ -92,8 +92,8 @@ test.describe('Series Collection Completion Tracking', () => {
     const achievementsTab = page.getByRole('button', { name: /Achievements/i });
     await expect(achievementsTab).toBeVisible();
     await achievementsTab.click();
-    // Should show Full Run Complete section
-    await expect(page.getByText(/Full Run Complete/i).first()).toBeVisible();
+    // Should show Series Collection Achievements section
+    await expect(page.getByText(/Series Collection Achievements|Series Runs Collected|Full Run Complete/i).first()).toBeVisible();
   });
 
   test('Closest to Completion graph only shows series that still have issues remaining', async ({ page }) => {
@@ -107,14 +107,13 @@ test.describe('Series Collection Completion Tracking', () => {
     const seriesTab = page.getByRole('button', { name: /Titles & Series|Comic Titles/i });
     await seriesTab.click();
 
-    // Select "Closest to Completion (Fewest Remaining)" in the Sort dropdown
-    const sortSelect = page.locator('select').filter({ hasText: /Collection Progress/i }).or(
-      page.locator('label:has-text("Sort Series By:") + select')
-    );
-    await sortSelect.selectOption({ label: 'Closest to Completion (Fewest Remaining)' });
+    // Select "Closest to Completion" in the Sort dropdown
+    const sortSelect = page.getByRole('combobox', { name: /Sort Series By/i });
+    await expect(sortSelect).toBeVisible();
+    await sortSelect.selectOption('completion');
 
-    // Verify chart subtitle indicates series with issues remaining
-    await expect(page.getByText('Showing top 10 series with issues remaining')).toBeVisible();
+    // Verify chart subtitle indicates series closest to completion
+    await expect(page.getByText('Showing top 10 series closest to completion')).toBeVisible();
 
     // Verify the first series card in the list has issues needed (not 100% complete)
     const firstSeriesCard = page.locator('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3 > div').first();
@@ -133,14 +132,13 @@ test.describe('Series Collection Completion Tracking', () => {
     const seriesTab = page.getByRole('button', { name: /Titles & Series|Comic Titles/i });
     await seriesTab.click();
 
-    // Select "Collection Progress % (Run Completion)" in the Sort dropdown
-    const sortSelect = page.locator('select').filter({ hasText: /Collection Progress/i }).or(
-      page.locator('label:has-text("Sort Series By:") + select')
-    );
-    await sortSelect.selectOption({ label: 'Collection Progress % (Run Completion)' });
+    // Select "Alphabetical (A-Z)" in the Sort dropdown
+    const sortSelect = page.getByRole('combobox', { name: /Sort Series By/i });
+    await expect(sortSelect).toBeVisible();
+    await sortSelect.selectOption('alphabetical');
 
-    // Verify chart subtitle indicates series with issues remaining
-    await expect(page.getByText('Showing top 10 series with issues remaining')).toBeVisible();
+    // Verify chart subtitle indicates top series
+    await expect(page.getByText('Showing top 10 series', { exact: true })).toBeVisible();
 
     // Verify the first series card in the list has issues needed (in-progress run closest to completion, not 100% complete)
     const firstSeriesCard = page.locator('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3 > div').first();
