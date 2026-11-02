@@ -212,7 +212,7 @@ export type ValuationScope = 'all_stale' | 'missing_only' | 'owned_only' | 'wish
 export interface ComicValuationResult {
   comicId?: string;
   matchedTitle: string;
-  source: 'PriceCharting' | 'eBay Market';
+  source: 'PriceCharting' | 'eBay Market' | 'Era Guide (Estimate)';
   sourceUrl?: string;
   baseNearMintValue: number;
   gradedValue?: number;

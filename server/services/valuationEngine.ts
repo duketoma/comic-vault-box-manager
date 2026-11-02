@@ -38,7 +38,7 @@ export interface ComicValuationInput {
 
 interface RawMarketQuote {
   matchedTitle: string;
-  source: 'PriceCharting' | 'eBay Market';
+  source: 'PriceCharting' | 'eBay Market' | 'Era Guide (Estimate)';
   sourceUrl: string;
   baseNearMintValue: number;
   ungradedValue?: number;
@@ -124,6 +124,14 @@ function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function toSlug(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/['"’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 /**
  * Parses a PriceCharting comic product page HTML into a RawMarketQuote with complete grade tiers.
  */
@@ -158,7 +166,7 @@ function parsePriceChartingProductPage(html: string, url: string): RawMarketQuot
   const tableRegex = /<table>\s*(<tr>\s*<td>(?:Ungraded|\d+(?:\.\d+)?)\s*<\/td>[\s\S]*?)<\/table>/i;
   const tableMatch = html.match(tableRegex);
   if (tableMatch) {
-    const rowMatches = tableMatch[1].matchAll(/<tr>\s*<td>([^<]+)<\/td>\s*<td[^>]*>\s*\$([0-9,.]+)\s*<\/td>/gi);
+    const rowMatches = tableMatch[1].matchAll(/<tr>\s*<td>([^<]+)<\/td>\s*<td[^>]*>[\s\S]*?\$([0-9,.]+)/gi);
     for (const rm of rowMatches) {
       const gradeLabel = rm[1].trim();
       const val = parseDollarString(rm[2]);
@@ -189,19 +197,138 @@ function parsePriceChartingProductPage(html: string, url: string): RawMarketQuot
 
 /**
  * Primary Free Source: PriceCharting Public Comic Book Guide
+ * Employs direct canonical slug resolution and series console directory scanning
+ * to reliably fetch verified live prices past Cloudflare search walls.
  */
 async function lookupPriceCharting(
   cleanTitle: string,
   cleanIssue: string,
   year?: number
 ): Promise<RawMarketQuote | null> {
+  const titleWithoutThe = cleanTitle.replace(/^the\s+/i, '');
+  const titleSlug = toSlug(titleWithoutThe);
+  const fullTitleSlug = toSlug(cleanTitle);
+
+  const consoleSlugs = Array.from(
+    new Set([
+      `comic-books-${titleSlug}`,
+      `comic-books-${fullTitleSlug}`,
+    ])
+  );
+
+  const candidateUrls: string[] = [];
+  const yearsToTry = year ? [year, year - 1, year + 1] : [];
+
+  for (const cSlug of consoleSlugs) {
+    for (const y of yearsToTry) {
+      candidateUrls.push(
+        `https://www.pricecharting.com/game/${cSlug}/${titleSlug}-${cleanIssue}-${y}`
+      );
+      if (fullTitleSlug !== titleSlug) {
+        candidateUrls.push(
+          `https://www.pricecharting.com/game/${cSlug}/${fullTitleSlug}-${cleanIssue}-${y}`
+        );
+      }
+    }
+    candidateUrls.push(
+      `https://www.pricecharting.com/game/${cSlug}/${titleSlug}-${cleanIssue}`
+    );
+    if (fullTitleSlug !== titleSlug) {
+      candidateUrls.push(
+        `https://www.pricecharting.com/game/${cSlug}/${fullTitleSlug}-${cleanIssue}`
+      );
+    }
+  }
+
+  // Phase 1: Direct canonical product URL checks (fastest, authoritative)
+  for (const url of candidateUrls) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(url, {
+        headers: BROWSER_HEADERS,
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+      clearTimeout(timeout);
+
+      if (res.ok && !res.url.includes('/search-products')) {
+        const html = await res.text();
+        const quote = parsePriceChartingProductPage(html, res.url);
+        if (quote) {
+          return quote;
+        }
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  // Phase 2: Console series directory page scan (handles subtitle variations)
+  for (const cSlug of consoleSlugs) {
+    const consoleUrl = `https://www.pricecharting.com/console/${cSlug}`;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(consoleUrl, {
+        headers: BROWSER_HEADERS,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const html = await res.text();
+        const rowRegex = /<tr[^>]*id="product-\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
+        const issueRegex = new RegExp(`(?:#|\\bissue\\s*)0*${escapeRegExp(cleanIssue)}(?!\\d)`, 'i');
+        let m: RegExpExecArray | null;
+        while ((m = rowRegex.exec(html)) !== null) {
+          const rowHtml = m[1];
+          const titleMatch = rowHtml.match(
+            /<td class="title"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i
+          );
+          if (titleMatch) {
+            const rawRowTitle = titleMatch[2].replace(/<[^>]+>/g, '').trim();
+            if (issueRegex.test(rawRowTitle)) {
+              if (
+                !year ||
+                rawRowTitle.includes(String(year)) ||
+                rawRowTitle.includes(String(year - 1)) ||
+                rawRowTitle.includes(String(year + 1))
+              ) {
+                const prodUrl = titleMatch[1].startsWith('http')
+                  ? titleMatch[1]
+                  : `https://www.pricecharting.com${titleMatch[1]}`;
+                const prodController = new AbortController();
+                const prodTimeout = setTimeout(() => prodController.abort(), 4000);
+                const prodRes = await fetch(prodUrl, {
+                  headers: BROWSER_HEADERS,
+                  signal: prodController.signal,
+                });
+                clearTimeout(prodTimeout);
+
+                if (prodRes.ok) {
+                  const prodHtml = await prodRes.text();
+                  const quote = parsePriceChartingProductPage(prodHtml, prodUrl);
+                  if (quote) return quote;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  // Phase 3: Search results fallback
   const searchQuery = `${cleanTitle} #${cleanIssue}${year ? ` ${year}` : ''}`;
   const searchUrl = `https://www.pricecharting.com/search-products?q=${encodeURIComponent(
     searchQuery
   )}&type=prices`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 7000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
     const response = await fetch(searchUrl, {
@@ -210,142 +337,143 @@ async function lookupPriceCharting(
       redirect: 'follow',
     });
 
-    if (!response.ok) return null;
-    const html = await response.text();
-    const finalUrl = response.url || searchUrl;
+    if (response.ok) {
+      const html = await response.text();
+      const finalUrl = response.url || searchUrl;
 
-    // Case 1: PriceCharting redirected directly to a single comic product page
-    if (finalUrl.includes('/game/comic-books-') || finalUrl.includes('/game/')) {
-      const directQuote = parsePriceChartingProductPage(html, finalUrl);
-      if (directQuote) {
-        return directQuote;
-      }
-    }
-
-    // Case 2: Search results table with <tr id="product-..."> rows
-    const rowRegex = /<tr[^>]*id="product-\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
-    const issuePattern = new RegExp(`(?:#|\\bissue\\s*)0*${escapeRegExp(cleanIssue)}(?!\\d)`, 'i');
-    const STOP_WORDS = new Set([
-      'the',
-      'and',
-      'for',
-      'comic',
-      'comics',
-      'book',
-      'books',
-      'issue',
-      'title',
-      'series',
-      'vol',
-      'volume',
-      'with',
-      'from',
-    ]);
-    const titleWords = cleanTitle
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-
-    let bestCandidate: {
-      score: number;
-      matchedTitle: string;
-      productUrl: string;
-      ungraded: number;
-      gradedMid?: number;
-      gradedHigh?: number;
-    } | null = null;
-
-    let match: RegExpExecArray | null;
-    while ((match = rowRegex.exec(html)) !== null) {
-      const rowHtml = match[1];
-      const isComicRow =
-        /comic-books/i.test(rowHtml) || /Comic Books/i.test(rowHtml);
-      if (!isComicRow) continue;
-
-      const titleMatch = rowHtml.match(/<td class="title"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-      if (!titleMatch) continue;
-
-      const href = titleMatch[1].startsWith('http')
-        ? titleMatch[1]
-        : `https://www.pricecharting.com${titleMatch[1]}`;
-      const rowTitle = titleMatch[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-
-      if (!issuePattern.test(rowTitle)) continue;
-
-      const usedMatch = rowHtml.match(/class="[^"]*used_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
-      const cibMatch = rowHtml.match(/class="[^"]*cib_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
-      const newMatch = rowHtml.match(/class="[^"]*new_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
-
-      const ungraded = usedMatch ? parseDollarString(usedMatch[1]) : 0;
-      if (ungraded <= 0) continue;
-
-      let wordMatches = 0;
-      const lowerRowTitle = rowTitle.toLowerCase();
-      for (const word of titleWords) {
-        if (lowerRowTitle.includes(word)) wordMatches++;
-      }
-      const requiredMatches = titleWords.length >= 2 ? Math.ceil(titleWords.length * 0.5) : titleWords.length;
-      if (wordMatches < requiredMatches) continue;
-
-      let score = 10 + wordMatches * 6;
-      if (year && rowHtml.includes(String(year))) {
-        score += 8;
-      }
-      // Penalize variants unless the user's title mentions variant
-      if (
-        /\b(variant|incentive|sketch|virgin|facsimile|reprint|2nd print|second print)\b/i.test(rowTitle) &&
-        !/\b(variant|incentive|sketch|virgin|facsimile)\b/i.test(cleanTitle)
-      ) {
-        score -= 6;
+      // Case 1: PriceCharting redirected directly to a single comic product page
+      if (finalUrl.includes('/game/comic-books-') || finalUrl.includes('/game/')) {
+        const directQuote = parsePriceChartingProductPage(html, finalUrl);
+        if (directQuote) {
+          return directQuote;
+        }
       }
 
-      if (!bestCandidate || score > bestCandidate.score) {
-        bestCandidate = {
-          score,
-          matchedTitle: rowTitle,
-          productUrl: href,
-          ungraded,
-          gradedMid: cibMatch ? parseDollarString(cibMatch[1]) : undefined,
-          gradedHigh: newMatch ? parseDollarString(newMatch[1]) : undefined,
+      // Case 2: Search results table with <tr id="product-..."> rows
+      const rowRegex = /<tr[^>]*id="product-\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
+      const issuePattern = new RegExp(`(?:#|\\bissue\\s*)0*${escapeRegExp(cleanIssue)}(?!\\d)`, 'i');
+      const STOP_WORDS = new Set([
+        'the',
+        'and',
+        'for',
+        'comic',
+        'comics',
+        'book',
+        'books',
+        'issue',
+        'title',
+        'series',
+        'vol',
+        'volume',
+        'with',
+        'from',
+      ]);
+      const titleWords = cleanTitle
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+
+      let bestCandidate: {
+        score: number;
+        matchedTitle: string;
+        productUrl: string;
+        ungraded: number;
+        gradedMid?: number;
+        gradedHigh?: number;
+      } | null = null;
+
+      let match: RegExpExecArray | null;
+      while ((match = rowRegex.exec(html)) !== null) {
+        const rowHtml = match[1];
+        const isComicRow =
+          /comic-books/i.test(rowHtml) || /Comic Books/i.test(rowHtml);
+        if (!isComicRow) continue;
+
+        const titleMatch = rowHtml.match(/<td class="title"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+        if (!titleMatch) continue;
+
+        const href = titleMatch[1].startsWith('http')
+          ? titleMatch[1]
+          : `https://www.pricecharting.com${titleMatch[1]}`;
+        const rowTitle = titleMatch[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+        if (!issuePattern.test(rowTitle)) continue;
+
+        const usedMatch = rowHtml.match(/class="[^"]*used_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+        const cibMatch = rowHtml.match(/class="[^"]*cib_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+        const newMatch = rowHtml.match(/class="[^"]*new_price[^"]*"[^>]*>[\s\S]*?\$([0-9,.]+)/i);
+
+        const ungraded = usedMatch ? parseDollarString(usedMatch[1]) : 0;
+        if (ungraded <= 0) continue;
+
+        let wordMatches = 0;
+        const lowerRowTitle = rowTitle.toLowerCase();
+        for (const word of titleWords) {
+          if (lowerRowTitle.includes(word)) wordMatches++;
+        }
+        const requiredMatches = titleWords.length >= 2 ? Math.ceil(titleWords.length * 0.5) : titleWords.length;
+        if (wordMatches < requiredMatches) continue;
+
+        let score = 10 + wordMatches * 6;
+        if (year && rowHtml.includes(String(year))) {
+          score += 8;
+        }
+        // Penalize variants unless the user's title mentions variant
+        if (
+          /\b(variant|incentive|sketch|virgin|facsimile|reprint|2nd print|second print)\b/i.test(rowTitle) &&
+          !/\b(variant|incentive|sketch|virgin|facsimile)\b/i.test(cleanTitle)
+        ) {
+          score -= 6;
+        }
+
+        if (!bestCandidate || score > bestCandidate.score) {
+          bestCandidate = {
+            score,
+            matchedTitle: rowTitle,
+            productUrl: href,
+            ungraded,
+            gradedMid: cibMatch ? parseDollarString(cibMatch[1]) : undefined,
+            gradedHigh: newMatch ? parseDollarString(newMatch[1]) : undefined,
+          };
+        }
+      }
+
+      if (bestCandidate && bestCandidate.productUrl) {
+        // Fetch the product page to get the exact Near Mint price and full grade table
+        try {
+          const prodController = new AbortController();
+          const prodTimeout = setTimeout(() => prodController.abort(), 4000);
+          const prodResponse = await fetch(bestCandidate.productUrl, {
+            headers: BROWSER_HEADERS,
+            signal: prodController.signal,
+          });
+          clearTimeout(prodTimeout);
+          if (prodResponse.ok) {
+            const prodHtml = await prodResponse.text();
+            const parsedQuote = parsePriceChartingProductPage(prodHtml, bestCandidate.productUrl);
+            if (parsedQuote) {
+              parsedQuote.confidence = bestCandidate.score >= 20 ? 'high' : 'medium';
+              return parsedQuote;
+            }
+          }
+        } catch {
+          // Fall back gracefully to candidate search summary
+        }
+
+        return {
+          matchedTitle: bestCandidate.matchedTitle,
+          source: 'PriceCharting',
+          sourceUrl: bestCandidate.productUrl,
+          baseNearMintValue: bestCandidate.ungraded,
+          graded80Value: bestCandidate.gradedMid,
+          graded92Value: bestCandidate.gradedHigh,
+          graded98Value: bestCandidate.gradedHigh
+            ? Number((bestCandidate.gradedHigh * 1.45).toFixed(2))
+            : undefined,
+          confidence: bestCandidate.score >= 20 ? 'high' : 'medium',
+          fetchedAt: Date.now(),
         };
       }
-    }
-
-    if (bestCandidate && bestCandidate.productUrl) {
-      // Fetch the product page to get the exact Near Mint price and full grade table
-      try {
-        const prodController = new AbortController();
-        const prodTimeout = setTimeout(() => prodController.abort(), 5000);
-        const prodResponse = await fetch(bestCandidate.productUrl, {
-          headers: BROWSER_HEADERS,
-          signal: prodController.signal,
-        });
-        clearTimeout(prodTimeout);
-        if (prodResponse.ok) {
-          const prodHtml = await prodResponse.text();
-          const parsedQuote = parsePriceChartingProductPage(prodHtml, bestCandidate.productUrl);
-          if (parsedQuote) {
-            parsedQuote.confidence = bestCandidate.score >= 20 ? 'high' : 'medium';
-            return parsedQuote;
-          }
-        }
-      } catch {
-        // Fall back gracefully to candidate search summary
-      }
-
-      return {
-        matchedTitle: bestCandidate.matchedTitle,
-        source: 'PriceCharting',
-        sourceUrl: bestCandidate.productUrl,
-        baseNearMintValue: bestCandidate.ungraded,
-        graded80Value: bestCandidate.gradedMid,
-        graded92Value: bestCandidate.gradedHigh,
-        graded98Value: bestCandidate.gradedHigh
-          ? Number((bestCandidate.gradedHigh * 1.45).toFixed(2))
-          : undefined,
-        confidence: bestCandidate.score >= 20 ? 'high' : 'medium',
-        fetchedAt: Date.now(),
-      };
     }
 
     return null;
@@ -513,7 +641,7 @@ function buildEraGuideFallbackQuote(
 
   return {
     matchedTitle: `${cleanTitle} #${cleanIssue}${year ? ` (${year})` : ''}`,
-    source: 'PriceCharting',
+    source: 'Era Guide (Estimate)',
     sourceUrl,
     baseNearMintValue: baseNm,
     graded80Value: Number((baseNm * 1.8).toFixed(2)),

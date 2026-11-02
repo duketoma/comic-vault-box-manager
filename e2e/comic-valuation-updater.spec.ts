@@ -56,6 +56,23 @@ test.describe('Comic Collection Market Valuation & Periodic Updater', () => {
     const cgcBody = await cgcRes.json();
     expect(cgcBody.valuation.isGradedApplied).toBe(true);
     expect(cgcBody.valuation.estimatedValue).toBeGreaterThan(nmBody.valuation.estimatedValue);
+
+    // 4. Verification for X-Men #48 (1996) resolving live PriceCharting quote instead of fallback
+    const xmenRes = await request.post('/api/valuation/lookup', {
+      data: {
+        title: 'X-Men',
+        issueNumber: '48',
+        publicationYear: 1996,
+        format: 'Single Issue',
+        condition: 'Near Mint',
+      },
+    });
+    expect(xmenRes.ok()).toBeTruthy();
+    const xmenBody = await xmenRes.json();
+    expect(xmenBody.valuation.source).toBe('PriceCharting');
+    expect(xmenBody.valuation.sourceUrl).toContain('/game/comic-books-x-men/x-men-48-1996');
+    expect(xmenBody.valuation.estimatedValue).toBe(21.01);
+    expect(xmenBody.valuation.confidence).toBe('high');
   });
 
   test('ComicDetailModal supports single-comic Value Lookup, Condition scaling, and Value Lock', async ({ page }) => {
