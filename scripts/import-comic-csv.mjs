@@ -114,7 +114,7 @@ function toComic(row, index) {
     readingStatus: wishlist ? 'Wishlist' : markedRead ? 'Read' : 'Unread',
     readCount: markedRead ? 1 : 0,
     userRating: integerOr(row['My Rating']),
-    condition: cleaned(row.Condition) || 'Near Mint',
+    condition: cleaned(row.Condition) || (wishlist ? 'Near Mint' : 'Good'),
     purchasePrice: numberOr(row['Price Paid']),
     notes: buildNotes(row) || undefined,
     tags: cleaned(row.Tags).split(/[,;]/).map((tag) => tag.trim()).filter(Boolean),
