@@ -493,4 +493,138 @@ assert(genesisScore >= 95, `2099 A.D. Genesis #1.webp scores high (${genesisScor
 const matchedGenesis = findBestMatchingComic('2099 A.D. Genesis #1.webp', [genesis2099, batman12]);
 assert(matchedGenesis?.id === 'genesis-2099-1', '2099 A.D. Genesis #1.webp correctly matches 2099 A.D. Genesis #1');
 
+// 13. Volume & Issue Disambiguation (e.g. Wolverine Vol. 2 #1 vs Wolverine #2)
+const wolverineVol1Issue1: ComicBook = {
+  id: 'wolv-v1-1',
+  title: 'Wolverine',
+  seriesName: 'Wolverine (Vol. 1) (1982)',
+  volume: '1',
+  issueNumber: '1',
+  fullTitle: 'Wolverine #1',
+  publisher: 'Marvel Comics',
+  publicationYear: 1982,
+  genre: 'Superhero',
+  writer: 'Chris Claremont',
+  artist: 'Frank Miller',
+  coverImage: 'NoImage.webp',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const wolverineVol1Issue2: ComicBook = {
+  id: 'wolv-v1-2',
+  title: 'Wolverine',
+  seriesName: 'Wolverine (Vol. 1) (1982)',
+  volume: '1',
+  issueNumber: '2',
+  fullTitle: 'Wolverine #2',
+  publisher: 'Marvel Comics',
+  publicationYear: 1982,
+  genre: 'Superhero',
+  writer: 'Chris Claremont',
+  artist: 'Frank Miller',
+  coverImage: 'NoImage.webp',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const wolverineVol2Issue1: ComicBook = {
+  id: 'wolv-v2-1',
+  title: 'Wolverine',
+  seriesName: 'Wolverine (Vol. 2) (1988 - 2003)',
+  volume: '2',
+  issueNumber: '1',
+  fullTitle: 'Wolverine #1',
+  publisher: 'Marvel Comics',
+  publicationYear: 1988,
+  genre: 'Superhero',
+  writer: 'Chris Claremont',
+  artist: 'John Buscema',
+  coverImage: 'NoImage.webp',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const wolverineVol2Issue2: ComicBook = {
+  id: 'wolv-v2-2',
+  title: 'Wolverine',
+  seriesName: 'Wolverine (Vol. 2) (1988 - 2003)',
+  volume: '2',
+  issueNumber: '2',
+  fullTitle: 'Wolverine #2',
+  publisher: 'Marvel Comics',
+  publicationYear: 1988,
+  genre: 'Superhero',
+  writer: 'Chris Claremont',
+  artist: 'John Buscema',
+  coverImage: 'NoImage.webp',
+  format: 'Single Issue',
+  sizeThickness: 1.0,
+  currentBoxId: 1,
+  readingStatus: 'Read',
+  readCount: 1,
+  condition: 'Near Mint',
+  tags: [],
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
+};
+
+const wolverineCandidates = [
+  wolverineVol1Issue1,
+  wolverineVol1Issue2,
+  wolverineVol2Issue1,
+  wolverineVol2Issue2
+];
+
+// Wolverine Vol. 2 #1.webp must match Wolverine #1 (Vol. 2) with score 100
+const wolvScoreV2_1 = scoreFileNameMatch('Wolverine Vol. 2 #1.webp', wolverineVol2Issue1);
+assert(wolvScoreV2_1 === 100, `Wolverine Vol. 2 #1.webp scores 100 for Wolverine #1 (Vol. 2) (got ${wolvScoreV2_1})`);
+
+// Wolverine Vol. 2 #1.webp must NOT match Wolverine #2 (Vol. 1) or (Vol. 2)
+const wolvScoreV1_2 = scoreFileNameMatch('Wolverine Vol. 2 #1.webp', wolverineVol1Issue2);
+assert(wolvScoreV1_2 === 0, `Wolverine Vol. 2 #1.webp scores 0 for Wolverine #2 (Vol. 1) due to volume & issue mismatch (got ${wolvScoreV1_2})`);
+
+const wolvScoreV2_2 = scoreFileNameMatch('Wolverine Vol. 2 #1.webp', wolverineVol2Issue2);
+assert(wolvScoreV2_2 === 0, `Wolverine Vol. 2 #1.webp scores 0 for Wolverine #2 (Vol. 2) due to issue mismatch (got ${wolvScoreV2_2})`);
+
+// findBestMatchingComic selects Wolverine #1 (Vol. 2)
+const matchedWolvV2_1 = findBestMatchingComic('Wolverine Vol. 2 #1.webp', wolverineCandidates);
+assert(matchedWolvV2_1?.id === 'wolv-v2-1', `Wolverine Vol. 2 #1.webp selects Wolverine #1 from Vol. 2 (got ${matchedWolvV2_1?.id})`);
+
+// Fuzzy match for minor typo (Wolvering Vol. 2 #1.webp)
+const wolvTypoScore = scoreFileNameMatch('Wolvering Vol. 2 #1.webp', wolverineVol2Issue1);
+assert(wolvTypoScore >= 70, `Wolvering Vol. 2 #1.webp scores high confidence >= 70 for Wolverine #1 (Vol. 2) (got ${wolvTypoScore})`);
+
+const matchedWolvTypo = findBestMatchingComic('Wolvering Vol. 2 #1.webp', wolverineCandidates);
+assert(matchedWolvTypo?.id === 'wolv-v2-1', `Wolvering Vol. 2 #1.webp matches Wolverine #1 from Vol. 2 despite typo (got ${matchedWolvTypo?.id})`);
+
+// Wolverine (Vol. 2) #1.webp in parentheses format
+const matchedWolvParens = findBestMatchingComic('Wolverine (Vol. 2) #1.webp', wolverineCandidates);
+assert(matchedWolvParens?.id === 'wolv-v2-1', `Wolverine (Vol. 2) #1.webp matches Wolverine #1 from Vol. 2 (got ${matchedWolvParens?.id})`);
+
+// Wolverine Vol. 2 #2.webp must match Wolverine #2 (Vol. 2)
+const matchedWolvV2_2 = findBestMatchingComic('Wolverine Vol. 2 #2.webp', wolverineCandidates);
+assert(matchedWolvV2_2?.id === 'wolv-v2-2', `Wolverine Vol. 2 #2.webp matches Wolverine #2 from Vol. 2 (got ${matchedWolvV2_2?.id})`);
+
 console.log('All imageUtils test assertions passed!');

@@ -33,12 +33,13 @@ export function parseTitleAndIssue(rawTitle: string, existingIssue?: string): Pa
     }
   }
 
-  // 2. Extract explicit Volume e.g. "Vol. 1", "Volume 2", "Vol 3", "v1"
-  const volMatch = title.match(/\b(vol|volume|v)\.?\s*(\d+)\b/i);
+  // 2. Extract explicit Volume e.g. "Vol. 1", "Volume 2", "Vol 3", "v1", "(Vol. 2)"
+  const volWithBracketsMatch = title.match(/[\(\[]\s*\b(vol|volume|v)\.?\s*(\d+)\b\s*[\)\]]/i);
+  const volMatch = volWithBracketsMatch || title.match(/\b(vol|volume|v)\.?\s*(\d+)\b/i);
   if (volMatch) {
     extractedVolume = `Vol. ${volMatch[2]}`;
     // Strip volume from title if title has more text
-    const strippedTitle = title.replace(volMatch[0], '').replace(/\s+/g, ' ').trim();
+    const strippedTitle = title.replace(volMatch[0], '').replace(/\(\s*\)|\[\s*\]/g, '').replace(/\s+/g, ' ').trim();
     if (strippedTitle.length > 2) {
       title = strippedTitle;
     }

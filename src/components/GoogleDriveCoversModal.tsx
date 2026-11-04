@@ -36,6 +36,7 @@ import {
   scoreFullCoverMatch
 } from '../utils/imageUtils';
 import { isAnnualComic, extractAnnualNumber, parseIssueNumber, formatComicOptionLabel } from '../utils/comicSortUtils';
+import { parseTitleAndIssue } from '../utils/titleParser';
 
 interface GoogleDriveCoversModalProps {
   isOpen: boolean;
@@ -172,8 +173,33 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       // Helper to fetch candidates for a given file
       const getCandidatesForFile = (file: DriveFileItem): ComicBook[] => {
         const base = file.name.replace(/\.[^/.]+$/, '').trim();
-        const numMatches = base.match(/(?:#|\b)(\d+)\b/g) || [];
         const candidateSet = new Set<ComicBook>();
+
+        // 1. Try parsing issue via parseTitleAndIssue first
+        const parsed = parseTitleAndIssue(base);
+        if (parsed.issueNumber) {
+          const cleanP = String(parseInt(parsed.issueNumber.replace(/^#/, ''), 10));
+          const list = comicsByIssue.get(cleanP) || comicsByIssue.get(parsed.issueNumber.toLowerCase().trim());
+          if (list) {
+            for (const c of list) candidateSet.add(c);
+          }
+        }
+
+        // 2. Extract explicit '#<num>' matches
+        const hashMatches = base.matchAll(/#\s*(-?\d+[a-zA-Z0-9.-]*)/gi);
+        for (const hm of hashMatches) {
+          const cleanH = String(parseInt(hm[1].replace(/^#/, ''), 10));
+          const list = comicsByIssue.get(cleanH) || comicsByIssue.get(hm[1].toLowerCase().trim());
+          if (list) {
+            for (const c of list) candidateSet.add(c);
+          }
+        }
+
+        // 3. Extract remaining numeric tokens that are NOT volume numbers and NOT 4-digit years
+        const baseNoVolOrYear = base
+          .replace(/(?:[\(\[]\s*)?\b(?:vol|volume|v)\.?\s*\d+\b(?:\s*[\)\]])?/gi, ' ')
+          .replace(/\b(19\d\d|20\d\d)\b/g, ' ');
+        const numMatches = baseNoVolOrYear.match(/(?:#|\b)(\d+)\b/g) || [];
 
         for (const m of numMatches) {
           const cleanM = String(parseInt(m.replace(/^#/, ''), 10));

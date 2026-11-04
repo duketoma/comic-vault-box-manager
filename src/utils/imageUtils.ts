@@ -1,7 +1,7 @@
 import type { SyntheticEvent } from 'react';
 const noImageAsset = new URL('../../assets/NoImage.webp', import.meta.url).href;
 import { buildApiUrl } from '../services/apiConfig';
-import { isAnnualComic, extractAnnualNumber, parseIssueNumber, isYearDesignatedAnnual } from './comicSortUtils';
+import { isAnnualComic, extractAnnualNumber, parseIssueNumber, isYearDesignatedAnnual, parseVolumeNumber } from './comicSortUtils';
 import type { ComicBook } from '../types';
 
 // Utility functions for comic cover images, Google Drive image links, and NoImage.webp placeholder
@@ -192,6 +192,24 @@ function normalizeText(str: string): string {
 
 function denseText(str: string): string {
   return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i;
+    for (let j = 1; j <= b.length; j++) {
+      const val = a[i - 1] === b[j - 1] ? row[j - 1] : Math.min(row[j - 1], prev, row[j]) + 1;
+      row[j - 1] = prev;
+      prev = val;
+    }
+    row[b.length] = prev;
+  }
+  return row[b.length];
 }
 
 function stripYear(str: string): string {
@@ -479,6 +497,29 @@ export function scoreFileNameMatch(
     }
   }
 
+  // 4b. Volume conflict check: if file specifies a volume and comic has a known volume, they MUST match
+  let fileVolume: number | null = null;
+  const fileVolMatch = baseFileName.match(/\b(?:vol|volume|v)\.?\s*(\d+)\b/i);
+  if (fileVolMatch) {
+    fileVolume = parseInt(fileVolMatch[1], 10);
+  }
+
+  let comicVolume: number | null = parseVolumeNumber(comic.volume);
+  if (comicVolume === null && comic.seriesName) {
+    const sVolMatch = String(comic.seriesName).match(/\b(?:vol|volume|v)\.?\s*(\d+)\b/i);
+    if (sVolMatch) {
+      comicVolume = parseInt(sVolMatch[1], 10);
+    }
+  }
+
+  if (fileVolume !== null && comicVolume !== null && fileVolume !== comicVolume) {
+    return 0; // Ineligible mismatch: comic belongs to a different volume
+  }
+
+  // Base filename with volume designation stripped, so that volume numbers (e.g. "Vol. 2")
+  // are never falsely matched as comic issue numbers (e.g. Issue #2)
+  const baseFileNameNoVolume = baseFileName.replace(/(?:[\(\[]\s*)?\b(?:vol|volume|v)\.?\s*\d+\b(?:\s*[\)\]])?/gi, ' ');
+
   // 5. Issue Number Matching
   let issueMatched = false;
   let isYearDesignatedMatch = false;
@@ -545,7 +586,7 @@ export function scoreFileNameMatch(
     const cleanIssueNumber = String(comic.issueNumber ?? '').replace(/^#/, '').trim();
     if (cleanIssueNumber) {
       const issueRegex = buildIssueRegex(cleanIssueNumber);
-      if (!issueRegex || !issueRegex.test(baseFileName)) {
+      if (!issueRegex || !issueRegex.test(baseFileNameNoVolume)) {
         return 0;
       }
       issueMatched = true;
@@ -560,22 +601,29 @@ export function scoreFileNameMatch(
 
   // 6. Title Extraction from File Name
   let fileTitleRaw = baseFileName;
+  let fileTitleNoVolRaw = baseFileNameNoVolume;
 
-  // Strip issue number from fileTitleRaw to isolate the title portion
+  // Strip issue number from fileTitleRaw and fileTitleNoVolRaw to isolate the title portion
   if (comicIsAnnual) {
     if (!isYearDesignatedAnnual(comic)) {
       const parsed = parseIssueNumber(comic.issueNumber);
       const annNum = extractAnnualNumber(comic) ?? (parsed.major > 0 ? parsed.major : null);
       if (annNum !== null) {
         const annRegex = buildIssueRegex(String(annNum));
-        if (annRegex) fileTitleRaw = fileTitleRaw.replace(annRegex, ' ');
+        if (annRegex) {
+          fileTitleRaw = fileTitleRaw.replace(annRegex, ' ');
+          fileTitleNoVolRaw = fileTitleNoVolRaw.replace(annRegex, ' ');
+        }
       }
     }
   } else {
     const cleanIssueNumber = String(comic.issueNumber ?? '').replace(/^#/, '').trim();
     if (cleanIssueNumber) {
       const issueRegex = buildIssueRegex(cleanIssueNumber);
-      if (issueRegex) fileTitleRaw = fileTitleRaw.replace(issueRegex, ' ');
+      if (issueRegex) {
+        fileTitleRaw = fileTitleRaw.replace(issueRegex, ' ');
+        fileTitleNoVolRaw = fileTitleNoVolRaw.replace(issueRegex, ' ');
+      }
     }
   }
 
@@ -583,6 +631,11 @@ export function scoreFileNameMatch(
   const normFileTitleNoVariant = normalizeText(fileTitleRaw.replace(COVER_VARIANT_DESCRIPTORS_REGEX, ' '));
   const normFileTitleNoYear = normalizeText(stripYear(normFileTitleNoVariant));
   const denseFile = denseText(normFileTitleNoVariant);
+
+  const normFileTitleNoVol = normalizeText(fileTitleNoVolRaw);
+  const normFileTitleNoVolNoVariant = normalizeText(fileTitleNoVolRaw.replace(COVER_VARIANT_DESCRIPTORS_REGEX, ' '));
+  const normFileTitleNoVolNoYear = normalizeText(stripYear(normFileTitleNoVolNoVariant));
+  const denseFileNoVol = denseText(normFileTitleNoVolNoVariant);
 
   // 7. Candidate Titles from Comic
   const candidateTitles = new Set<string>();
@@ -637,27 +690,46 @@ export function scoreFileNameMatch(
     const noTheFileNoVariant = normFileTitleNoVariant.replace(/^the\s+/, '');
     const noTheFileNoYear = normFileTitleNoYear.replace(/^the\s+/, '');
 
+    const noTheFileNoVol = normFileTitleNoVol.replace(/^the\s+/, '');
+    const noTheFileNoVolNoVariant = normFileTitleNoVolNoVariant.replace(/^the\s+/, '');
+    const noTheFileNoVolNoYear = normFileTitleNoVolNoYear.replace(/^the\s+/, '');
+
     // Tier 1: Exact Match (Score 100)
-    if (normFileTitle === cand || normFileTitleNoVariant === cand) {
+    if (
+      normFileTitle === cand ||
+      normFileTitleNoVariant === cand ||
+      normFileTitleNoVol === cand ||
+      normFileTitleNoVolNoVariant === cand
+    ) {
       bestScore = Math.max(bestScore, 100);
       break;
     }
 
     // Tier 2: Exact Match ignoring leading "The" (Score 95)
-    if (noTheFile === noTheCand || noTheFileNoVariant === noTheCand) {
+    if (
+      noTheFile === noTheCand ||
+      noTheFileNoVariant === noTheCand ||
+      noTheFileNoVol === noTheCand ||
+      noTheFileNoVolNoVariant === noTheCand
+    ) {
       bestScore = Math.max(bestScore, 95);
       continue;
     }
 
     // Tier 3: Dense text match for hyphenated / punctuated titles (Score 95)
     // e.g. "G.I. Joe" vs "GI Joe", "Spider-Man" vs "Spider Man"
-    if (denseFile === denseCand && denseFile.length >= 3) {
+    if ((denseFile === denseCand || denseFileNoVol === denseCand) && denseCand.length >= 3) {
       bestScore = Math.max(bestScore, 95);
       continue;
     }
 
     // Tier 4: Exact Match with Volume / Publication Year in filename (Score 90)
-    if (normFileTitleNoYear === cand || noTheFileNoYear === noTheCand) {
+    if (
+      normFileTitleNoYear === cand ||
+      noTheFileNoYear === noTheCand ||
+      normFileTitleNoVolNoYear === cand ||
+      noTheFileNoVolNoYear === noTheCand
+    ) {
       bestScore = Math.max(bestScore, 90);
       continue;
     }
@@ -672,6 +744,23 @@ export function scoreFileNameMatch(
       ) {
         bestScore = Math.max(bestScore, 80);
         continue;
+      }
+    }
+
+    // Tier 6: Fuzzy Match for minor typos (e.g. "Wolvering" vs "Wolverine") (Score 85)
+    const candLen = noTheCand.length;
+    const targetsToCompare = [noTheFileNoVariant, noTheFileNoVolNoVariant].filter(Boolean);
+    for (const fileTarget of targetsToCompare) {
+      const fileLen = fileTarget.length;
+      if (candLen >= 6 && fileLen >= 6) {
+        const dist = levenshteinDistance(fileTarget, noTheCand);
+        const maxL = Math.max(candLen, fileLen);
+        if (dist <= 1 || (maxL >= 10 && dist <= 2)) {
+          if (dist / maxL <= 0.20) {
+            bestScore = Math.max(bestScore, 85);
+            break;
+          }
+        }
       }
     }
   }
