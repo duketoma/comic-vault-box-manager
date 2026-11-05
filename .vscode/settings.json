@@ -1,3 +1,15 @@
 {
-  "npm.packageManager": "npm"
+  "npm.packageManager": "npm",
+  "sqltools.connections": [
+    {
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 5432,
+      "driver": "PostgreSQL",
+      "name": "CAP",
+      "database": "comic_vault",
+      "username": "comicvault_user"
+    }
+  ]
 }
