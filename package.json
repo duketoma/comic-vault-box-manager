@@ -9,6 +9,7 @@
     "db:migrate": "node scripts/migrate.mjs",
     "import:collection": "node scripts/import-comic-csv.mjs",
     "import:series-totals": "node scripts/import-series-totals.mjs",
+    "import:missing-metadata": "node scripts/import-missing-contributors-and-characters.mjs",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist-server/server.cjs",
     "start": "node dist-server/server.cjs",
     "clean": "rm -rf dist dist-server server.js",

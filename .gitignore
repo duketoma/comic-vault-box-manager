@@ -16,3 +16,5 @@ playwright-report/
 android/.gradle/
 android/app/src/main/assets/public/server.cjs*
 logs/
+scripts/Comic Book Collection - Title Character Appearances.csv
+scripts/Comic Book Collection - Title Contributors.csv
