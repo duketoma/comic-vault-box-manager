@@ -1,4 +1,4 @@
-import { createWorker, Worker } from 'tesseract.js';
+import type { Worker } from 'tesseract.js';
 import { ComicBook, SeriesIssueTotal } from '../types';
 
 export interface CoverOcrResult {
@@ -47,18 +47,21 @@ async function getOcrWorker(
   onProgress?: (pct: number, statusText: string) => void
 ): Promise<Worker> {
   if (!sharedWorkerPromise) {
-    sharedWorkerPromise = createWorker('eng', 1, {
-      logger: (m) => {
-        if (onProgress && typeof m.progress === 'number') {
-          const pct = Math.round(m.progress * 100);
-          const status =
-            m.status === 'recognizing text'
-              ? `Recognizing cover text (${pct}%)...`
-              : `Initializing OCR engine (${pct}%)...`;
-          onProgress(pct, status);
-        }
-      },
-    }).catch((err) => {
+    sharedWorkerPromise = (async () => {
+      const { createWorker } = await import('tesseract.js');
+      return createWorker('eng', 1, {
+        logger: (m) => {
+          if (onProgress && typeof m.progress === 'number') {
+            const pct = Math.round(m.progress * 100);
+            const status =
+              m.status === 'recognizing text'
+                ? `Recognizing cover text (${pct}%)...`
+                : `Initializing OCR engine (${pct}%)...`;
+            onProgress(pct, status);
+          }
+        },
+      });
+    })().catch((err) => {
       sharedWorkerPromise = null;
       throw err;
     });

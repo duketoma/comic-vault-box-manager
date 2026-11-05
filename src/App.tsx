@@ -5,19 +5,10 @@ import { DEFAULT_BOXES, INITIAL_COMICS, isSampleComicId } from './data/initialDa
 import { Navbar } from './components/Navbar';
 import { CollectionCatalog } from './components/CollectionCatalog';
 import { BoxManager } from './components/BoxManager';
-import { ReadingStats } from './components/ReadingStats';
-import { GoogleSheetsImporter } from './components/GoogleSheetsImporter';
-import { DatabasePlanner } from './components/DatabasePlanner';
 import { WishlistShoppingList } from './components/WishlistShoppingList';
 import { AddAndScanModal } from './components/AddAndScanModal';
 import { ComicDetailModal } from './components/ComicDetailModal';
-import { GoogleDriveCoversModal } from './components/GoogleDriveCoversModal';
-import { DataManagementModal } from './components/DataManagementModal';
-import { GenerateSeriesWishlistModal } from './components/GenerateSeriesWishlistModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
-import { ServerSettingsModal } from './components/ServerSettingsModal';
-import { ValuationManagerModal } from './components/ValuationManagerModal';
-import { StyleStudioModal } from './components/StyleStudioModal';
 import {
   ComicActionBurstItem,
   ComicActionBurstOverlay,
@@ -28,7 +19,6 @@ import {
   saveUiStylePreferences,
   UiStylePreferences,
 } from './utils/uiThemeConfig';
-import { ReadingChallengeView } from './components/reading-challenge/ReadingChallengeView';
 import {
   deleteLocalBoxAndEnqueue,
   deleteLocalComicAndEnqueue,
@@ -62,6 +52,17 @@ import {
   saveCatalogFilters,
   sanitizeCatalogFilters,
 } from './utils/catalogFilterUtils';
+
+const ReadingStats = React.lazy(() => import('./components/ReadingStats').then(m => ({ default: m.ReadingStats })));
+const ReadingChallengeView = React.lazy(() => import('./components/reading-challenge/ReadingChallengeView').then(m => ({ default: m.ReadingChallengeView })));
+const GoogleSheetsImporter = React.lazy(() => import('./components/GoogleSheetsImporter').then(m => ({ default: m.GoogleSheetsImporter })));
+const DatabasePlanner = React.lazy(() => import('./components/DatabasePlanner').then(m => ({ default: m.DatabasePlanner })));
+const GoogleDriveCoversModal = React.lazy(() => import('./components/GoogleDriveCoversModal').then(m => ({ default: m.GoogleDriveCoversModal })));
+const DataManagementModal = React.lazy(() => import('./components/DataManagementModal').then(m => ({ default: m.DataManagementModal })));
+const GenerateSeriesWishlistModal = React.lazy(() => import('./components/GenerateSeriesWishlistModal').then(m => ({ default: m.GenerateSeriesWishlistModal })));
+const ServerSettingsModal = React.lazy(() => import('./components/ServerSettingsModal').then(m => ({ default: m.ServerSettingsModal })));
+const ValuationManagerModal = React.lazy(() => import('./components/ValuationManagerModal').then(m => ({ default: m.ValuationManagerModal })));
+const StyleStudioModal = React.lazy(() => import('./components/StyleStudioModal').then(m => ({ default: m.StyleStudioModal })));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
@@ -964,48 +965,56 @@ export default function App() {
             )}
 
             {activeTab === 'challenge' && (
-              <ReadingChallengeView
-                comics={inCollectionComics}
-                boxes={boxes}
-                onSelectComic={setSelectedComic}
-                onRefreshCollection={handleRefreshCollection}
-                initialCriterion={challengePrefillCriterion}
-                onClearInitialCriterion={() => {
-                  setChallengePrefillCriterion(null);
-                  setChallengePrefillEvent(null);
-                }}
-                initialEventCriterion={challengePrefillEvent}
-                onClearInitialEventCriterion={() => setChallengePrefillEvent(null)}
-              />
+              <React.Suspense fallback={<div className="flex items-center justify-center min-h-[300px] text-slate-400">Loading Reading Challenge...</div>}>
+                <ReadingChallengeView
+                  comics={inCollectionComics}
+                  boxes={boxes}
+                  onSelectComic={setSelectedComic}
+                  onRefreshCollection={handleRefreshCollection}
+                  initialCriterion={challengePrefillCriterion}
+                  onClearInitialCriterion={() => {
+                    setChallengePrefillCriterion(null);
+                    setChallengePrefillEvent(null);
+                  }}
+                  initialEventCriterion={challengePrefillEvent}
+                  onClearInitialEventCriterion={() => setChallengePrefillEvent(null)}
+                />
+              </React.Suspense>
             )}
 
             {activeTab === 'stats' && (
-              <ReadingStats
-                comics={comics}
-                boxes={boxes}
-                seriesTotals={seriesTotals}
-                onViewSeriesInCatalog={handleViewSeriesInCatalog}
-                onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
-                onStartEventChallenge={handleStartEventChallenge}
-                onStartCreatorChallenge={handleStartCreatorChallenge}
-                onStartCharacterChallenge={handleStartCharacterChallenge}
-                initialSubTab={statsSubTab}
-              />
+              <React.Suspense fallback={<div className="flex items-center justify-center min-h-[300px] text-slate-400">Loading Reading Stats...</div>}>
+                <ReadingStats
+                  comics={comics}
+                  boxes={boxes}
+                  seriesTotals={seriesTotals}
+                  onViewSeriesInCatalog={handleViewSeriesInCatalog}
+                  onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
+                  onStartEventChallenge={handleStartEventChallenge}
+                  onStartCreatorChallenge={handleStartCreatorChallenge}
+                  onStartCharacterChallenge={handleStartCharacterChallenge}
+                  initialSubTab={statsSubTab}
+                />
+              </React.Suspense>
             )}
 
             {activeTab === 'sheets' && (
-              <GoogleSheetsImporter 
-                boxes={boxes} 
-                onImportComics={handleImportComics}
-                onRefreshCollection={handleRefreshCollection}
-                onNavigateToTab={(tab) => handleSetActiveTab(tab)}
-                onOpenDataManagementModal={() => setIsDataModalOpen(true)}
-                comicsCount={comics.length}
-              />
+              <React.Suspense fallback={<div className="flex items-center justify-center min-h-[300px] text-slate-400">Loading Importer...</div>}>
+                <GoogleSheetsImporter 
+                  boxes={boxes} 
+                  onImportComics={handleImportComics}
+                  onRefreshCollection={handleRefreshCollection}
+                  onNavigateToTab={(tab) => handleSetActiveTab(tab)}
+                  onOpenDataManagementModal={() => setIsDataModalOpen(true)}
+                  comicsCount={comics.length}
+                />
+              </React.Suspense>
             )}
 
             {activeTab === 'database' && (
-              <DatabasePlanner comics={comics} boxes={boxes} seriesTotals={seriesTotals} />
+              <React.Suspense fallback={<div className="flex items-center justify-center min-h-[300px] text-slate-400">Loading Database Planner...</div>}>
+                <DatabasePlanner comics={comics} boxes={boxes} seriesTotals={seriesTotals} />
+              </React.Suspense>
             )}
           </motion.div>
         </AnimatePresence>
@@ -1037,64 +1046,78 @@ export default function App() {
         onOpenGenerateWishlist={handleOpenGenerateWishlistModal}
       />
 
-      <GenerateSeriesWishlistModal
-        isOpen={isGenerateWishlistModalOpen}
-        onClose={() => setIsGenerateWishlistModalOpen(false)}
-        comics={comics}
-        seriesTotals={seriesTotals}
-        initialSeriesName={generateWishlistSeriesName}
-        onBatchAddComics={handleBatchAddComics}
-      />
+      <React.Suspense fallback={null}>
+        {isGenerateWishlistModalOpen && (
+          <GenerateSeriesWishlistModal
+            isOpen={isGenerateWishlistModalOpen}
+            onClose={() => setIsGenerateWishlistModalOpen(false)}
+            comics={comics}
+            seriesTotals={seriesTotals}
+            initialSeriesName={generateWishlistSeriesName}
+            onBatchAddComics={handleBatchAddComics}
+          />
+        )}
 
-      <GoogleDriveCoversModal
-        isOpen={isDriveModalOpen}
-        onClose={() => setIsDriveModalOpen(false)}
-        comics={comics}
-        onUpdateComicCover={handleUpdateComicCover}
-        onUpdateComicFullCover={handleUpdateComicFullCover}
-        onUpdateComicCoversBatch={handleUpdateComicCoversBatch}
-        onApplyNoImageFallback={handleApplyNoImageFallback}
-      />
+        {isDriveModalOpen && (
+          <GoogleDriveCoversModal
+            isOpen={isDriveModalOpen}
+            onClose={() => setIsDriveModalOpen(false)}
+            comics={comics}
+            onUpdateComicCover={handleUpdateComicCover}
+            onUpdateComicFullCover={handleUpdateComicFullCover}
+            onUpdateComicCoversBatch={handleUpdateComicCoversBatch}
+            onApplyNoImageFallback={handleApplyNoImageFallback}
+          />
+        )}
 
-      <ValuationManagerModal
-        isOpen={isValuationModalOpen}
-        onClose={() => setIsValuationModalOpen(false)}
-        comics={comics}
-        onUpdateComicsBatch={handleBatchUpdateValuations}
-        onSelectComic={(comic) => {
-          setIsValuationModalOpen(false);
-          setSelectedComic(comic);
-        }}
-      />
+        {isValuationModalOpen && (
+          <ValuationManagerModal
+            isOpen={isValuationModalOpen}
+            onClose={() => setIsValuationModalOpen(false)}
+            comics={comics}
+            onUpdateComicsBatch={handleBatchUpdateValuations}
+            onSelectComic={(comic) => {
+              setIsValuationModalOpen(false);
+              setSelectedComic(comic);
+            }}
+          />
+        )}
 
-      <StyleStudioModal
-        isOpen={isStyleStudioModalOpen}
-        onClose={() => setIsStyleStudioModalOpen(false)}
-        prefs={uiStylePrefs}
-        onUpdatePrefs={setUiStylePrefs}
-        onTriggerBurst={(burst) => triggerActionBurst(burst, true)}
-        sampleComics={comics}
-      />
+        {isStyleStudioModalOpen && (
+          <StyleStudioModal
+            isOpen={isStyleStudioModalOpen}
+            onClose={() => setIsStyleStudioModalOpen(false)}
+            prefs={uiStylePrefs}
+            onUpdatePrefs={setUiStylePrefs}
+            onTriggerBurst={(burst) => triggerActionBurst(burst, true)}
+            sampleComics={comics}
+          />
+        )}
+
+        {isDataModalOpen && (
+          <DataManagementModal
+            isOpen={isDataModalOpen}
+            onClose={() => setIsDataModalOpen(false)}
+            comics={comics}
+            onRemoveDuplicates={handleRemoveDuplicates}
+            onClearAllComics={handleClearAllComics}
+          />
+        )}
+
+        {isServerModalOpen && (
+          <ServerSettingsModal
+            isOpen={isServerModalOpen}
+            onClose={() => setIsServerModalOpen(false)}
+            onSaved={refreshCollectionData}
+            syncStatus={syncStatus}
+            onSyncNow={async (opts) => {
+              await triggerSync(opts);
+            }}
+          />
+        )}
+      </React.Suspense>
 
       <ComicActionBurstOverlay bursts={actionBursts} />
-
-      <DataManagementModal
-        isOpen={isDataModalOpen}
-        onClose={() => setIsDataModalOpen(false)}
-        comics={comics}
-        onRemoveDuplicates={handleRemoveDuplicates}
-        onClearAllComics={handleClearAllComics}
-      />
-
-      <ServerSettingsModal
-        isOpen={isServerModalOpen}
-        onClose={() => setIsServerModalOpen(false)}
-        onSaved={refreshCollectionData}
-        syncStatus={syncStatus}
-        onSyncNow={async (opts) => {
-          await triggerSync(opts);
-        }}
-      />
 
       {/* Mobile Bottom Navigation Bar (thumb navigation on Android/iOS) */}
       <MobileBottomNav

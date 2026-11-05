@@ -24,6 +24,24 @@ const firebaseConfigPlugin = {
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss(), firebaseConfigPlugin],
+    build: {
+      chunkSizeWarningLimit: 650,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/three') || id.includes('three/examples')) {
+              return 'vendor-three';
+            }
+            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+              return 'vendor-recharts';
+            }
+            if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+              return 'vendor-motion';
+            }
+          },
+        },
+      },
+    },
       // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
       //
       // 1. prevent Vite from obscuring rust errors

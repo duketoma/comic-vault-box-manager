@@ -15,7 +15,7 @@ import { extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { MONTH_NAMES, formatIsoComicDate } from '../utils/dateUtils';
 import { formatComicFullTitle } from '../utils/comicSortUtils';
-import { CoverScannerCropper } from './CoverScannerCropper';
+const CoverScannerCropper = React.lazy(() => import('./CoverScannerCropper').then(m => ({ default: m.CoverScannerCropper })));
 import { CoverOcrResult } from '../utils/coverOcrService';
 import { 
   X, 
@@ -377,18 +377,20 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
             
             /* PERSPECTIVE CROP & LOCAL OCR SCANNER TAB */
             <div className="space-y-4">
-              <CoverScannerCropper
-                enableOcr={true}
-                defaultPreset="standard"
-                initialImageUrl={coverImage !== 'NoImage.webp' ? coverImage : undefined}
-                comicTitle={title}
-                comicIssueNumber={issueNumber}
-                existingComics={existingComics}
-                seriesTotals={seriesTotals}
-                onApplyImage={handleApplyCroppedCover}
-                onSelectOcrCandidate={handleSelectOcrCandidate}
-                onBarcodeScanned={handleBarcodeScanned}
-              />
+              <React.Suspense fallback={<div className="p-12 text-center text-slate-400">Loading scanner...</div>}>
+                <CoverScannerCropper
+                  enableOcr={true}
+                  defaultPreset="standard"
+                  initialImageUrl={coverImage !== 'NoImage.webp' ? coverImage : undefined}
+                  comicTitle={title}
+                  comicIssueNumber={issueNumber}
+                  existingComics={existingComics}
+                  seriesTotals={seriesTotals}
+                  onApplyImage={handleApplyCroppedCover}
+                  onSelectOcrCandidate={handleSelectOcrCandidate}
+                  onBarcodeScanned={handleBarcodeScanned}
+                />
+              </React.Suspense>
 
               {/* Quick Editable Title & Issue Bar once Crop/OCR is applied */}
               {hasAppliedCrop && (

@@ -20,7 +20,7 @@ import { formatPublicationDate, formatIsoComicDate, MONTH_NAMES } from '../utils
 import { getComicSeriesInfo } from '../utils/seriesUtils';
 import { formatComicFullTitle, isYearDesignatedAnnual } from '../utils/comicSortUtils';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
-import { CoverScannerCropper } from './CoverScannerCropper';
+const CoverScannerCropper = React.lazy(() => import('./CoverScannerCropper').then(m => ({ default: m.CoverScannerCropper })));
 import { 
   X, 
   Star, 
@@ -1797,48 +1797,50 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             </div>
 
             <div className="p-5 max-h-[80vh] overflow-y-auto scrollbar-thin">
-              <CoverScannerCropper
-                key={cropperTargetField}
-                enableOcr={false}
-                defaultPreset={cropperTargetField === 'full' ? 'wraparound' : 'standard'}
-                initialImageUrl={
-                  cropperTargetField === 'full'
-                    ? coverImageFull || comic.coverImageFull
-                    : coverImage || comic.coverImage
-                }
-                comicTitle={title || comic.title}
-                comicIssueNumber={issueNumber || comic.issueNumber}
-                existingComics={allComics}
-                seriesTotals={seriesTotals}
-                applyButtonLabel={
-                  cropperTargetField === 'full'
-                    ? 'Save Cropped Full Spread'
-                    : 'Save Cropped Front Cover'
-                }
-                onCancel={() => setCropperTargetField(null)}
-                onSelectOcrCandidate={(field, val) => {
-                  if (field === 'title') setTitle(val);
-                  else if (field === 'issueNumber') setIssueNumber(val);
-                }}
-                onApplyImage={(croppedDataUrl) => {
-                  if (cropperTargetField === 'full') {
-                    setCoverImageFull(croppedDataUrl);
-                    setHeroViewMode('full');
-                    onUpdateComic({
-                      ...comic,
-                      coverImageFull: croppedDataUrl,
-                    });
-                  } else {
-                    setCoverImage(croppedDataUrl);
-                    setHeroViewMode('front');
-                    onUpdateComic({
-                      ...comic,
-                      coverImage: croppedDataUrl,
-                    });
+              <React.Suspense fallback={<div className="p-12 text-center text-slate-400">Loading scanner...</div>}>
+                <CoverScannerCropper
+                  key={cropperTargetField}
+                  enableOcr={false}
+                  defaultPreset={cropperTargetField === 'full' ? 'wraparound' : 'standard'}
+                  initialImageUrl={
+                    cropperTargetField === 'full'
+                      ? coverImageFull || comic.coverImageFull
+                      : coverImage || comic.coverImage
                   }
-                  setCropperTargetField(null);
-                }}
-              />
+                  comicTitle={title || comic.title}
+                  comicIssueNumber={issueNumber || comic.issueNumber}
+                  existingComics={allComics}
+                  seriesTotals={seriesTotals}
+                  applyButtonLabel={
+                    cropperTargetField === 'full'
+                      ? 'Save Cropped Full Spread'
+                      : 'Save Cropped Front Cover'
+                  }
+                  onCancel={() => setCropperTargetField(null)}
+                  onSelectOcrCandidate={(field, val) => {
+                    if (field === 'title') setTitle(val);
+                    else if (field === 'issueNumber') setIssueNumber(val);
+                  }}
+                  onApplyImage={(croppedDataUrl) => {
+                    if (cropperTargetField === 'full') {
+                      setCoverImageFull(croppedDataUrl);
+                      setHeroViewMode('full');
+                      onUpdateComic({
+                        ...comic,
+                        coverImageFull: croppedDataUrl,
+                      });
+                    } else {
+                      setCoverImage(croppedDataUrl);
+                      setHeroViewMode('front');
+                      onUpdateComic({
+                        ...comic,
+                        coverImage: croppedDataUrl,
+                      });
+                    }
+                    setCropperTargetField(null);
+                  }}
+                />
+              </React.Suspense>
             </div>
           </div>
         </div>

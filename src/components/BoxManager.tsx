@@ -24,7 +24,7 @@ import {
   Box,
   Eye
 } from 'lucide-react';
-import Box3DVisualizerModal from './Box3DVisualizerModal';
+const Box3DVisualizerModal = React.lazy(() => import('./Box3DVisualizerModal'));
 import ProposedMovesModal from './ProposedMovesModal';
 
 interface BoxManagerProps {
@@ -1125,20 +1125,22 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
 
       {/* 3D Box Visualizer Modal */}
       {selected3DBox && (
-        <Box3DVisualizerModal
-          isOpen={is3DViewerOpen}
-          box={selected3DBox}
-          comics={box3DComics}
-          onClose={() => {
-            setIs3DViewerOpen(false);
-            setSelected3DBox(null);
-            setBox3DComics([]);
-          }}
-          onUpdateComic={onSelectComic}
-          onDeleteComic={() => {
-            // Can implement delete from 3D view if needed
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <Box3DVisualizerModal
+            isOpen={is3DViewerOpen}
+            box={selected3DBox}
+            comics={box3DComics}
+            onClose={() => {
+              setIs3DViewerOpen(false);
+              setSelected3DBox(null);
+              setBox3DComics([]);
+            }}
+            onUpdateComic={onSelectComic}
+            onDeleteComic={() => {
+              // Can implement delete from 3D view if needed
+            }}
+          />
+        </React.Suspense>
       )}
 
       {/* Proposed Moves Review Modal */}
