@@ -109,7 +109,7 @@ function toComic(row, index) {
     coverImage: cleaned(row['Cover Image Link']) || cleaned(row['Image Link']) || 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing',
     format: 'Single Issue',
     sizeThickness: Math.max(0.1, numberOr(row['Equivalant Comic Book Size Per Issue'], 1)),
-    currentBoxId: wishlist && !box ? 0 : box,
+    currentBoxId: wishlist && !box ? 0 : (box > 0 ? box : (proposedBox && proposedBox > 0 ? proposedBox : 0)),
     proposedBoxId: proposedBox ?? undefined,
     readingStatus: wishlist ? 'Wishlist' : markedRead ? 'Read' : 'Unread',
     readCount: markedRead ? 1 : 0,

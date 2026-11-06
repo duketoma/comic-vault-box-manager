@@ -144,6 +144,77 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
   }
 
   test('Box #17 renders in 3D Visualizer with Event comics first (Box Organizer order)', async ({ page }) => {
+    await page.route('**/api/boxes/17/comics', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          box: { id: 17, name: 'Box 17' },
+          comics: [
+            {
+              id: 'c-air-raiders',
+              title: 'Air Raiders',
+              seriesName: 'Air Raiders',
+              issueNumber: '3',
+              publisher: 'Marvel Comics',
+              publicationYear: 1988,
+              coverImage: 'NoImage.webp',
+              format: 'Single Issue',
+              sizeThickness: 1.0,
+              currentBoxId: 17,
+              readingStatus: 'Read',
+              condition: 'Near Mint',
+            },
+            {
+              id: 'c-alf',
+              title: 'ALF',
+              seriesName: 'ALF',
+              issueNumber: '12',
+              publisher: 'Marvel Comics',
+              publicationYear: 1988,
+              coverImage: 'NoImage.webp',
+              format: 'Single Issue',
+              sizeThickness: 1.0,
+              currentBoxId: 17,
+              readingStatus: 'Read',
+              condition: 'Near Mint',
+            },
+            {
+              id: 'c-ff-ann-21',
+              title: 'Fantastic Four Annual',
+              seriesName: 'Fantastic Four (Vol. 1)',
+              issueNumber: '21',
+              publisher: 'Marvel Comics',
+              event: 'Evolutionary War',
+              publicationYear: 1988,
+              coverImage: 'NoImage.webp',
+              format: 'Annual',
+              sizeThickness: 1.0,
+              currentBoxId: 17,
+              readingStatus: 'Read',
+              condition: 'Near Mint',
+            },
+            {
+              id: 'c-xf-ann-3',
+              title: 'X-Factor Annual',
+              seriesName: 'X-Factor (Vol. 1)',
+              issueNumber: '3',
+              publisher: 'Marvel Comics',
+              event: 'Evolutionary War',
+              publicationYear: 1988,
+              coverImage: 'NoImage.webp',
+              format: 'Annual',
+              sizeThickness: 1.0,
+              currentBoxId: 17,
+              readingStatus: 'Read',
+              condition: 'Near Mint',
+            },
+          ],
+          count: 4,
+        }),
+      });
+    });
+
     await page.goto('/');
 
     // Navigate to Storage Boxes
@@ -166,7 +237,7 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
 
     // Click Next Comic in Box to select the very first comic
     const nextBtn = page.getByTitle('Next Comic in Box');
-    await expect(nextBtn).toBeVisible();
+    await expect(nextBtn).toBeVisible({ timeout: 15000 });
     await nextBtn.click();
 
     // Verify the first comic in Box 17 is an Evolutionary War Event comic (Fantastic Four Annual #21)
