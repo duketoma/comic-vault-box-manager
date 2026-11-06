@@ -1146,6 +1146,8 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
           <button
             type="button"
             onClick={() => setIsSortModalOpen(true)}
+            title="Configure Multi-Sort Rules"
+            aria-label="Customize Multi-Sort / Configure Multi-Sort Rules"
             className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />

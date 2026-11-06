@@ -18,7 +18,7 @@ test.describe('Catalog Performance Optimizations & Progressive Loading', () => {
       format: 'Single Issue',
       sizeThickness: 1.0,
       currentBoxId: (i % 3) + 1,
-      readingStatus: i % 10 === 0 ? 'Wishlist' : i % 2 === 0 ? 'Read' : 'Unread',
+      readingStatus: i % 2 === 0 ? 'Read' : 'Unread',
       readCount: i % 2 === 0 ? 1 : 0,
       condition: 'Near Mint',
       tags: [],
