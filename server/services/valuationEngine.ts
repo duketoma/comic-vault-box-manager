@@ -60,6 +60,9 @@ const BROWSER_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
+const PRICECHARTING_VARIANT_PATTERN =
+  /\b(variant|incentive|sketch|virgin|facsimile|reprint|[2-9](?:nd|rd|th)\s+print(?:ing)?|second\s+print(?:ing)?|third\s+print(?:ing)?|fourth\s+print(?:ing)?|newsstand|direct\s+edition|foil|chromium|embossed|hologram|ashcan|preview|polybagged|canadian(?:\s+price)?|whitman|mark\s+jewelers)\b|\[[^\]]+\]/i;
+
 /**
  * Strips volume years, issue suffixes, and extra punctuation to build a clean series search query.
  */
@@ -244,7 +247,7 @@ async function lookupPriceCharting(
   for (const url of candidateUrls) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
+      const timeout = setTimeout(() => controller.abort(), 6000);
       const res = await fetch(url, {
         headers: BROWSER_HEADERS,
         signal: controller.signal,
@@ -281,7 +284,10 @@ async function lookupPriceCharting(
         const rowRegex = /<tr[^>]*id="product-\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
         const issueRegex = new RegExp(`(?:#|\\bissue\\s*)0*${escapeRegExp(cleanIssue)}(?!\\d)`, 'i');
         let m: RegExpExecArray | null;
-        while ((m = rowRegex.exec(html)) !== null) {
+        let candidateRowUrl: string | null = null;
+        let foundNonVariant = false;
+
+        while ((m = rowRegex.exec(html)) !== null && !foundNonVariant) {
           const rowHtml = m[1];
           const titleMatch = rowHtml.match(
             /<td class="title"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i
@@ -298,21 +304,34 @@ async function lookupPriceCharting(
                 const prodUrl = titleMatch[1].startsWith('http')
                   ? titleMatch[1]
                   : `https://www.pricecharting.com${titleMatch[1]}`;
-                const prodController = new AbortController();
-                const prodTimeout = setTimeout(() => prodController.abort(), 4000);
-                const prodRes = await fetch(prodUrl, {
-                  headers: BROWSER_HEADERS,
-                  signal: prodController.signal,
-                });
-                clearTimeout(prodTimeout);
+                const isVariant =
+                  PRICECHARTING_VARIANT_PATTERN.test(rawRowTitle) &&
+                  !PRICECHARTING_VARIANT_PATTERN.test(cleanTitle);
 
-                if (prodRes.ok) {
-                  const prodHtml = await prodRes.text();
-                  const quote = parsePriceChartingProductPage(prodHtml, prodUrl);
-                  if (quote) return quote;
+                if (!isVariant) {
+                  candidateRowUrl = prodUrl;
+                  foundNonVariant = true;
+                } else if (!candidateRowUrl) {
+                  candidateRowUrl = prodUrl;
                 }
               }
             }
+          }
+        }
+
+        if (candidateRowUrl) {
+          const prodController = new AbortController();
+          const prodTimeout = setTimeout(() => prodController.abort(), 5000);
+          const prodRes = await fetch(candidateRowUrl, {
+            headers: BROWSER_HEADERS,
+            signal: prodController.signal,
+          });
+          clearTimeout(prodTimeout);
+
+          if (prodRes.ok) {
+            const prodHtml = await prodRes.text();
+            const quote = parsePriceChartingProductPage(prodHtml, candidateRowUrl);
+            if (quote) return quote;
           }
         }
       }
@@ -375,6 +394,7 @@ async function lookupPriceCharting(
 
       let bestCandidate: {
         score: number;
+        isVariant: boolean;
         matchedTitle: string;
         productUrl: string;
         ungraded: number;
@@ -418,17 +438,31 @@ async function lookupPriceCharting(
         if (year && rowHtml.includes(String(year))) {
           score += 8;
         }
-        // Penalize variants unless the user's title mentions variant
-        if (
-          /\b(variant|incentive|sketch|virgin|facsimile|reprint|2nd print|second print)\b/i.test(rowTitle) &&
-          !/\b(variant|incentive|sketch|virgin|facsimile)\b/i.test(cleanTitle)
-        ) {
-          score -= 6;
+
+        const isVariantRow = PRICECHARTING_VARIANT_PATTERN.test(rowTitle);
+        const queryWantsVariant = PRICECHARTING_VARIANT_PATTERN.test(cleanTitle);
+
+        if (isVariantRow && !queryWantsVariant) {
+          score -= 10;
+        } else if (!isVariantRow) {
+          score += 6;
         }
 
-        if (!bestCandidate || score > bestCandidate.score) {
+        // Exact series prefix match bonus (e.g. "X-Men #48" matches cleanTitle "X-Men")
+        const seriesPrefix = rowTitle.replace(/\s*#\s*.*$/, '').trim();
+        if (seriesPrefix.localeCompare(cleanTitle, undefined, { sensitivity: 'accent', usage: 'search' }) === 0 ||
+            seriesPrefix.toLowerCase() === cleanTitle.toLowerCase()) {
+          score += 8;
+        }
+
+        if (
+          !bestCandidate ||
+          score > bestCandidate.score ||
+          (score === bestCandidate.score && !isVariantRow && bestCandidate.isVariant)
+        ) {
           bestCandidate = {
             score,
+            isVariant: isVariantRow,
             matchedTitle: rowTitle,
             productUrl: href,
             ungraded,

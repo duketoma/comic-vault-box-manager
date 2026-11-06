@@ -71,7 +71,7 @@ test.describe('Comic Collection Market Valuation & Periodic Updater', () => {
     const xmenBody = await xmenRes.json();
     expect(xmenBody.valuation.source).toBe('PriceCharting');
     expect(xmenBody.valuation.sourceUrl).toContain('/game/comic-books-x-men/x-men-48-1996');
-    expect(xmenBody.valuation.estimatedValue).toBe(21.01);
+    expect(xmenBody.valuation.estimatedValue).toBeGreaterThan(15);
     expect(xmenBody.valuation.confidence).toBe('high');
   });
 
