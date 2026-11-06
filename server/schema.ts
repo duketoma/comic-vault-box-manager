@@ -51,6 +51,10 @@ export const POSTGRES_INIT_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS comic_books_current_box_id_idx ON comic_books (current_box_id);
   CREATE INDEX IF NOT EXISTS comic_books_title_idx ON comic_books (title);
 
+  INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes)
+  VALUES (-1, 'Box -1: Wishlist', 'Unassigned', 9999, '#f43f5e', 'System container for wishlisted comics')
+  ON CONFLICT (id) DO NOTHING;
+
   CREATE TABLE IF NOT EXISTS creators (
     id SERIAL PRIMARY KEY,
     first_name TEXT,

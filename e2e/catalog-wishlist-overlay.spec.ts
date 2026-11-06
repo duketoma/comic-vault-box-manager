@@ -11,10 +11,10 @@ test.describe('Catalog View - Wishlist Card Overlay Badges', () => {
     const catalogTab = page.getByRole('button', { name: /Catalog/i });
     await catalogTab.click();
 
-    // Filter by Wishlist status to isolate wishlist cards
-    const statusSelect = page.locator('label:has-text("Reading Status") + select');
-    await expect(statusSelect).toBeVisible();
-    await statusSelect.selectOption('Wishlist');
+    // Filter by Wishlist Scope to isolate wishlist cards
+    const wishlistSelect = page.locator('label:has-text("Wishlist Filter") + select');
+    await expect(wishlistSelect).toBeVisible();
+    await wishlistSelect.selectOption('only');
 
     // Wait for grid cards to render
     const card = page.locator('.grid > div.group').first();

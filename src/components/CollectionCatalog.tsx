@@ -282,6 +282,9 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   const setSelectedBoxId = (val: string) => updateFilter('selectedBoxId', val);
   const selectedStatus = activeFilters.selectedStatus;
   const setSelectedStatus = (val: string) => updateFilter('selectedStatus', val);
+  const selectedWishlistScope = activeFilters.selectedWishlistScope || 'exclude';
+  const setSelectedWishlistScope = (val: 'exclude' | 'include' | 'only') =>
+    updateFilter('selectedWishlistScope', val);
   const selectedFormat = activeFilters.selectedFormat;
   const setSelectedFormat = (val: string) => updateFilter('selectedFormat', val);
   const selectedEvent = activeFilters.selectedEvent;
@@ -463,6 +466,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     char: selectedCharacter,
     box: selectedBoxId,
     status: selectedStatus,
+    wishlistScope: selectedWishlistScope,
     format: selectedFormat,
     event: selectedEvent,
     art: onlyFullArt,
@@ -481,6 +485,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     selectedCharacter,
     selectedBoxId,
     selectedStatus,
+    selectedWishlistScope,
     selectedFormat,
     selectedEvent,
     onlyFullArt,
@@ -537,6 +542,8 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
         if (selectedRunProgress === 'in_progress' && (stat.isComplete || stat.pct >= 75)) return false;
       }
 
+      if (selectedWishlistScope === 'exclude' && c.readingStatus === 'Wishlist') return false;
+      if (selectedWishlistScope === 'only' && c.readingStatus !== 'Wishlist') return false;
       if (selectedGenre !== 'all' && c.genre !== selectedGenre) return false;
       if (selectedPublisher !== 'all' && c.publisher !== selectedPublisher) return false;
       if (selectedAuthor !== 'all' && c.writer !== selectedAuthor && c.artist !== selectedAuthor && !c.creatorContributions?.some(cc => cc.creatorName === selectedAuthor)) return false;
@@ -676,6 +683,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     selectedCharacter !== 'all' ||
     selectedBoxId !== 'all' ||
     selectedStatus !== 'all' ||
+    selectedWishlistScope !== 'exclude' ||
     selectedFormat !== 'all' ||
     selectedEvent !== 'all' ||
     onlyFullArt ||
@@ -936,9 +944,9 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
               onChange={(e) => setSelectedBoxId(e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600"
             >
-              <option value="all">All Boxes ({boxes.length + 1})</option>
-              <option value="0">Box 0 - Unallocated / Staging Queue</option>
-              {sortBoxes(boxes).map(b => (
+              <option value="all">All Boxes ({boxes.filter(b => b.id > 0).length + 1})</option>
+              <option value="0">Box #0: Unallocated / Staging Queue</option>
+              {sortBoxes(boxes).filter(b => b.id > 0).map(b => (
                 <option key={b.id} value={b.id.toString()}>Box #{b.id}: {b.name.split('-')[1] || b.name}</option>
               ))}
             </select>
@@ -956,7 +964,6 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
               <option value="Read">Read</option>
               <option value="Reading">Currently Reading</option>
               <option value="Unread">Unread</option>
-              <option value="Wishlist">Wishlist</option>
             </select>
           </div>
 
@@ -976,77 +983,21 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
             </select>
           </div>
 
-          {/* Multi-Sort Selector */}
+          {/* Wishlist Scope Filter */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Sort Order
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsSortModalOpen(true)}
-                className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer"
-              >
-                Customize ({multiSortOptions.criteria.length})
-              </button>
-            </div>
-            <div className="flex items-center gap-1">
-              <select
-                value={activePresetId || 'custom'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'custom') {
-                    setIsSortModalOpen(true);
-                  } else {
-                    const preset = SORT_PRESETS.find(p => p.id === val);
-                    if (preset) {
-                      updateMultiSortOptions({
-                        criteria: preset.criteria.map(c => ({ ...c })),
-                        separateAnnuals: preset.separateAnnuals,
-                        emptyEventPlacement: preset.emptyEventPlacement || 'last',
-                      });
-                    }
-                  }
-                }}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              >
-                {SORT_PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-                {!activePresetId && (
-                  <option value="custom">
-                    Custom ({multiSortOptions.criteria.length} Levels)...
-                  </option>
-                )}
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  const newCrit = [...multiSortOptions.criteria];
-                  if (newCrit.length > 0) {
-                    newCrit[0] = {
-                      ...newCrit[0],
-                      direction: newCrit[0].direction === 'asc' ? 'desc' : 'asc',
-                    };
-                    updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
-                  }
-                }}
-                className="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer shrink-0"
-                title={`Toggle direction of Level 1: ${getSortFieldLabel(multiSortOptions.criteria[0]?.field || 'publisher')}`}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSortModalOpen(true)}
-                className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-md text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer shrink-0"
-                title="Configure Multi-Sort Rules"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <label className="block text-[11px] font-semibold text-rose-700 dark:text-rose-400 mb-1">
+              Wishlist Filter
+            </label>
+            <select
+              value={selectedWishlistScope}
+              onChange={(e) => setSelectedWishlistScope(e.target.value as 'exclude' | 'include' | 'only')}
+              aria-label="Wishlist Filter"
+              className="w-full bg-rose-50/50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-md px-2.5 py-1.5 text-xs text-rose-950 dark:text-rose-200 font-medium focus:outline-none focus:ring-1 focus:ring-rose-400"
+            >
+              <option value="exclude">Exclude Wishlist</option>
+              <option value="include">Include Wishlist</option>
+              <option value="only">Wishlist Only</option>
+            </select>
           </div>
 
         </div>
@@ -1055,8 +1006,62 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       {/* Interactive Multi-Sort Chain Toolbar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Sort Preset Selector & Direction Toggle */}
+          <div className="flex items-center gap-1 shrink-0">
+            <select
+              value={activePresetId || 'custom'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setIsSortModalOpen(true);
+                } else {
+                  const preset = SORT_PRESETS.find(p => p.id === val);
+                  if (preset) {
+                    updateMultiSortOptions({
+                      criteria: preset.criteria.map(c => ({ ...c })),
+                      separateAnnuals: preset.separateAnnuals,
+                      emptyEventPlacement: preset.emptyEventPlacement || 'last',
+                    });
+                  }
+                }
+              }}
+              aria-label="Sort Order Preset"
+              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+            >
+              {SORT_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+              {!activePresetId && (
+                <option value="custom">
+                  Custom ({multiSortOptions.criteria.length} Levels)...
+                </option>
+              )}
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                const newCrit = [...multiSortOptions.criteria];
+                if (newCrit.length > 0) {
+                  newCrit[0] = {
+                    ...newCrit[0],
+                    direction: newCrit[0].direction === 'asc' ? 'desc' : 'asc',
+                  };
+                  updateMultiSortOptions({ ...multiSortOptions, criteria: newCrit });
+                }
+              }}
+              className="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer shrink-0"
+              title={`Toggle direction of Level 1: ${getSortFieldLabel(multiSortOptions.criteria[0]?.field || 'publisher')}`}
+              aria-label="Toggle primary sort direction"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5 hidden sm:block shrink-0" />
+
           <span className="font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5 shrink-0">
-            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-500" />
             <span>Sort Hierarchy:</span>
           </span>
 
@@ -1527,7 +1532,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                       {comic.readingStatus === 'Wishlist'
                         ? 'Wishlist'
                         : comic.currentBoxId === 0
-                          ? 'Box 0 (Unallocated)'
+                          ? 'Box #0 (Unallocated)'
                           : `Box ${comic.currentBoxId}`}
                     </span>
                   </div>
@@ -1909,22 +1914,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                       {comic.sizeThickness.toFixed(1)}x
                     </td>
                     <td className="py-3 px-3 whitespace-nowrap">
-                      {comic.currentBoxId === 0 ? (
-                        comic.readingStatus === 'Wishlist' ? (
-                          <span
-                            className="px-2 py-1 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold whitespace-nowrap inline-block"
-                            title="Wishlist (Unassigned)"
-                          >
-                            Wishlist
-                          </span>
-                        ) : (
-                          <span
-                            className="px-2 py-1 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold whitespace-nowrap inline-block"
-                            title="Box 0 (Unallocated)"
-                          >
-                            Box 0 (Unallocated)
-                          </span>
-                        )
+                      {comic.readingStatus === 'Wishlist' || comic.currentBoxId < 0 ? (
+                        <span
+                          className="px-2 py-1 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold whitespace-nowrap inline-block"
+                          title="Wishlist (Unassigned)"
+                        >
+                          Wishlist
+                        </span>
+                      ) : comic.currentBoxId === 0 ? (
+                        <span
+                          className="px-2 py-1 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold whitespace-nowrap inline-block"
+                          title="Box #0 (Unallocated)"
+                        >
+                          Box #0 (Unallocated)
+                        </span>
                       ) : (
                         <span className="px-2 py-1 rounded bg-slate-900 dark:bg-slate-800 text-white text-[11px] font-semibold border dark:border-slate-700 whitespace-nowrap inline-block">
                           Box #{comic.currentBoxId}

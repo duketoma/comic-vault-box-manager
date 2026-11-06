@@ -603,7 +603,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
 
     if (isWishlist) {
       readingStatusVal = 'Wishlist';
-      boxVal = 0; // Wishlist items are always unallocated in Box 0
+      boxVal = -1; // Wishlist items are in Box -1
     } else if (rawStatusStr === '1' || rawStatusStr === 'read' || rawStatusStr === 'yes' || rawStatusStr === 'true') {
       readingStatusVal = 'Read';
     } else if (rawStatusStr.includes('progress') || rawStatusStr === 'reading') {
@@ -640,7 +640,7 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
       coverImageFull: fullImgIdx >= 0 && row[fullImgIdx] ? String(row[fullImgIdx]).trim() || undefined : undefined,
       format: (COMIC_FORMATS as readonly string[]).includes(formatVal) || formatVal === 'Hardcover' ? (formatVal as ComicFormat) : 'Single Issue',
       sizeThickness: thicknessVal > 0 ? thicknessVal : 1.0,
-      currentBoxId: boxVal >= 0 ? boxVal : 0,
+      currentBoxId: isWishlist ? -1 : (boxVal >= 0 ? boxVal : 0),
       proposedBoxId: proposedBoxVal !== undefined ? proposedBoxVal : (isWishlist ? undefined : (boxVal >= 0 ? boxVal : 0)),
       readingStatus: readingStatusVal,
       readCount: readingStatusVal === 'Read' ? 1 : 0,
@@ -2040,6 +2040,10 @@ export const GoogleSheetsImporter: React.FC<GoogleSheetsImporterProps> = ({
                               {comic.currentBoxId > 0 ? (
                                 <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-[11px]">
                                   Box {comic.currentBoxId}
+                                </span>
+                              ) : comic.readingStatus === 'Wishlist' || comic.currentBoxId < 0 ? (
+                                <span className="px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold text-[11px]">
+                                  Wishlist
                                 </span>
                               ) : (
                                 <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[11px]">

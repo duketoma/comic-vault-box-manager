@@ -246,7 +246,7 @@ export const GenerateSeriesWishlistModal: React.FC<GenerateSeriesWishlistModalPr
                 </span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Automatically create unallocated Wishlist items (Box 0, 0 Copies) for missing series comics
+                Automatically create unallocated Wishlist items (0 Copies) for missing series comics
               </p>
             </div>
           </div>
@@ -458,7 +458,7 @@ export const GenerateSeriesWishlistModal: React.FC<GenerateSeriesWishlistModalPr
           <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-medium">
               <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              Wishlist defaults: Box 0 (Wishlist), 0 Copies Owned, Single Issue, NoImage cover
+              Wishlist defaults: Wishlist, 0 Copies Owned, Single Issue, NoImage cover
             </span>
             <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">Editable anytime</span>
           </div>

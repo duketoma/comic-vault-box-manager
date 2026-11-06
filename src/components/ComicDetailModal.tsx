@@ -525,7 +525,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       ? Number(parseFloat(estimatedValue).toFixed(2))
       : undefined;
 
-    const finalBoxId = Number(boxId);
+    const rawBoxId = Number(boxId);
+    const finalBoxId = readingStatus === 'Wishlist' ? -1 : (rawBoxId < 0 ? 0 : rawBoxId);
     const boxChanged = finalBoxId !== (comic.currentBoxId ?? 0);
     const finalProposedBoxId = boxChanged ? finalBoxId : (comic.proposedBoxId ?? finalBoxId);
 
@@ -860,7 +861,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   onChange={(e) => setBoxId(Number(e.target.value))}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 disabled:opacity-80"
                 >
-                  <option value={0}>Box 0 - Unallocated / Staging Queue</option>
+                  <option value={0}>Box #0: Unallocated / Staging Queue</option>
                   {sortBoxes(boxes).map((b) => (
                     <option key={b.id} value={b.id}>
                       Box #{b.id}: {b.name.split('-')[1] || b.name}

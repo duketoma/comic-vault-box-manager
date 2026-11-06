@@ -810,7 +810,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                   />
                   <div className="min-w-0">
                     <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base truncate">
-                      {selectedBoxStat.box.id === 0 ? 'Box 0: Unallocated Staging Queue' : `Box #${selectedBoxStat.box.id}: ${selectedBoxStat.box.name}`}
+                      {selectedBoxStat.box.id === 0 ? 'Box #0: Unallocated Staging Queue' : `Box #${selectedBoxStat.box.id}: ${selectedBoxStat.box.name}`}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
@@ -986,7 +986,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                         }}
                         className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-semibold rounded px-1.5 py-1 focus:outline-none shrink-0"
                       >
-                        <option value={0}>Box 0 (Unallocated)</option>
+                        <option value={0}>Box #0 (Unallocated)</option>
                         {sortedBoxes.map((b) => (
                           <option key={b.id} value={b.id}>
                             Box #{b.id}

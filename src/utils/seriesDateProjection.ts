@@ -128,7 +128,7 @@ export function buildMissingWishlistComic(options: {
     artist: options.artist || '',
     format: 'Single Issue',
     sizeThickness: 1.0,
-    currentBoxId: 0,
+    currentBoxId: -1,
     readingStatus: 'Wishlist',
     copiesOwned: 0,
     readCount: 0,

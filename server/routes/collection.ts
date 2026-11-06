@@ -272,6 +272,8 @@ collectionRouter.post('/api/sync', requireDatabase, async (req, res) => {
     // Load valid box IDs so comic current_box_id references won't violate FK if a box was deleted
     const existingBoxesRes = await client.query('SELECT id, updated_at FROM storage_boxes');
     const validBoxIds = new Set<number>(existingBoxesRes.rows.map((r) => Number(r.id)));
+    validBoxIds.add(0);
+    validBoxIds.add(-1);
     const boxUpdatedAtMap = new Map<number, number>(
       existingBoxesRes.rows.map((r) => [Number(r.id), r.updated_at ? new Date(r.updated_at).getTime() : 0])
     );
@@ -424,6 +426,7 @@ collectionRouter.post('/api/sync', requireDatabase, async (req, res) => {
           if (comicToSave) {
             if (comicToSave.readingStatus === 'Wishlist') {
               comicToSave.copiesOwned = 0;
+              comicToSave.currentBoxId = -1;
             }
             // Ensure currentBoxId references a valid box
             const targetBoxId = Number(comicToSave.currentBoxId);

@@ -259,7 +259,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
 
     const isWishlist = readingStatus === 'Wishlist';
     const finalCopies = isWishlist ? 0 : (Number(copiesOwned) > 0 ? Number(copiesOwned) : 1);
-    const finalBoxId = isWishlist ? 0 : Number(currentBoxId);
+    const finalBoxId = isWishlist ? -1 : Number(currentBoxId);
 
     const cleanTitle = title.trim();
     const cleanIssue = issueNumber.trim() || '1';
@@ -650,7 +650,7 @@ export const AddAndScanModal: React.FC<AddAndScanModalProps> = ({
                     onChange={(e) => setCurrentBoxId(Number(e.target.value))}
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-indigo-500"
                   >
-                    <option value={0}>Box 0 - Unallocated / Staging Queue</option>
+                    <option value={0}>Box #0: Unallocated / Staging Queue</option>
                     {sortBoxes(boxes).map((b) => (
                       <option key={b.id} value={b.id}>
                         Box #{b.id}: {b.name.split('-')[1] || b.name}

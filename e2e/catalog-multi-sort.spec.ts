@@ -281,4 +281,29 @@ test.describe('Catalog View Multi-Sort and Annuals Separation', () => {
     // Verify the breadcrumb bar updated
     await expect(page.locator('text=Release Date').first()).toBeVisible();
   });
+
+  test('Preset dropdown and direction button in toolbar update sort hierarchy', async ({ page }) => {
+    await page.addInitScript((comics) => {
+      window.localStorage.setItem('comic_vault_comics', JSON.stringify(comics));
+      window.localStorage.removeItem('comic_vault_catalog_sort_v1');
+    }, sampleComics);
+
+    await page.goto('/');
+
+    const catalogTab = page.getByRole('button', { name: /Catalog/i });
+    await catalogTab.click();
+
+    // Verify preset select is visible in the toolbar
+    const presetSelect = page.getByRole('combobox', { name: 'Sort Order Preset' });
+    await expect(presetSelect).toBeVisible();
+
+    // Change to "Series & Issue" preset
+    await presetSelect.selectOption('series_issue');
+    await expect(page.getByRole('button', { name: /Series Name/i }).first()).toBeVisible();
+
+    // Toggle direction
+    const toggleDirBtn = page.getByRole('button', { name: 'Toggle primary sort direction' });
+    await toggleDirBtn.click();
+    await expect(page.locator('text=Z → A').first()).toBeVisible();
+  });
 });

@@ -80,9 +80,9 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     // Modal should close
     await expect(modal).not.toBeVisible({ timeout: 10000 });
 
-    // Filter by Wishlist status in Catalog View
-    const catalogStatusSelect = page.locator('label:has-text("Reading Status") + select');
-    await catalogStatusSelect.selectOption('Wishlist');
+    // Filter by Wishlist Scope in Catalog View
+    const wishlistFilterSelect = page.locator('label:has-text("Wishlist Filter") + select');
+    await wishlistFilterSelect.selectOption('only');
 
     // Search for the newly added wishlist comic
     const searchInput = page.locator('input[placeholder*="Search title"]');

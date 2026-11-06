@@ -73,4 +73,23 @@
    - When Playwright tests type into search bars or filters with debounced state transitions (250–300ms), they must submit `await searchInput.press('Enter')` or wait for transition counters (e.g. `Showing X of Y`) before taking element counts to prevent race conditions during list re-rendering.
    - Bounding-box or geometry assertions on modals with spring-physics entrance animations (`comic-modal-spring-full` which peaks at `scale(1.038)`) must allow the entrance keyframe to complete settling before measuring bounding box dimensions.
 
+## Storage Box Partitioning & Wishlist Architecture
+13. **Storage Box Hierarchy & Wishlist Box Partitioning (`Box 0` vs `Box -1`)**:
+   - `Box 0` is strictly reserved for *owned* unallocated / staging comics (e.g., newly acquired comics or issues temporarily removed from a box). Never assign wishlisted comics to Box 0.
+   - Wishlisted comics must always be assigned to Box ID `-1` behind the scenes across all creation, editing, and import pathways (`AddAndScanModal`, `ComicDetailModal`, `GenerateSeriesWishlistModal`, `GoogleSheetsImporter`, `seriesDateProjection`).
+   - PostgreSQL requires an initialized container record `id = -1` in `storage_boxes` (`Box -1: Wishlist`) to satisfy foreign key constraints (`REFERENCES storage_boxes(id)`).
+   - In physical storage box dropdowns, Box 0 must be formatted consistently with physical boxes using `#` and `:` (`Box #0: Unallocated / Staging Queue` matching `Box #1: ...`), while Box `-1` must be excluded from physical storage box selectors.
+
+## Catalog Filtering & Reading Status Invariants
+14. **Catalog View Reading Status & Dedicated Wishlist Scope Filter**:
+   - "Wishlist" is NOT a reading status. The `Reading Status` filter dropdown must strictly filter actual reading states (`Read`, `Reading`, `Unread`, `All Statuses`) and must never include a `Wishlist` option.
+   - Catalog View searches and default browsing must always exclude Wishlisted comics (`Exclude Wishlist` by default).
+   - Wishlist inclusion must be controlled via the dedicated 3-state filter (`Exclude Wishlist`, `Include Wishlist`, `Wishlist Only`) persisted in `CatalogFilters`.
+
+## E2E Testing & Playwright Server Invariants
+15. **Playwright Production Bundle Freshness & Server Port Lifecycle**:
+   - `playwright.config.ts` launches or connects to `node dist-server/server.cjs` serving pre-built assets in `dist/` with `reuseExistingServer: true`.
+   - When modifying frontend components or server routes before running Playwright tests, always execute `npm run build` and ensure any stale running process on port 3000 is terminated so tests evaluate the latest code rather than stale cached bundles.
+
+
 

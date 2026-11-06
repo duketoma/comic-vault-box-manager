@@ -5,6 +5,8 @@ export const MIN_CATALOG_PUBLISH_YEAR = 1930;
 
 export const CATALOG_FILTERS_STORAGE_KEY = 'comic_vault_catalog_filters_v1';
 
+export type WishlistScope = 'exclude' | 'include' | 'only';
+
 export interface CatalogFilters {
   selectedSeries: string;
   selectedRunProgress: 'all' | 'complete' | 'near' | 'in_progress';
@@ -14,6 +16,7 @@ export interface CatalogFilters {
   selectedCharacter: string;
   selectedBoxId: string;
   selectedStatus: string;
+  selectedWishlistScope: WishlistScope;
   selectedFormat: string;
   selectedEvent: string;
   startDate: string;
@@ -32,6 +35,7 @@ export const DEFAULT_CATALOG_FILTERS: CatalogFilters = {
   selectedCharacter: 'all',
   selectedBoxId: 'all',
   selectedStatus: 'all',
+  selectedWishlistScope: 'exclude',
   selectedFormat: 'all',
   selectedEvent: 'all',
   startDate: '',
@@ -82,6 +86,9 @@ export function loadSavedCatalogFilters(): CatalogFilters {
       selectedCharacter: typeof parsed.selectedCharacter === 'string' ? parsed.selectedCharacter : 'all',
       selectedBoxId: typeof parsed.selectedBoxId === 'string' ? parsed.selectedBoxId : 'all',
       selectedStatus: typeof parsed.selectedStatus === 'string' ? parsed.selectedStatus : 'all',
+      selectedWishlistScope: ['exclude', 'include', 'only'].includes(parsed.selectedWishlistScope)
+        ? parsed.selectedWishlistScope
+        : 'exclude',
       selectedFormat: typeof parsed.selectedFormat === 'string' ? parsed.selectedFormat : 'all',
       selectedEvent: typeof parsed.selectedEvent === 'string' ? parsed.selectedEvent : 'all',
       startDate: typeof parsed.startDate === 'string' ? parsed.startDate : '',

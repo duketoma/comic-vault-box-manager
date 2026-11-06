@@ -87,6 +87,11 @@ export function comicValues(comic: Record<string, unknown>) {
       const isWishlist = comic.reading_status === 'Wishlist' || comic.readingStatus === 'Wishlist';
       return isWishlist ? 0 : Math.max(1, Number(value) || 1);
     }
+    if (column === 'current_box_id') {
+      const isWishlist = comic.reading_status === 'Wishlist' || comic.readingStatus === 'Wishlist';
+      if (isWishlist) return -1;
+      return value !== undefined && value !== null ? Number(value) : 0;
+    }
     if (column === 'lock_estimated_value') {
       return Boolean(value);
     }
@@ -385,5 +390,24 @@ export async function initDatabase(db: Pool) {
     }
   } catch (seedErr) {
     console.warn('Auto-seed series_issue_totals warning:', seedErr);
+  }
+
+  // Ensure system box -1 exists and migrate wishlist comics from box 0 to box -1
+  try {
+    await db.query(`
+      INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes)
+      VALUES (-1, 'Box -1: Wishlist', 'Unassigned', 9999, '#f43f5e', 'System container for wishlisted comics')
+      ON CONFLICT (id) DO NOTHING
+    `);
+    const migratedWishlist = await db.query(`
+      UPDATE comic_books
+      SET current_box_id = -1, updated_at = NOW()
+      WHERE reading_status = 'Wishlist' AND (current_box_id = 0 OR current_box_id IS NULL)
+    `);
+    if (migratedWishlist.rowCount && migratedWishlist.rowCount > 0) {
+      console.log(`Migrated ${migratedWishlist.rowCount} wishlist comic(s) to Box -1.`);
+    }
+  } catch (boxMinusOneErr) {
+    console.warn('Wishlist Box -1 migration warning:', boxMinusOneErr);
   }
 }
