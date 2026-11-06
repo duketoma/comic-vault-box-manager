@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ComicBook, StorageBox } from '../types';
 import { getComicCoverUrl, handleImageError } from '../utils/imageUtils';
 import { sortBoxes, isTrueProposedMove } from '../utils/boxUtils';
-import { sortComicsByTitleAndIssue } from '../utils/comicSortUtils';
+import { sortComicsByBoxOrder } from '../utils/comicSortUtils';
 import { fetchBoxComics } from '../services/postgresService';
 import { 
   Boxes, 
@@ -161,7 +161,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     const allBoxes = [BOX_ZERO, ...sortedBoxes];
     return allBoxes.map((box) => {
       // Current Comics in Box (respecting Wishlist toggle setting)
-      const currentComics = sortComicsByTitleAndIssue(
+      const currentComics = sortComicsByBoxOrder(
         activeStatsComics.filter((c) => (c.currentBoxId ?? 0) === box.id)
       );
       const currentUsedThickness = currentComics.reduce((sum, c) => sum + (c.sizeThickness || 1.0), 0);
@@ -169,7 +169,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
       const currentPercent = box.id === 0 ? Math.min(100, (currentUsedThickness / 150) * 100) : (currentUsedThickness / box.maxCapacity) * 100;
 
       // Proposed Comics (uses proposedBoxId if set, otherwise currentBoxId)
-      const proposedComics = sortComicsByTitleAndIssue(
+      const proposedComics = sortComicsByBoxOrder(
         activeStatsComics.filter((c) => {
           const hasValidProposed = c.proposedBoxId !== undefined && c.proposedBoxId !== null;
           const targetBox = hasValidProposed ? Number(c.proposedBoxId) : Number(c.currentBoxId ?? 0);
@@ -352,12 +352,12 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
     try {
       // Fetch ordered comics from backend
       const result = await fetchBoxComics(box.id);
-      setBox3DComics(sortComicsByTitleAndIssue(result.comics));
+      setBox3DComics(sortComicsByBoxOrder(result.comics));
     } catch (error) {
       console.error('Failed to fetch comics for 3D viewer:', error);
       // Fall back to local comics filtered by box
       const localComics = comics.filter((c) => c.currentBoxId === box.id);
-      setBox3DComics(sortComicsByTitleAndIssue(localComics));
+      setBox3DComics(sortComicsByBoxOrder(localComics));
     } finally {
       setIs3DLoading(false);
     }
@@ -678,6 +678,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
               return (
                 <div
                   key={box.id}
+                  data-testid={`box-card-${box.id}`}
                   onClick={() => setActiveBoxId(box.id)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDropOnBox(e, box.id)}

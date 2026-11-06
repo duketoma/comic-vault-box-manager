@@ -114,6 +114,13 @@ export const ComicDetailPanel: React.FC<ComicDetailPanelProps> = ({
             Issue #{comic.issueNumber}
             {comic.volume && ` • Vol. ${comic.volume}`}
           </p>
+          {comic.event && (
+            <div className="mt-1.5 flex items-center gap-1">
+              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                {comic.event}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Publication */}

@@ -5,9 +5,10 @@
  * Manages Three.js lifecycle, OrbitControls, state, and event handling.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
 import { ComicBook, StorageBox } from '../types';
+import { sortComicsByBoxOrder } from '../utils/comicSortUtils';
 import {
   createBoxStack,
   buildBoxStackMeshes,
@@ -50,12 +51,14 @@ export interface Box3DVisualizerProps {
 
 export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   box,
-  comics,
+  comics: rawComics,
   onSelectComic,
   onViewFullArt,
   onClose,
   highlightedComicId,
 }) => {
+  const comics = useMemo(() => sortComicsByBoxOrder(rawComics), [rawComics]);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneContextRef = useRef<SceneContext | null>(null);
   const boxStackRef = useRef<BoxStack | null>(null);

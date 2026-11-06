@@ -5,6 +5,7 @@ import {
   compareComicsMultiSort,
   compareComicsByTitleAndIssue,
   sortComicsMultiSort,
+  sortComicsByBoxOrder,
 } from './comicSortUtils';
 import {
   getMonthIndex,
@@ -221,5 +222,64 @@ assert.strictEqual(formatIsoComicDate(1996, 'October'), '1996-10-01');
 assert.strictEqual(formatIsoComicDate(1994, undefined), '1994');
 assert.strictEqual(formatIsoComicDate(undefined, undefined), undefined);
 console.log('✓ formatIsoComicDate formats clean ISO dates');
+
+// -------------------------------------------------------------
+// Test 9: sortComicsByBoxOrder places Event comics first (e.g. Box #17)
+// -------------------------------------------------------------
+const boxComics = [
+  createMockComic({
+    id: 'c-air-raiders',
+    title: 'Air Raiders',
+    seriesName: 'Air Raiders (Vol. 1)',
+    issueNumber: '3',
+    publisher: 'Marvel Comics',
+    event: undefined,
+  }),
+  createMockComic({
+    id: 'c-alf',
+    title: 'ALF',
+    seriesName: 'ALF (1988 - 1992)',
+    issueNumber: '12',
+    publisher: 'Marvel Comics',
+    event: undefined,
+  }),
+  createMockComic({
+    id: 'c-x-factor-ann-3',
+    title: 'X-Factor Annual',
+    seriesName: 'X-Factor (Vol. 1)',
+    issueNumber: '3',
+    publisher: 'Marvel Comics',
+    event: 'Evolutionary War',
+  }),
+  createMockComic({
+    id: 'c-ff-ann-21',
+    title: 'Fantastic Four Annual',
+    seriesName: 'Fantastic Four (Vol. 1)',
+    issueNumber: '21',
+    publisher: 'Marvel Comics',
+    event: 'Evolutionary War',
+  }),
+  createMockComic({
+    id: 'c-animax',
+    title: 'Animax',
+    seriesName: 'Animax (Vol. 1)',
+    issueNumber: '1',
+    publisher: 'Marvel Comics',
+    event: undefined,
+  }),
+];
+
+const sortedByBoxOrder = sortComicsByBoxOrder(boxComics);
+const sortedTitles = sortedByBoxOrder.map((c) => c.title);
+
+assert.deepStrictEqual(
+  sortedTitles.slice(0, 2),
+  ['Fantastic Four Annual', 'X-Factor Annual'],
+  `Expected Event comics first in Box Organizer order, but got: ${JSON.stringify(sortedTitles)}`
+);
+assert.strictEqual(sortedByBoxOrder[0].event, 'Evolutionary War');
+assert.strictEqual(sortedByBoxOrder[1].event, 'Evolutionary War');
+assert.strictEqual(sortedByBoxOrder[2].event, undefined);
+console.log('✓ sortComicsByBoxOrder places Event comics first (e.g. Evolutionary War in Box #17)');
 
 console.log('\nALL COMIC SORTING & DATE TESTS PASSED SUCCESSFULLY! 🚀');

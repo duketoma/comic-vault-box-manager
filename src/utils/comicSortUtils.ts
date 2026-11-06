@@ -847,3 +847,14 @@ export function sortComicsMultiSort(
   if (!Array.isArray(comics)) return [];
   return [...comics].sort((a, b) => compareComicsMultiSort(a, b, options));
 }
+
+/**
+ * Sorts comics in canonical Box Organizer order:
+ * Publisher (asc) -> Event (asc, empty event placed last so Event comics are first) -> Series Name (asc) -> Issue Number (asc).
+ * Annuals are separated.
+ */
+export function sortComicsByBoxOrder(comics: ComicBook[]): ComicBook[] {
+  if (!Array.isArray(comics)) return [];
+  return sortComicsMultiSort(comics, DEFAULT_MULTI_SORT_OPTIONS);
+}
+

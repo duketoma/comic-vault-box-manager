@@ -1,7 +1,7 @@
 import express from 'express';
 import { ComicBook } from '../../src/types';
 import { isSampleComicId } from '../../src/data/initialData';
-import { sortComicsByTitleAndIssue } from '../../src/utils/comicSortUtils';
+import { sortComicsByBoxOrder } from '../../src/utils/comicSortUtils';
 import {
   pool,
   requireDatabase,
@@ -566,7 +566,7 @@ collectionRouter.get('/api/boxes/:id/comics', requireDatabase, async (req, res) 
     );
 
     const rawComics = comicsResult.rows.map(rowToComic) as unknown as ComicBook[];
-    const comics = sortComicsByTitleAndIssue(rawComics);
+    const comics = sortComicsByBoxOrder(rawComics);
     res.json({
       box: {
         id: boxResult.rows[0].id,

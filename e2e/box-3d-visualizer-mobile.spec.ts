@@ -142,4 +142,35 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
       await expect(page.getByRole('heading', { name: '3D Box Visualizer' })).not.toBeVisible();
     });
   }
+
+  test('Box #17 renders in 3D Visualizer with Event comics first (Box Organizer order)', async ({ page }) => {
+    await page.goto('/');
+
+    // Navigate to Storage Boxes
+    const boxTab = page.getByRole('button', { name: /Boxes/i }).first();
+    await boxTab.click();
+
+    // Find Box #17 card and click its View in 3D button
+    const box17Card = page.getByTestId('box-card-17');
+    await expect(box17Card).toBeVisible({ timeout: 15000 });
+    const view3DBtn = box17Card.getByTitle('View in 3D');
+    await expect(view3DBtn).toBeVisible();
+    await view3DBtn.scrollIntoViewIfNeeded();
+    await view3DBtn.click();
+
+    // Verify 3D Visualizer modal is open
+    await expect(page.getByRole('heading', { name: '3D Box Visualizer' })).toBeVisible();
+
+    // Wait for entrance spring animation to settle
+    await page.waitForTimeout(550);
+
+    // Click Next Comic in Box to select the very first comic
+    const nextBtn = page.getByTitle('Next Comic in Box');
+    await expect(nextBtn).toBeVisible();
+    await nextBtn.click();
+
+    // Verify the first comic in Box 17 is an Evolutionary War Event comic (Fantastic Four Annual #21)
+    await expect(page.getByText('Fantastic Four Annual').first()).toBeVisible();
+    await expect(page.getByText('Evolutionary War').first()).toBeVisible();
+  });
 });
