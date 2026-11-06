@@ -63,7 +63,7 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all touch-manipulation cursor-pointer shrink-0"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all touch-manipulation cursor-pointer shrink-0"
             title="Close (Esc)"
             aria-label="Close 3D Visualizer"
           >

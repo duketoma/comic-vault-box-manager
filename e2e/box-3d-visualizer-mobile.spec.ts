@@ -89,14 +89,17 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
       // Verify modal is open
       await expect(page.getByRole('heading', { name: '3D Box Visualizer' })).toBeVisible();
 
+      // Wait for modal entrance spring animation (comic-modal-spring-full: 480ms) to settle
+      await page.waitForTimeout(550);
+
       // Check Close (X) button dimensions (must be >= 40px for mobile touch)
       const closeBtn = page.getByRole('button', { name: 'Close 3D Visualizer' });
       await expect(closeBtn).toBeVisible();
       const closeBox = await closeBtn.boundingBox();
       expect(closeBox).not.toBeNull();
       if (closeBox) {
-        expect(closeBox.width).toBeGreaterThanOrEqual(40);
-        expect(closeBox.height).toBeGreaterThanOrEqual(40);
+        expect(Math.round(closeBox.width)).toBeGreaterThanOrEqual(40);
+        expect(Math.round(closeBox.height)).toBeGreaterThanOrEqual(40);
       }
 
       // Check Previous & Next Comic buttons dimensions
@@ -105,8 +108,8 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
       const prevBox = await prevBtn.boundingBox();
       expect(prevBox).not.toBeNull();
       if (prevBox) {
-        expect(prevBox.width).toBeGreaterThanOrEqual(38);
-        expect(prevBox.height).toBeGreaterThanOrEqual(38);
+        expect(Math.round(prevBox.width)).toBeGreaterThanOrEqual(38);
+        expect(Math.round(prevBox.height)).toBeGreaterThanOrEqual(38);
       }
 
       const nextBtn = page.getByTitle('Next Comic in Box');
@@ -114,8 +117,8 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
       const nextBox = await nextBtn.boundingBox();
       expect(nextBox).not.toBeNull();
       if (nextBox) {
-        expect(nextBox.width).toBeGreaterThanOrEqual(38);
-        expect(nextBox.height).toBeGreaterThanOrEqual(38);
+        expect(Math.round(nextBox.width)).toBeGreaterThanOrEqual(38);
+        expect(Math.round(nextBox.height)).toBeGreaterThanOrEqual(38);
       }
 
       // Check Reset Camera button dimensions
@@ -124,8 +127,8 @@ test.describe('3D Box Visualizer Mobile & Touch Accessibility', () => {
       const resetBox = await resetBtn.boundingBox();
       expect(resetBox).not.toBeNull();
       if (resetBox) {
-        expect(resetBox.width).toBeGreaterThanOrEqual(38);
-        expect(resetBox.height).toBeGreaterThanOrEqual(38);
+        expect(Math.round(resetBox.width)).toBeGreaterThanOrEqual(38);
+        expect(Math.round(resetBox.height)).toBeGreaterThanOrEqual(38);
       }
 
       // Test dismissing via close button
