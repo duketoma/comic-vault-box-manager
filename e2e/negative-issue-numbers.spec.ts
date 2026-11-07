@@ -52,10 +52,16 @@ test.describe('Negative Comic Issue Numbers Handling (e.g. #-1)', () => {
     // Wait for the app and collection to load
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible();
 
+    // In the collection dataset, X-Factor #-1 is a wishlisted issue. Set Wishlist Filter to Include Wishlist.
+    const wishlistFilter = page.getByRole('combobox', { name: 'Wishlist Filter' });
+    await expect(wishlistFilter).toBeVisible();
+    await wishlistFilter.selectOption('include');
+
     // Search for X-Factor in catalog
     const searchInput = page.getByPlaceholder(/Search title/i);
     await expect(searchInput).toBeVisible({ timeout: 15000 });
     await searchInput.fill('X-Factor');
+    await searchInput.press('Enter');
 
     // Verify X-Factor #-1 is visible with #-1 badge
     const negOneBadge = page.getByText('#-1', { exact: true }).first();
