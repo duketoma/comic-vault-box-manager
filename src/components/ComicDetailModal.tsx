@@ -1714,14 +1714,54 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Values</span>
-              </button>
+              <>
+                {comic.readingStatus === 'Wishlist' ? (
+                  <button
+                    type="button"
+                    data-testid="detail-quick-mark-owned-btn"
+                    onClick={() => {
+                      const nextBoxId = comic.currentBoxId < 0 ? 0 : comic.currentBoxId;
+                      onUpdateComic({
+                        ...comic,
+                        readingStatus: 'Unread',
+                        copiesOwned: comic.copiesOwned && comic.copiesOwned > 0 ? comic.copiesOwned : 1,
+                        currentBoxId: nextBoxId,
+                        proposedBoxId: nextBoxId,
+                      });
+                    }}
+                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                    title="Move this wishlisted issue into your owned collection"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Mark Owned</span>
+                  </button>
+                ) : comic.readingStatus !== 'Read' ? (
+                  <button
+                    type="button"
+                    data-testid="detail-quick-mark-read-btn"
+                    onClick={() => {
+                      onUpdateComic({
+                        ...comic,
+                        readingStatus: 'Read',
+                        lastReadDate: new Date().toISOString().split('T')[0],
+                      });
+                    }}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                    title="Mark this comic as Read"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Mark Read</span>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Values</span>
+                </button>
+              </>
             )}
             <button
               type="button"

@@ -442,7 +442,7 @@ export const StyleStudioModal: React.FC<StyleStudioModalProps> = ({
                       Comic Action Stamps & Halftone Bursts
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Pops a celebratory comic starburst ("READ! ★", "COLLECTED! 💥") when updating reading status or bagging wishlist items
+                      Pops a celebratory comic starburst ("READ! ★", "COLLECTED! 💥", "EXCELSIOR! 🏆") when marking comics read, acquiring owned comics, or completing a series run
                     </p>
                   </div>
                 </div>

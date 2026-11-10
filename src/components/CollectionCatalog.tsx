@@ -1542,8 +1542,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   {/* Status Indicator Bar */}
                   <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center">
                     {comic.readingStatus !== 'Wishlist' && (
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-md border shadow-xs ${
+                      <button
+                        type="button"
+                        data-testid="grid-quick-status-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextStatus: Record<string, ComicBook['readingStatus']> = {
+                            'Unread': 'Reading',
+                            'Reading': 'Read',
+                            'Read': 'Unread',
+                          };
+                          onQuickStatusChange(comic.id, nextStatus[comic.readingStatus] || 'Read');
+                        }}
+                        title={`Click to cycle reading status (${comic.readingStatus})`}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-md border shadow-xs cursor-pointer transition-transform active:scale-95 ${
                           comic.readingStatus === 'Read'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
                             : comic.readingStatus === 'Reading'
@@ -1552,7 +1564,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                         }`}
                       >
                         {comic.readingStatus}
-                      </span>
+                      </button>
                     )}
 
                     {comic.userRating ? (

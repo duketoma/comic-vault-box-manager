@@ -45,6 +45,7 @@ import {
 } from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
 import { getSeriesOverviewSummary } from './utils/seriesUtils';
+import { evaluateCollectionActionBurst } from './utils/actionStampUtils';
 import {
   CatalogFilters,
   DEFAULT_CATALOG_FILTERS,
@@ -131,10 +132,10 @@ export default function App() {
     (burst: Omit<ComicActionBurstItem, 'id'>, forceShow = false) => {
       if (!forceShow && !uiStylePrefs.enableActionStamps) return;
       const id = `burst-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      setActionBursts((prev) => [...prev.slice(-2), { ...burst, id }]);
+      setActionBursts([{ ...burst, id }]);
       setTimeout(() => {
         setActionBursts((prev) => prev.filter((b) => b.id !== id));
-      }, 1100);
+      }, 1150);
     },
     [uiStylePrefs.enableActionStamps]
   );
@@ -404,7 +405,12 @@ export default function App() {
       createdAt: newComic.createdAt || nowIso,
       updatedAt: nowIso,
     };
-    setComics((prev) => [cleanComic, ...prev]);
+    const nextComics = [cleanComic, ...comics];
+    setComics(nextComics);
+    const burst = evaluateCollectionActionBurst(comics, nextComics, seriesTotals, [cleanComic.id]);
+    if (burst) {
+      triggerActionBurst(burst);
+    }
     saveLocalComicAndEnqueue(cleanComic)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
@@ -443,7 +449,13 @@ export default function App() {
       copiesOwned: updatedComic.readingStatus === 'Wishlist' ? 0 : updatedComic.copiesOwned,
       updatedAt: nowIso,
     };
-    setComics((prev) => prev.map((c) => (c.id === cleanComic.id ? cleanComic : c)));
+    const nextComics = comics.map((c) => (c.id === cleanComic.id ? cleanComic : c));
+    setComics(nextComics);
+    setSelectedComic((prev) => (prev && prev.id === cleanComic.id ? cleanComic : prev));
+    const burst = evaluateCollectionActionBurst(comics, nextComics, seriesTotals, [cleanComic.id]);
+    if (burst) {
+      triggerActionBurst(burst);
+    }
     saveLocalComicAndEnqueue(cleanComic, existing?.readingStatus)
       .then(updateOutboxStatus)
       .then(() => triggerSync());
@@ -502,19 +514,26 @@ export default function App() {
     const nowIso = new Date().toISOString();
     const newCopies =
       newStatus === 'Wishlist' ? 0 : existing.copiesOwned && existing.copiesOwned > 0 ? existing.copiesOwned : 1;
+    const nextBoxId =
+      newStatus === 'Wishlist'
+        ? -1
+        : existing.currentBoxId < 0
+        ? 0
+        : existing.currentBoxId;
     const updatedComic: ComicBook = {
       ...existing,
       readingStatus: newStatus,
       copiesOwned: newCopies,
+      currentBoxId: nextBoxId,
+      proposedBoxId: existing.currentBoxId < 0 || newStatus === 'Wishlist' ? nextBoxId : existing.proposedBoxId,
+      lastReadDate: newStatus === 'Read' ? nowIso.split('T')[0] : existing.lastReadDate,
       updatedAt: nowIso,
     };
-    setComics((prev) => prev.map((c) => (c.id === comicId ? updatedComic : c)));
-    if (newStatus === 'Read' && existing.readingStatus !== 'Read') {
-      triggerActionBurst({
-        text: 'READ! ★',
-        subtext: `${existing.title} #${existing.issueNumber}`,
-        variant: 'read',
-      });
+    const nextComics = comics.map((c) => (c.id === comicId ? updatedComic : c));
+    setComics(nextComics);
+    const burst = evaluateCollectionActionBurst(comics, nextComics, seriesTotals, [comicId]);
+    if (burst) {
+      triggerActionBurst(burst);
     }
     saveLocalComicAndEnqueue(updatedComic, existing.readingStatus)
       .then(updateOutboxStatus)
@@ -531,7 +550,7 @@ export default function App() {
     const updatedList = comics.map((c) => {
       if (idSet.has(c.id)) {
         baseStatuses.set(c.id, c.readingStatus);
-        const targetBox = targetBoxId !== undefined ? targetBoxId : c.currentBoxId || 1;
+        const targetBox = targetBoxId !== undefined ? targetBoxId : c.currentBoxId > 0 ? c.currentBoxId : 1;
         const updatedComic: ComicBook = {
           ...c,
           readingStatus: 'Unread' as const,
@@ -549,13 +568,23 @@ export default function App() {
     setComics(updatedList);
 
     if (updatedComicsToPersist.length > 0) {
-      triggerActionBurst({
-        text: 'COLLECTED! 💥',
-        subtext: `${updatedComicsToPersist.length} Wishlist ${
-          updatedComicsToPersist.length === 1 ? 'Issue' : 'Issues'
-        } Bagged`,
-        variant: 'collected',
-      });
+      const evaluatedBurst = evaluateCollectionActionBurst(
+        comics,
+        updatedList,
+        seriesTotals,
+        updatedComicsToPersist.map((c) => c.id)
+      );
+      if (evaluatedBurst && evaluatedBurst.variant === 'excelsior') {
+        triggerActionBurst(evaluatedBurst);
+      } else {
+        triggerActionBurst({
+          text: 'COLLECTED! 💥',
+          subtext: `${updatedComicsToPersist.length} Wishlist ${
+            updatedComicsToPersist.length === 1 ? 'Issue' : 'Issues'
+          } Bagged`,
+          variant: 'collected',
+        });
+      }
       const outbox = await saveLocalComicsBatchAndEnqueue(updatedComicsToPersist, baseStatuses);
       updateOutboxStatus(outbox);
       void triggerSync();
@@ -971,6 +1000,7 @@ export default function App() {
                   boxes={boxes}
                   onSelectComic={setSelectedComic}
                   onRefreshCollection={handleRefreshCollection}
+                  onTriggerBurst={triggerActionBurst}
                   initialCriterion={challengePrefillCriterion}
                   onClearInitialCriterion={() => {
                     setChallengePrefillCriterion(null);

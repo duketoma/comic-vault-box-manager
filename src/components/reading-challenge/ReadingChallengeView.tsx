@@ -12,6 +12,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { ComicBook, StorageBox } from '../../types';
+import { ComicActionBurstItem } from '../ComicActionBurstOverlay';
 import { 
   ChallengeHistorySummary, 
   ReadingChallengeSummary 
@@ -37,6 +38,7 @@ interface ReadingChallengeViewProps {
   boxes: StorageBox[];
   onSelectComic?: (comic: ComicBook) => void;
   onRefreshCollection?: () => void;
+  onTriggerBurst?: (burst: Omit<ComicActionBurstItem, 'id'>) => void;
   initialEventCriterion?: string | null;
   onClearInitialEventCriterion?: () => void;
   initialCriterion?: { type: 'event' | 'creator' | 'character'; name: string } | null;
@@ -48,6 +50,7 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
   boxes,
   onSelectComic,
   onRefreshCollection,
+  onTriggerBurst,
   initialEventCriterion,
   onClearInitialEventCriterion,
   initialCriterion,
@@ -116,9 +119,43 @@ export const ReadingChallengeView: React.FC<ReadingChallengeViewProps> = ({
   const handleMarkRead = async (itemId: number) => {
     if (!activeChallenge) return;
     try {
+      const targetQueueItem = activeChallenge.queue.find((q) => q.challengeItemId === itemId);
+      const matchingComic = targetQueueItem
+        ? comics.find((c) => c.id === targetQueueItem.comicId)
+        : undefined;
+      const meta = targetQueueItem?.metadata;
+      const resolvedTitle =
+        meta?.title?.trim() ||
+        matchingComic?.title?.trim() ||
+        meta?.seriesName?.trim() ||
+        matchingComic?.seriesName?.trim() ||
+        meta?.fullTitle?.trim() ||
+        matchingComic?.fullTitle?.trim() ||
+        'Challenge Issue';
+      const resolvedIssue = (meta?.issueNumber ?? matchingComic?.issueNumber ?? '')
+        .toString()
+        .trim()
+        .replace(/^#/, '');
+      const itemSubtext = resolvedIssue ? `${resolvedTitle} #${resolvedIssue}` : resolvedTitle;
+
       const updated = await markItemRead(activeChallenge.challengeId, itemId);
       setActiveChallenge(updated);
       setLastReadItemId(itemId);
+      if (onTriggerBurst) {
+        if (updated.status === 'Completed') {
+          onTriggerBurst({
+            text: 'EXCELSIOR! 🏆',
+            subtext: `${updated.name} Completed!`,
+            variant: 'excelsior',
+          });
+        } else {
+          onTriggerBurst({
+            text: 'READ! ★',
+            subtext: itemSubtext,
+            variant: 'read',
+          });
+        }
+      }
       if (onRefreshCollection) {
         onRefreshCollection();
       }
