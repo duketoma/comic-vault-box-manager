@@ -456,6 +456,35 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
     });
   }, [comics]);
 
+  // Single-pass Two-Tier Cover Strategy summary metrics (Rule 4)
+  const twoTierStats = useMemo(() => {
+    let masterWebpCount = 0;
+    let personalOverrideCount = 0;
+    let fullArtCount = 0;
+
+    for (const c of comics) {
+      if (
+        c.masterCoverImage ||
+        (c.coverImage && c.coverImage.includes('firebasestorage.googleapis.com'))
+      ) {
+        masterWebpCount++;
+      }
+      if (
+        c.coverImageOverride ||
+        (c.coverImage &&
+          (c.coverImage.includes('drive.google.com') ||
+            c.coverImage.includes('googleusercontent.com')))
+      ) {
+        personalOverrideCount++;
+      }
+      if (c.coverImageFull || c.coverImageFullOverride || c.masterCoverImageFull) {
+        fullArtCount++;
+      }
+    }
+
+    return { masterWebpCount, personalOverrideCount, fullArtCount };
+  }, [comics]);
+
   const handleScanDrive = async (tokenToUse?: string, allowAutoPrompt = false) => {
     const tok = tokenToUse || accessToken;
     if (!tok) {
@@ -601,7 +630,33 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          
+          {/* Two-Tier Cloud & Drive Cover Manager Summary */}
+          <div
+            data-testid="two-tier-cover-summary"
+            className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/60 space-y-2.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Two-Tier Cloud & Drive Cover Architecture</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  {twoTierStats.masterWebpCount} Master WebP Covers
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                  {twoTierStats.personalOverrideCount} High-Res Drive Overrides
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                  {twoTierStats.fullArtCount} Full Art Spreads
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300/80 leading-relaxed">
+              Linking covers from Google Drive saves the <strong>high-resolution Google Drive URL</strong> as your personal <strong>coverImageOverride</strong>, while the shared Master Catalog serves lightweight compressed <strong>.webp</strong> covers (~45 KB) from Firebase Cloud Storage.
+            </p>
+          </div>
+
           {/* Auth State Box */}
           {!user || !accessToken ? (
             <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center space-y-4">

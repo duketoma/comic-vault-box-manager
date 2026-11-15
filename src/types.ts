@@ -186,6 +186,10 @@ export interface ComicBook {
   characterAppearances?: CharacterAppearance[];
   coverImage: string;
   coverImageFull?: string; // Full wraparound, trifold, or front+back cover art
+  coverImageOverride?: string | null; // Personal high-quality cloud or Drive override
+  coverImageFullOverride?: string | null; // Personal high-quality full wraparound override
+  masterCoverImage?: string | null; // Canonical compressed .webp from master catalog
+  masterCoverImageFull?: string | null; // Canonical compressed full .webp from master catalog
   format: ComicFormat;
   sizeThickness: number; // Equivalent comic book size (1.0 = standard issue)
   currentBoxId: number;  // 1 to 15 (or custom box id)
@@ -203,6 +207,7 @@ export interface ComicBook {
   lockEstimatedValue?: boolean;
   notes?: string;
   tags: string[];
+  inCollection?: boolean;
   createdAt: string;
   updatedAt: string;
 }

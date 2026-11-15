@@ -110,8 +110,7 @@ export function evaluateCollectionActionBurst(
     } else {
       const wasWishlistOrUnowned =
         prevComic.readingStatus === 'Wishlist' || (prevComic.copiesOwned ?? 1) <= 0;
-      const isNowOwned =
-        nextComic.readingStatus !== 'Wishlist' && (nextComic.copiesOwned ?? 1) >= 1;
+      const isNowOwned = (nextComic.copiesOwned ?? 1) >= 1;
       const addedAdditionalCopy =
         prevComic.readingStatus !== 'Wishlist' &&
         (nextComic.copiesOwned ?? 1) > (prevComic.copiesOwned ?? 1);

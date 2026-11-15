@@ -5,9 +5,12 @@ import { createServer as createViteServer } from 'vite';
 import { pool, initDatabase } from './server/db';
 import { collectionRouter } from './server/routes/collection';
 import { challengesRouter } from './server/routes/challenges';
+import { masterCatalogRouter } from './server/routes/masterCatalog';
+import { storageUploadRouter } from './server/routes/storageUpload';
 import { aiAndProxyRouter } from './server/routes/aiAndProxy';
 import { importsAndExportsRouter } from './server/routes/importsAndExports';
 import { valuationRouter } from './server/routes/valuation';
+import { proposalsRouter } from './server/routes/proposals';
 import { valuationBatchManager } from './server/services/valuationEngine';
 
 async function startServer() {
@@ -49,9 +52,12 @@ async function startServer() {
   // Mount modular API routers
   app.use(collectionRouter);
   app.use(challengesRouter);
+  app.use(masterCatalogRouter);
+  app.use(storageUploadRouter);
   app.use(aiAndProxyRouter);
   app.use(importsAndExportsRouter);
   app.use(valuationRouter);
+  app.use(proposalsRouter);
 
   // --- VITE MIDDLEWARE / PRODUCTION STATIC SETUP ---
   if (process.env.NODE_ENV?.trim() !== 'production') {

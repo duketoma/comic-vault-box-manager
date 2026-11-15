@@ -113,6 +113,10 @@
           statusEl.textContent = 'Warming up local server & collection index...';
         } else if (attempts === 30) {
           statusEl.textContent = 'Almost ready — loading comic catalog...';
+        } else if (attempts === 50) {
+          statusEl.textContent = 'Server is taking longer than usual to respond. Retrying...';
+        } else if (attempts === 80) {
+          statusEl.innerHTML = 'Still waiting for server...<br/><small style="font-size:0.78rem;color:#fca5a5;">Check logs/server-error.log or try running npm run dev</small>';
         }
 
         try {

@@ -20,6 +20,8 @@
 
 3. **Defensive Metadata Access**:
    - Comic records may contain sparse or null fields. Never invoke string methods (e.g., `.toLowerCase()`, `.trim()`) or array methods on comic fields without null/undefined guards or default fallbacks (e.g., `(c.title || '').toLowerCase()`, `c.tags?.some(...)`).
+   - Never invoke `.toFixed()` on numeric comic fields (`estimatedValue`, `previousEstimatedValue`, `purchasePrice`, `rating`) using only `!== undefined` checks, because `JSON.stringify(NaN)` serializes `NaN` as `null`. Always guard numeric formatting with `val != null && !Number.isNaN(Number(val))`.
+   - On the server, never chain `??` and `!==` without explicit parentheses when coercing optional numbers; use `parseOptionalNumber(val)` so missing or non-finite values return `undefined` instead of `NaN` or `null`.
 
 4. **Single-Pass Collection Aggregations**:
    - When computing multiple collection statistics or counts in top-level state (e.g., `App.tsx`), combine them into a single-pass `useMemo` loop rather than chaining multiple full `.filter()` / `.reduce()` passes over large arrays.
@@ -36,6 +38,7 @@
 6. **Zero-Cost Client-Side Imaging & OCR**:
    - Cover scanning and image enhancement must execute entirely on the client (e.g., via `tesseract.js` and HTML5 Canvas perspective homography warping/deskewing). Do not introduce third-party cloud AI vision dependencies with per-request running costs.
    - Imaging and perspective-cropping workflows must be accessible from both the new comic addition modal and existing comic details (`ComicDetailModal`), supporting both Front Cover (`coverImage`) and Full Wraparound Art (`coverImageFull`) targets.
+   - Local `.webp` and Google Drive filename matchers (`src/utils/imageUtils.ts`, `server/services/webpMasterUploadPipeline.ts`) must account for Windows-illegal filename characters (`:`, `?`, `/`, `\`, `*`, `"`, `<`, `>`, `|`) that are stripped or replaced with spaces/hyphens on disk, as well as Omnibus titles containing `Vol. N` where the database record defaults to `volume: 1`.
 
 ## Shell & Environment Invariants
 7. **Windows PowerShell Command Chaining**:
@@ -56,8 +59,8 @@
    - When hydrating from backend `loadCollection()`, write directly to IndexedDB via `putLocalComicsDirect(clean)` and update `lastSyncAt = now` to avoid enqueuing the entire collection into `sync_outbox` or triggering redundant full delta syncs.
    - In React top-level state (`App.tsx`), keep collection hydration callbacks stable with empty dependency arrays (`[]`) and ref pointers (`comicsRef`, `boxesRef`) to prevent infinite hydration loops and visual skeleton thrashing. Always call standard REST endpoints (`replaceComics`, `saveComic`, etc.) in tandem with local outbox enqueueing so existing REST API test intercepts remain fully functional.
 
-10. **PostgreSQL Sync Tombstones & Transaction Client Queries (`server/db.ts` & `server/routes/collection.ts`)**:
-   - Any server-side deletion of comics or storage boxes in PostgreSQL must record tombstones in the `deleted_records` table via `recordDeletionTombstones(client, entityType, ids)`, and any upsert must clear tombstones via `clearDeletionTombstones(client, entityType, ids)` so delta syncs (`POST /api/sync`) propagate deletions to mobile devices.
+10. **Cloud Firestore & PostgreSQL Sync Tombstones (`server/routes/collection.ts` & `server/db.ts`)**:
+   - Any server-side deletion of comics or storage boxes in Cloud Firestore (`users/{uid}/deleted_records`) or PostgreSQL (`deleted_records`) must record deletion tombstones, and any upsert must clear matching tombstones so delta syncs (`POST /api/sync`) propagate deletions to mobile and desktop clients.
    - In `node-postgres` (`pg`), never run `Promise.all([client.query(...), client.query(...)])` concurrently on the same checked-out `PoolClient` instance inside a transaction (which triggers `pg` deprecation warnings and serializes over one socket anyway). Execute queries sequentially with `await client.query(...)` on a checked-out `PoolClient`, or use `pool.query(...)` only for non-transactional parallel reads.
    - Defensively ensure numeric fields with database `NOT NULL` constraints (such as `copies_owned`) are always guarded in `comicValues()` with appropriate fallbacks (`Math.max(1, Number(value) || 1)` for owned comics, `0` for wishlist items).
 
@@ -90,6 +93,14 @@
 15. **Playwright Production Bundle Freshness & Server Port Lifecycle**:
    - `playwright.config.ts` launches or connects to `node dist-server/server.cjs` serving pre-built assets in `dist/` with `reuseExistingServer: true`.
    - When modifying frontend components or server routes before running Playwright tests, always execute `npm run build` and ensure any stale running process on port 3000 is terminated so tests evaluate the latest code rather than stale cached bundles.
+
+## Multi-Tenant Cloud Firestore & Two-Tier Cover Storage Architecture
+16. **Two-Tier Cover Image Resolution & Firebase Storage Invariants**:
+   - **Shared Master Catalog (`master_comics`)**: Stores only compressed `.webp` covers in Firebase Cloud Storage (`gen-lang-client-0874195230.firebasestorage.app` under `covers/master/{comicId}.webp` at `400px` q75 and `covers/master-full/{comicId}.webp` at `900px` q78) with 1-year immutable cache headers. Raw multi-gigabyte image files and personal Google Drive URLs must never be written to `master_comics`.
+   - **Personal High-Quality Overrides (`users/{uid}/comics`)**: High-resolution personal covers (such as the Admin's Google Drive URLs or VIP uploads in `covers/users/{uid}/`) must be stored in `coverImageOverride` and `coverImageFullOverride`.
+   - **Effective Cover Resolution**: Both server (`docToComic`) and client components must resolve effective display covers via `coverImage = coverImageOverride || masterCoverImage` while also exposing `masterCoverImage` and `coverImageOverride` so users can inspect cover provenance and revert to the Master `.webp` cover in one click.
+   - **Zero-Read Catalog Snapshot**: Bulk catalog browsing and initial hydration read from `catalog/master_catalog_snapshot.json` in Firebase Cloud Storage and delta-sync via `updatedAt > lastSyncAt` to preserve Firestore daily read quotas.
+
 
 
 

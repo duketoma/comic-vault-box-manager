@@ -21,7 +21,9 @@ import {
   WifiOff,
   TrendingUp,
   Palette,
-  X
+  X,
+  Vote,
+  ShieldCheck
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -37,6 +39,8 @@ interface NavbarProps {
   onOpenValuationModal?: () => void;
   onOpenStyleStudioModal?: () => void;
   onOpenDataManagementModal?: () => void;
+  onOpenCommunityVoting?: () => void;
+  onOpenAdminPortal?: () => void;
   totalComicsCount: number;
   totalThicknessUnits?: number;
   fullRunsCount?: number;
@@ -62,6 +66,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenValuationModal,
   onOpenStyleStudioModal,
   onOpenDataManagementModal,
+  onOpenCommunityVoting,
+  onOpenAdminPortal,
   totalComicsCount,
   totalThicknessUnits,
   fullRunsCount,
@@ -324,6 +330,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Community Voting (desktop) */}
+            {onOpenCommunityVoting && (
+              <button
+                onClick={onOpenCommunityVoting}
+                className="hidden md:flex items-center justify-center p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Community Proposals & Cover Voting"
+                aria-label="Community Voting"
+              >
+                <Vote className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="sr-only">Community Voting</span>
+              </button>
+            )}
+
+            {/* Admin Moderation Portal (desktop) */}
+            {onOpenAdminPortal && (
+              <button
+                onClick={onOpenAdminPortal}
+                className="hidden lg:flex items-center justify-center p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Creator Admin Moderation Portal"
+                aria-label="Admin Portal"
+              >
+                <ShieldCheck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span className="sr-only">Admin Portal</span>
+              </button>
+            )}
+
             {/* Mobile More Options Menu */}
             <div className="relative md:hidden shrink-0">
               <button
@@ -458,6 +490,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                         >
                           <Server className="w-4 h-4 text-indigo-500 shrink-0" />
                           <span>Server Settings</span>
+                        </button>
+                      )}
+                      {onOpenCommunityVoting && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onOpenCommunityVoting();
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-left transition-colors cursor-pointer"
+                        >
+                          <Vote className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span>Community Voting</span>
+                        </button>
+                      )}
+                      {onOpenAdminPortal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onOpenAdminPortal();
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-left transition-colors cursor-pointer"
+                        >
+                          <ShieldCheck className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                          <span>Admin Portal</span>
                         </button>
                       )}
                     </div>

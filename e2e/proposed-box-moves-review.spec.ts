@@ -1,78 +1,68 @@
 import { test, expect } from '@playwright/test';
-import dotenv from 'dotenv';
-import { Pool } from 'pg';
-
-dotenv.config({ path: ['.env.local', '.env'] });
 
 test.describe('Storage Boxes - Proposed Moves Review', () => {
-  let targetIds: string[] = [];
+  const mockComics = [
+    {
+      id: 'imported-1790007670336-1218',
+      title: 'Silver Surfer',
+      issueNumber: '1',
+      publisher: 'Marvel Comics',
+      currentBoxId: 1,
+      proposedBoxId: 0,
+      readingStatus: 'Unread',
+      copiesOwned: 1,
+      coverImage: 'NoImage.webp',
+      publicationYear: 1968,
+      format: 'Single Issue',
+      sizeThickness: 1.0,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'imported-1790007670339-1681',
+      title: 'The New Mutants Annual',
+      issueNumber: '1',
+      publisher: 'Marvel Comics',
+      currentBoxId: 1,
+      proposedBoxId: 0,
+      readingStatus: 'Unread',
+      copiesOwned: 1,
+      coverImage: 'NoImage.webp',
+      publicationYear: 1984,
+      format: 'Annual',
+      sizeThickness: 1.0,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    },
+  ];
 
-  const setupDb = async () => {
-    if (process.env.DATABASE_URL) {
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-      try {
-        await pool.query(`
-          UPDATE comic_books 
-          SET proposed_box_id = current_box_id 
-          WHERE proposed_box_id IS NOT NULL AND proposed_box_id != current_box_id;
-        `);
-        const selectRes = await pool.query(`
-          SELECT id FROM comic_books 
-          WHERE id IN ('imported-1790007670336-1218', 'imported-1790007670339-1681')
-             OR (title ILIKE '%Silver Surfer%' AND issue_number = '1')
-             OR (title ILIKE '%The New Mutants Annual%' AND issue_number = '1')
-          ORDER BY CASE WHEN id IN ('imported-1790007670336-1218', 'imported-1790007670339-1681') THEN 0 ELSE 1 END
-          LIMIT 2;
-        `);
-        targetIds = selectRes.rows.map((r: { id: string }) => r.id);
-        if (targetIds.length > 0) {
-          await pool.query(`
-            UPDATE comic_books 
-            SET current_box_id = 1, proposed_box_id = 0, reading_status = 'Unread'
-            WHERE id = ANY($1);
-          `, [targetIds]);
-        }
-      } catch (e) {
-        console.error('Failed to setup test data:', e);
-      } finally {
-        await pool.end();
-      }
-    }
-  };
-
-  const cleanupDb = async () => {
-    if (process.env.DATABASE_URL) {
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-      try {
-        if (targetIds.length > 0) {
-          await pool.query(`
-            UPDATE comic_books 
-            SET proposed_box_id = 1, reading_status = 'Wishlist'
-            WHERE id = ANY($1);
-          `, [targetIds]);
-        }
-        await pool.query(`
-          UPDATE comic_books 
-          SET proposed_box_id = current_box_id 
-          WHERE proposed_box_id IS NOT NULL AND proposed_box_id != current_box_id;
-        `);
-      } catch (e) {
-        console.error('Failed to cleanup test data:', e);
-      } finally {
-        await pool.end();
-      }
-    }
-  };
-
-  test.beforeEach(async () => {
-    await setupDb();
-  });
-
-  test.afterAll(async () => {
-    await cleanupDb();
-  });
+  const mockBoxes = [
+    { id: 0, name: 'Unallocated', maxCapacity: 150 },
+    { id: 1, name: 'Box 01', maxCapacity: 150 },
+  ];
 
   test('displays proposed moves banner and allows viewing, adjusting, and committing moves', async ({ page }) => {
+    // Intercept collection and comics API routes for reliable deterministic testing
+    await page.route('**/api/collection*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: mockComics,
+          boxes: mockBoxes,
+          seriesTotals: [],
+        }),
+      });
+    });
+
+    await page.route(/.*\/api\/comics.*/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      });
+    });
+
     await page.goto('/');
 
     // Wait for the app and collection to load

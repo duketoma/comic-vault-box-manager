@@ -14,10 +14,14 @@ import {
   Database,
   Clock,
   ArrowUpDown,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { getApiBaseUrl, setApiBaseUrl, testApiConnection } from '../services/apiConfig';
 import { SyncStatusState } from '../services/syncService';
 import { isNativeMobile } from '../utils/nativeHardware';
+import { useAuth } from '../context/AuthContext';
+import { AuthModal } from './AuthModal';
 
 interface ServerSettingsModalProps {
   isOpen: boolean;
@@ -34,10 +38,12 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   syncStatus,
   onSyncNow,
 }) => {
+  const { userProfile, isAdmin, isVip, vipTier } = useAuth();
   const [serverUrl, setServerUrl] = useState<string>('');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testResult, setTestResult] = useState<{ latencyMs?: number; error?: string } | null>(null);
   const [isManualSyncing, setIsManualSyncing] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -122,6 +128,34 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
         {/* Scrollable Content */}
         <div className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
+          {/* Cloud Account & Tier Card */}
+          <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/35 border border-indigo-200/80 dark:border-indigo-800/70 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600/15 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                  <span>{userProfile?.displayName || 'Local / Cloud Vault'}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider shrink-0">
+                    {isAdmin ? 'Admin' : isVip ? `VIP Tier ${vipTier}` : 'Free Tier'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  {userProfile?.email || 'Firestore + Two-Tier Cloud Cover Storage'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              data-testid="open-auth-modal-btn"
+              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-bold text-[11px] flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+            >
+              <Sparkles className="w-3 h-3" />
+              Account &amp; Quotas
+            </button>
+          </div>
           
           {/* Live Sync & Offline Storage Card */}
           <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3">
@@ -346,6 +380,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         </div>
 
       </div>
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </div>
   );
 };

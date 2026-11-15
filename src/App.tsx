@@ -45,6 +45,7 @@ import {
 } from './services/postgresService';
 import { sortBoxes } from './utils/boxUtils';
 import { getSeriesOverviewSummary } from './utils/seriesUtils';
+import { useAuth } from './context/AuthContext';
 import { evaluateCollectionActionBurst } from './utils/actionStampUtils';
 import {
   CatalogFilters,
@@ -64,6 +65,8 @@ const GenerateSeriesWishlistModal = React.lazy(() => import('./components/Genera
 const ServerSettingsModal = React.lazy(() => import('./components/ServerSettingsModal').then(m => ({ default: m.ServerSettingsModal })));
 const ValuationManagerModal = React.lazy(() => import('./components/ValuationManagerModal').then(m => ({ default: m.ValuationManagerModal })));
 const StyleStudioModal = React.lazy(() => import('./components/StyleStudioModal').then(m => ({ default: m.StyleStudioModal })));
+const CommunityVotingModal = React.lazy(() => import('./components/CommunityVotingModal').then(m => ({ default: m.CommunityVotingModal })));
+const AdminPortalModal = React.lazy(() => import('./components/AdminPortalModal').then(m => ({ default: m.AdminPortalModal })));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
@@ -181,6 +184,9 @@ export default function App() {
   const [isValuationModalOpen, setIsValuationModalOpen] = useState<boolean>(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState<boolean>(false);
   const [isServerModalOpen, setIsServerModalOpen] = useState<boolean>(false);
+  const [isVotingModalOpen, setIsVotingModalOpen] = useState<boolean>(false);
+  const [isAdminPortalOpen, setIsAdminPortalOpen] = useState<boolean>(false);
+  const { isAdmin } = useAuth();
 
   const [syncStatus, setSyncStatus] = useState<SyncStatusState>({
     connectionState: 'online',
@@ -741,9 +747,18 @@ export default function App() {
   const handleUpdateComicCover = (comicId: string, coverUrl: string) => {
     const existing = comics.find((c) => c.id === comicId);
     const nowIso = new Date().toISOString();
-    const updated = existing ? { ...existing, coverImage: coverUrl, updatedAt: nowIso } : null;
+    const updated = existing
+      ? { ...existing, coverImage: coverUrl, coverImageOverride: coverUrl, updatedAt: nowIso }
+      : null;
     setComics((prev) =>
-      prev.map((c) => (c.id === comicId ? { ...c, coverImage: coverUrl, updatedAt: nowIso } : c))
+      prev.map((c) =>
+        c.id === comicId ? { ...c, coverImage: coverUrl, coverImageOverride: coverUrl, updatedAt: nowIso } : c
+      )
+    );
+    setSelectedComic((prev) =>
+      prev && prev.id === comicId
+        ? { ...prev, coverImage: coverUrl, coverImageOverride: coverUrl, updatedAt: nowIso }
+        : prev
     );
     if (updated) {
       saveLocalComicAndEnqueue(updated)
@@ -756,9 +771,20 @@ export default function App() {
   const handleUpdateComicFullCover = (comicId: string, coverFullUrl: string) => {
     const existing = comics.find((c) => c.id === comicId);
     const nowIso = new Date().toISOString();
-    const updated = existing ? { ...existing, coverImageFull: coverFullUrl, updatedAt: nowIso } : null;
+    const updated = existing
+      ? { ...existing, coverImageFull: coverFullUrl, coverImageFullOverride: coverFullUrl, updatedAt: nowIso }
+      : null;
     setComics((prev) =>
-      prev.map((c) => (c.id === comicId ? { ...c, coverImageFull: coverFullUrl, updatedAt: nowIso } : c))
+      prev.map((c) =>
+        c.id === comicId
+          ? { ...c, coverImageFull: coverFullUrl, coverImageFullOverride: coverFullUrl, updatedAt: nowIso }
+          : c
+      )
+    );
+    setSelectedComic((prev) =>
+      prev && prev.id === comicId
+        ? { ...prev, coverImageFull: coverFullUrl, coverImageFullOverride: coverFullUrl, updatedAt: nowIso }
+        : prev
     );
     if (updated) {
       saveLocalComicAndEnqueue(updated)
@@ -785,18 +811,29 @@ export default function App() {
       let changed = false;
       let newCover = c.coverImage;
       let newFull = c.coverImageFull;
+      let newCoverOverride = c.coverImageOverride;
+      let newFullOverride = c.coverImageFullOverride;
 
       if (coverMap.has(c.id)) {
         newCover = coverMap.get(c.id)!;
+        newCoverOverride = newCover;
         changed = true;
       }
       if (fullCoverMap.has(c.id)) {
         newFull = fullCoverMap.get(c.id)!;
+        newFullOverride = newFull;
         changed = true;
       }
 
       if (changed) {
-        const updatedComic = { ...c, coverImage: newCover, coverImageFull: newFull, updatedAt: nowIso };
+        const updatedComic = {
+          ...c,
+          coverImage: newCover,
+          coverImageFull: newFull,
+          coverImageOverride: newCoverOverride,
+          coverImageFullOverride: newFullOverride,
+          updatedAt: nowIso,
+        };
         changedComics.push(updatedComic);
         return updatedComic;
       }
@@ -872,6 +909,8 @@ export default function App() {
         onOpenValuationModal={() => setIsValuationModalOpen(true)}
         onOpenStyleStudioModal={() => setIsStyleStudioModalOpen(true)}
         onOpenDataManagementModal={() => setIsDataModalOpen(true)}
+        onOpenCommunityVoting={() => setIsVotingModalOpen(true)}
+        onOpenAdminPortal={isAdmin ? () => setIsAdminPortalOpen(true) : undefined}
         totalComicsCount={totalComicsCount}
         totalThicknessUnits={totalThicknessUnits}
         fullRunsCount={seriesOverviewSummary.completeRuns}
@@ -1143,6 +1182,22 @@ export default function App() {
             onSyncNow={async (opts) => {
               await triggerSync(opts);
             }}
+          />
+        )}
+
+        {isVotingModalOpen && (
+          <CommunityVotingModal
+            isOpen={isVotingModalOpen}
+            onClose={() => setIsVotingModalOpen(false)}
+            onOpenAdminPortal={isAdmin ? () => setIsAdminPortalOpen(true) : undefined}
+          />
+        )}
+
+        {isAdminPortalOpen && (
+          <AdminPortalModal
+            isOpen={isAdminPortalOpen}
+            onClose={() => setIsAdminPortalOpen(false)}
+            onOpenVotingModal={() => setIsVotingModalOpen(true)}
           />
         )}
       </React.Suspense>

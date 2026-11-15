@@ -1,4 +1,5 @@
 import { buildApiUrl } from './apiConfig';
+import { getAuthHeaders } from './auth';
 import {
   applyServerSyncResponse,
   clearLastSyncTimestamp,
@@ -120,9 +121,10 @@ async function executeSyncPass(options?: {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(buildApiUrl('/api/sync'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({
         lastSyncAt: effectiveLastSyncAt,
         mutations: mutationsToPush,

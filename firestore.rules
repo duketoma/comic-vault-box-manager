@@ -1,20 +1,289 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - uid: string (required, immutable, 1..128 chars) - Owner Firebase Auth UID
+//   - email: string (required, 1..320 chars) - Private PII email address (Owner/Admin read only)
+//   - displayName: string (optional, <=100 chars) - User display name
+//   - avatarUrl: string (optional, <=2048 chars) - Profile photo URL
+//   - role: string (required, 'user' | 'admin') - RBAC role (Admin-only modification)
+//   - vipTier: string (required, 'free' | 'collector' | 'archivist') - VIP tier (Admin/Server modification)
+//   - vipExpiresAt: string | timestamp (optional) - VIP expiration timestamp
+//   - patreonMemberId: string (optional, <=128 chars) - Linked Patreon ID
+//   - isBannedFromProposals: bool (required) - Moderation flag (Admin-only modification)
+//   - storageBytesUsed: number (optional, >=0) - Bytes uploaded to Firebase Storage
+//   - dailyUsage: map (optional) - { usageDate, readsCount, writesCount }
+//   - createdAt: string | timestamp (optional, immutable)
+//   - updatedAt: string | timestamp (optional)
+//
+// Subcollection: users/{userId}/comics/{comicId}
+// Fields:
+//   - id: string (required, 1..128 chars)
+//   - masterComicId: string (optional, <=128 chars)
+//   - title: string (required, 1..500 chars)
+//   - issueNumber: string (required, 1..60 chars)
+//   - publisher: string (required, 1..200 chars)
+//   - readingStatus: string (required, 'Read' | 'Reading' | 'Unread' | 'Wishlist')
+//   - currentBoxId: number (required, -1 for Wishlist, 0 for Staging, >0 for Physical Box)
+//   - copiesOwned: number (optional, >=0)
+//   - coverImage: string (optional, <=2048 chars)
+//   - masterCoverImage: string (optional, <=2048 chars)
+//   - coverImageOverride: string (optional, <=2048 chars) - Personal high-res cloud/Drive override
+//   - coverImageFullOverride: string (optional, <=2048 chars) - Personal high-res full cover override
+//   - notes: string (optional, <=10000 chars)
+//   - tags: list (optional, <=50 items)
+//
+// Subcollection: users/{userId}/storage_boxes/{boxId}
+// Fields:
+//   - id: number (required)
+//   - name: string (required, 1..200 chars)
+//   - location: string (required, 1..200 chars)
+//   - maxCapacity: number (required, >0)
+//   - colorTag: string (required, 1..60 chars)
+//   - notes: string (optional, <=5000 chars)
+//
+// Collection: users_public
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - uid: string (required, immutable, 1..128 chars)
+//   - displayName: string (optional, <=100 chars)
+//   - avatarUrl: string (optional, <=2048 chars)
+//   - role: string (required, 'user' | 'admin')
+//   - vipTier: string (required, 'free' | 'collector' | 'archivist')
+//   - updatedAt: string | timestamp (optional)
+//
+// Collection: master_comics
+// Document ID: {comicId}
+// Fields: Canonical comic metadata and compressed Firebase Storage .webp cover URLs
+//
+// Collection: series_issue_totals
+// Document ID: {seriesKey}
+//
+// Collection: catalog_proposals
+// Document ID: {proposalId}
+// Subcollection: catalog_proposals/{proposalId}/votes/{voterUid}
+//
+// Collection: moderation_audit_logs
+// Document ID: {logId}
+// ===============================================================
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Comics collection
-    match /comics/{comicId} {
-      allow read, write: if request.auth != null;
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Boxes collection
-    match /boxes/{boxId} {
-      allow read, write: if request.auth != null;
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Default catch-all
-    match /{document=**} {
-      allow read, write: if false;
+    function isAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isVipTier1OrHigher() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.vipTier in ['collector', 'archivist'] ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBannedFromProposals == false;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, maxLen) {
+      return !(field in request.resource.data) ||
+        request.resource.data[field] == null ||
+        (request.resource.data[field] is string && request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUserDoc(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'vipTier', 'isBannedFromProposals']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 320 &&
+        data.role in ['user', 'admin'] &&
+        data.vipTier in ['free', 'collector', 'archivist'] &&
+        data.isBannedFromProposals is bool &&
+        isValidOptionalString('displayName', 100) &&
+        isValidOptionalString('avatarUrl', 2048) &&
+        isValidOptionalString('patreonMemberId', 128);
+    }
+
+    function isValidUserComic(data) {
+      return hasRequiredFields(['id', 'title', 'issueNumber', 'publisher', 'readingStatus', 'currentBoxId']) &&
+        validStringLength('id', 1, 128) &&
+        validStringLength('title', 1, 500) &&
+        validStringLength('issueNumber', 1, 60) &&
+        validStringLength('publisher', 1, 200) &&
+        data.readingStatus in ['Read', 'Reading', 'Unread', 'Wishlist'] &&
+        data.currentBoxId is number &&
+        isValidOptionalString('seriesName', 500) &&
+        isValidOptionalString('fullTitle', 600) &&
+        isValidOptionalString('volume', 60) &&
+        isValidOptionalString('notes', 10000) &&
+        isValidOptionalString('coverImage', 2048) &&
+        isValidOptionalString('masterCoverImage', 2048) &&
+        isValidOptionalString('coverImageOverride', 2048) &&
+        isValidOptionalString('coverImageFull', 2048) &&
+        isValidOptionalString('masterCoverImageFull', 2048) &&
+        isValidOptionalString('coverImageFullOverride', 2048);
+    }
+
+    function isValidStorageBox(data) {
+      return hasRequiredFields(['id', 'name', 'location', 'maxCapacity', 'colorTag']) &&
+        data.id is number &&
+        validStringLength('name', 1, 200) &&
+        validStringLength('location', 1, 200) &&
+        data.maxCapacity is number && data.maxCapacity > 0 &&
+        validStringLength('colorTag', 1, 60) &&
+        isValidOptionalString('notes', 5000);
+    }
+
+    function isValidPublicUser(data) {
+      return hasRequiredFields(['uid', 'role', 'vipTier']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'avatarUrl', 'role', 'vipTier', 'updatedAt']) &&
+        validStringLength('uid', 1, 128) &&
+        data.role in ['user', 'admin'] &&
+        data.vipTier in ['free', 'collector', 'archivist'] &&
+        isValidOptionalString('displayName', 100) &&
+        isValidOptionalString('avatarUrl', 2048);
+    }
+
+    // ===============================================================
+    // 1. Private User Profile & Subcollections (Strict Owner / Admin Access)
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Prevent privilege escalation on create: non-admin users can only create with role=='user' and vipTier=='free'
+      allow create: if isAuthenticated() && isValidUserDoc(request.resource.data) &&
+        ((isOwner(userId) &&
+          request.resource.data.uid == userId &&
+          request.resource.data.role == 'user' &&
+          request.resource.data.vipTier == 'free' &&
+          request.resource.data.isBannedFromProposals == false) || isAdmin());
+
+      // Prevent privilege escalation on update: role, vipTier, isBannedFromProposals must remain unchanged unless Admin
+      allow update: if isAuthenticated() && isValidUserDoc(request.resource.data) &&
+        ((isOwner(userId) &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.vipTier == resource.data.vipTier &&
+          request.resource.data.isBannedFromProposals == resource.data.isBannedFromProposals) || isAdmin());
+
+      allow delete: if isAdmin();
+
+      match /comics/{comicId} {
+        allow read, delete: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidUserComic(request.resource.data);
+      }
+
+      match /storage_boxes/{boxId} {
+        allow read, delete: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidStorageBox(request.resource.data);
+      }
+
+      match /reading_challenges/{challengeId} {
+        allow read, delete: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) &&
+          hasRequiredFields(['name', 'status']) &&
+          validStringLength('name', 1, 200) &&
+          request.resource.data.status in ['Active', 'Completed', 'Abandoned'];
+      }
+
+      match /deleted_records/{tombstoneId} {
+        allow read, delete: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) &&
+          hasRequiredFields(['entityType', 'entityId', 'deletedAt']) &&
+          request.resource.data.entityType in ['comic', 'box'] &&
+          validStringLength('entityId', 1, 128);
+      }
+    }
+
+    // ===============================================================
+    // 2. Public Non-PII User Profile
+    // ===============================================================
+    match /users_public/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPublicUser(request.resource.data) &&
+        ((isOwner(userId) &&
+          request.resource.data.uid == userId &&
+          request.resource.data.role == 'user' &&
+          request.resource.data.vipTier == 'free') || isAdmin());
+      allow update: if isAuthenticated() && isValidPublicUser(request.resource.data) &&
+        ((isOwner(userId) &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.vipTier == resource.data.vipTier) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 3. Canonical Master Catalog & Series Issue Totals
+    // ===============================================================
+    match /master_comics/{comicId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /series_issue_totals/{seriesKey} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 4. Community Proposals & Votes
+    // ===============================================================
+    match /catalog_proposals/{proposalId} {
+      allow read: if isAuthenticated();
+      allow create: if isVipTier1OrHigher() &&
+        hasRequiredFields(['proposerId', 'proposalType', 'proposedChanges', 'status', 'netVotes']) &&
+        request.resource.data.proposerId == request.auth.uid &&
+        request.resource.data.proposalType in ['cover_image', 'metadata_edit', 'new_comic'] &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.netVotes == 0;
+      allow update, delete: if isAdmin();
+
+      match /votes/{voterUid} {
+        allow read: if isAuthenticated();
+        allow create, update: if isVipTier1OrHigher() &&
+          isOwner(voterUid) &&
+          hasRequiredFields(['uid', 'proposalId', 'vote']) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.proposalId == proposalId &&
+          request.resource.data.vote in [1, -1];
+        allow delete: if isOwner(voterUid) || isAdmin();
+      }
+    }
+
+    // ===============================================================
+    // 5. Moderation Audit Logs
+    // ===============================================================
+    match /moderation_audit_logs/{logId} {
+      allow read, write: if isAdmin();
     }
   }
 }

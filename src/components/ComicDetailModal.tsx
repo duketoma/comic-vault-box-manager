@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ComicBook, 
   SeriesIssueTotal, 
@@ -13,7 +13,12 @@ import {
   COMIC_CONDITIONS,
   ComicValuationResult
 } from '../types';
-import { lookupComicValuation } from '../services/postgresService';
+import {
+  lookupComicValuation,
+  uploadComicCoverToStorage,
+  revertComicCoverToMaster,
+} from '../services/postgresService';
+import { useAuth } from '../context/AuthContext';
 import { getComicCoverUrl, formatDriveImageUrl, handleImageError, extractDriveFileId } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { formatPublicationDate, formatIsoComicDate, MONTH_NAMES } from '../utils/dateUtils';
@@ -24,8 +29,6 @@ const CoverScannerCropper = React.lazy(() => import('./CoverScannerCropper').the
 import { 
   X, 
   Star, 
-  Layers, 
-  Boxes, 
   BookOpen, 
   Edit3, 
   Trash2, 
@@ -50,8 +53,12 @@ import {
   Lock,
   Unlock,
   RefreshCw,
-  RotateCcw
+  RotateCcw,
+  Vote,
+  Upload,
+  ChevronDown
 } from 'lucide-react';
+import { submitProposal } from '../services/proposalClientService';
 
 interface ComicDetailModalProps {
   comic: ComicBook | null;
@@ -78,6 +85,18 @@ function getInitialContributions(comic: ComicBook | null): CreatorContribution[]
   ];
 }
 
+function getCreatorRolePriority(role?: string): number {
+  const normalized = (role || '').trim().toLowerCase();
+  if (['writer', 'script', 'story', 'plot'].includes(normalized)) return 0;
+  if (['penciller', 'penciler', 'artist', 'pencils', 'interior artist'].includes(normalized)) return 1;
+  if (['inker', 'inks', 'finisher'].includes(normalized)) return 2;
+  if (['colorist', 'colors', 'colourist'].includes(normalized)) return 3;
+  if (['letterer', 'letters'].includes(normalized)) return 4;
+  if (['cover artist', 'cover penciller', 'cover inker', 'cover colorist', 'variant cover artist'].includes(normalized)) return 5;
+  if (['editor', 'associate editor', 'executive editor', 'consulting editor'].includes(normalized)) return 6;
+  return 7;
+}
+
 export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   comic,
   onClose,
@@ -90,7 +109,12 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   onViewSeriesInCatalog,
   onOpenGenerateWishlist,
 }) => {
+  const { isAdmin, isVip } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverActionMessage, setCoverActionMessage] = useState<string | null>(null);
+  const [showCoverMenu, setShowCoverMenu] = useState(false);
+  const coverMenuRef = useRef<HTMLDivElement>(null);
   const [cropperTargetField, setCropperTargetField] = useState<'front' | 'full' | null>(null);
   const [title, setTitle] = useState(comic?.title || '');
   const [issueNumber, setIssueNumber] = useState(comic?.issueNumber || '1');
@@ -114,7 +138,9 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     comic?.estimatedValue !== undefined && comic?.estimatedValue !== null ? String(comic.estimatedValue) : ''
   );
   const [previousEstimatedValue, setPreviousEstimatedValue] = useState<number | undefined>(
-    comic?.previousEstimatedValue
+    comic?.previousEstimatedValue != null && Number.isFinite(Number(comic.previousEstimatedValue))
+      ? Number(comic.previousEstimatedValue)
+      : undefined
   );
   const [valueUpdatedAt, setValueUpdatedAt] = useState<string | undefined>(comic?.valueUpdatedAt);
   const [valueSource, setValueSource] = useState<string | undefined>(comic?.valueSource);
@@ -167,7 +193,11 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setEstimatedValue(
       comic.estimatedValue !== undefined && comic.estimatedValue !== null ? String(comic.estimatedValue) : ''
     );
-    setPreviousEstimatedValue(comic.previousEstimatedValue);
+    setPreviousEstimatedValue(
+      comic.previousEstimatedValue != null && Number.isFinite(Number(comic.previousEstimatedValue))
+        ? Number(comic.previousEstimatedValue)
+        : undefined
+    );
     setValueUpdatedAt(comic.valueUpdatedAt);
     setValueSource(comic.valueSource);
     setLockEstimatedValue(Boolean(comic.lockEstimatedValue));
@@ -187,6 +217,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setNewCharName('');
     setNewCharType('Main');
     setCharSearch('');
+    setShowCoverMenu(false);
     setCropperTargetField(null);
   };
 
@@ -258,7 +289,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     return Array.from(roleMap.values()).sort((a, b) => a.localeCompare(b));
   }, [creatorTypes, allComics, contributions]);
 
-  // Close modal on Escape key press
+  // Close modal or active sub-menus on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -266,12 +297,36 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           setCropperTargetField(null);
           return;
         }
+        if (showCoverMenu) {
+          setShowCoverMenu(false);
+          return;
+        }
         handleModalClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleModalClose, cropperTargetField]);
+  }, [handleModalClose, cropperTargetField, showCoverMenu]);
+
+  // Close Manage Cover popover on outside click
+  useEffect(() => {
+    if (!showCoverMenu) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (coverMenuRef.current && !coverMenuRef.current.contains(e.target as Node)) {
+        setShowCoverMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [showCoverMenu]);
+
+  const sortedContributions = useMemo(() => {
+    return [...contributions].sort(
+      (a, b) =>
+        getCreatorRolePriority(a.roleName || a.creatorType) -
+        getCreatorRolePriority(b.roleName || b.creatorType)
+    );
+  }, [contributions]);
 
   const filteredCharacters = useMemo(() => {
     if (!charSearch.trim()) return characters;
@@ -325,8 +380,6 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
   if (!comic) return null;
 
-  const currentBox = boxes.find((b) => b.id === comic.currentBoxId);
-
   const handleAddContribution = () => {
     if (!newCreatorName.trim()) return;
     const finalRole = (newRoleName === '__custom__' ? customRoleName.trim() : newRoleName.trim()) || 'Writer';
@@ -347,8 +400,12 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     }
   };
 
-  const handleRemoveContribution = (index: number) => {
-    setContributions(contributions.filter((_, i) => i !== index));
+  const handleRemoveContribution = (target: CreatorContribution | number) => {
+    if (typeof target === 'number') {
+      setContributions(contributions.filter((_, i) => i !== target));
+    } else {
+      setContributions(contributions.filter((c) => c !== target));
+    }
   };
 
   const handleAddCharacter = () => {
@@ -530,6 +587,23 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     const boxChanged = finalBoxId !== (comic.currentBoxId ?? 0);
     const finalProposedBoxId = boxChanged ? finalBoxId : (comic.proposedBoxId ?? finalBoxId);
 
+    const trimmedCover = coverImage.trim() || 'NoImage.webp';
+    const trimmedFull = coverImageFull.trim() || undefined;
+
+    const nextCoverOverride =
+      trimmedCover === 'NoImage.webp' || trimmedCover === comic.masterCoverImage
+        ? null
+        : trimmedCover !== comic.coverImage
+          ? trimmedCover
+          : (comic.coverImageOverride ?? undefined);
+
+    const nextFullOverride =
+      !trimmedFull || trimmedFull === comic.masterCoverImageFull
+        ? null
+        : trimmedFull !== comic.coverImageFull
+          ? trimmedFull
+          : (comic.coverImageFullOverride ?? undefined);
+
     onUpdateComic({
       ...comic,
       title: cleanTitle,
@@ -560,8 +634,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       tags,
       notes,
       sizeThickness: Number(thickness),
-      coverImage: coverImage.trim() || 'NoImage.webp',
-      coverImageFull: coverImageFull.trim() || undefined,
+      coverImage: trimmedCover,
+      coverImageFull: trimmedFull,
+      coverImageOverride: nextCoverOverride,
+      coverImageFullOverride: nextFullOverride,
       volume: volume.trim() || undefined,
       event: event.trim() || undefined,
       publicationYear: Number(publicationYear) || comic.publicationYear,
@@ -577,6 +653,158 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setIsEditing(false);
   };
 
+  // --- Two-Tier Cover Source Resolution & Cloud Actions ---
+  const isViewingFull = heroViewMode === 'full' && Boolean(coverImageFull || comic.coverImageFull);
+  const activeEffectiveUrl = isViewingFull
+    ? (coverImageFull || comic.coverImageFull || '')
+    : (coverImage || comic.coverImage || '');
+  const activeOverrideUrl = isViewingFull ? comic.coverImageFullOverride : comic.coverImageOverride;
+  const activeMasterUrl = isViewingFull ? comic.masterCoverImageFull : comic.masterCoverImage;
+
+  const isPlaceholderCover =
+    !activeEffectiveUrl ||
+    activeEffectiveUrl.toLowerCase() === 'noimage.webp' ||
+    activeEffectiveUrl.toLowerCase() === 'noimage.png' ||
+    activeEffectiveUrl.toLowerCase().includes('noimage') ||
+    activeEffectiveUrl.includes('1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX');
+
+  const isUsingPersonalOverride =
+    !isPlaceholderCover &&
+    Boolean(
+      activeOverrideUrl ||
+        ((activeEffectiveUrl.includes('drive.google.com') ||
+          activeEffectiveUrl.includes('googleusercontent.com') ||
+          activeEffectiveUrl.startsWith('data:image')) &&
+          activeEffectiveUrl !== activeMasterUrl)
+    );
+
+  const isUsingMasterWebp =
+    !isPlaceholderCover &&
+    !isUsingPersonalOverride &&
+    Boolean(activeMasterUrl || activeEffectiveUrl.includes('firebasestorage.googleapis.com'));
+
+  const handleRevertToMasterCover = async (targetSlot: 'front' | 'full') => {
+    const fallbackMaster = targetSlot === 'full' ? comic.masterCoverImageFull : comic.masterCoverImage;
+    try {
+      setIsUploadingCover(true);
+      await revertComicCoverToMaster({ comicId: comic.id, targetType: targetSlot }).catch(() => {});
+      if (targetSlot === 'full') {
+        const nextFull = fallbackMaster || '';
+        setCoverImageFull(nextFull);
+        onUpdateComic({
+          ...comic,
+          coverImageFull: nextFull || undefined,
+          coverImageFullOverride: null,
+        });
+      } else {
+        const nextFront = fallbackMaster || 'NoImage.webp';
+        setCoverImage(nextFront);
+        onUpdateComic({
+          ...comic,
+          coverImage: nextFront,
+          coverImageOverride: null,
+        });
+      }
+      setCoverActionMessage('✓ Reverted to Master Catalog compressed WebP cover.');
+      setTimeout(() => setCoverActionMessage(null), 4500);
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  const handleUploadFileToCloud = (targetSlot: 'front' | 'full', mode: 'master' | 'override' | 'proposal' = 'override') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/webp,image/png,image/jpeg';
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = String(reader.result || '');
+        if (!base64Data) return;
+        setIsUploadingCover(true);
+        setCoverActionMessage(null);
+        try {
+          if (mode === 'proposal') {
+            const reason = window.prompt(
+              'Optional note for community voters (e.g. Higher resolution scan, clean colors):'
+            ) || undefined;
+            await submitProposal({
+              proposalType: 'cover_image',
+              masterComicId: comic.id,
+              coverTarget: targetSlot,
+              imageBufferBase64: base64Data,
+              reason,
+            });
+            setCoverActionMessage('✓ Submitted cover proposal! Live in Community Voting.');
+          } else if (mode === 'master') {
+            const res = await uploadComicCoverToStorage({
+              comicId: comic.id,
+              imageBufferBase64: base64Data,
+              targetType: targetSlot,
+              isMasterCatalog: true,
+              preservePersonalOverride: true,
+            });
+            if (targetSlot === 'full') {
+              const effectiveFull = comic.coverImageFullOverride || res.url;
+              setCoverImageFull(effectiveFull);
+              onUpdateComic({
+                ...comic,
+                masterCoverImageFull: res.url,
+                coverImageFull: effectiveFull,
+              });
+            } else {
+              const effectiveFront = comic.coverImageOverride || res.url;
+              setCoverImage(effectiveFront);
+              onUpdateComic({
+                ...comic,
+                masterCoverImage: res.url,
+                coverImage: effectiveFront,
+              });
+            }
+            setCoverActionMessage(
+              `✓ Published compressed WebP (${(res.sizeBytes / 1024).toFixed(1)} KB) to Master Catalog!`
+            );
+          } else {
+            const res = await uploadComicCoverToStorage({
+              comicId: comic.id,
+              imageBufferBase64: base64Data,
+              targetType: targetSlot,
+              isMasterCatalog: false,
+              preservePersonalOverride: true,
+            });
+            if (targetSlot === 'full') {
+              setCoverImageFull(res.url);
+              onUpdateComic({
+                ...comic,
+                coverImageFull: res.url,
+                coverImageFullOverride: res.url,
+              });
+            } else {
+              setCoverImage(res.url);
+              onUpdateComic({
+                ...comic,
+                coverImage: res.url,
+                coverImageOverride: res.url,
+              });
+            }
+            setCoverActionMessage(
+              `✓ Uploaded Personal Override (${(res.sizeBytes / 1024).toFixed(1)} KB) to Cloud Storage!`
+            );
+          }
+          setTimeout(() => setCoverActionMessage(null), 5000);
+        } catch (err: any) {
+          setCoverActionMessage(`Upload failed: ${err?.message || 'Unable to upload cover'}`);
+        } finally {
+          setIsUploadingCover(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
   return (
     <div
       onClick={(e) => {
@@ -585,34 +813,22 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex justify-center p-2 sm:p-4 overflow-y-auto"
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden my-auto">
-        
-        {/* Sticky Top Header Bar */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shrink-0 z-10">
-          <div className="min-w-0 pr-2">
-            <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm truncate flex items-center gap-1.5">
-              <span>{isEditing ? (title || 'Untitled Comic') : (comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic')}</span>
-              <span className="text-slate-500 dark:text-slate-400 font-bold">#{isEditing ? issueNumber : comic.issueNumber}</span>
-            </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-              {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleModalClose}
-              className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              title="Close (Esc)"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
 
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
           {/* Top Image & Hero Overlay */}
           <div className="relative bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start">
-            <div className="flex flex-col items-center shrink-0 space-y-2">
+            <button
+              type="button"
+              onClick={handleModalClose}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-colors cursor-pointer"
+              title="Close (Esc)"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className={`flex flex-col items-center shrink-0 space-y-2 ${isViewingFull ? 'w-60 sm:w-72' : 'w-36 sm:w-40'}`}>
               <div className="relative group">
                 <img
                   src={
@@ -652,7 +868,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
               {/* Toggle Front vs Full Art if Full Art is available */}
               {(coverImageFull || comic.coverImageFull) && (
-                <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-700/80 p-0.5 rounded-lg text-[10px] font-bold">
+                <div className="w-full grid grid-cols-2 gap-1 bg-slate-200/80 dark:bg-slate-700/80 p-0.5 rounded-lg text-[10px] font-bold">
                   <button
                     type="button"
                     onClick={() => setHeroViewMode('front')}
@@ -667,7 +883,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setHeroViewMode('full')}
-                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-0.5 ${
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center justify-center gap-0.5 ${
                       heroViewMode === 'full'
                         ? 'bg-purple-600 text-white shadow-xs font-black'
                         : 'text-purple-700 dark:text-purple-300 hover:text-purple-900'
@@ -679,87 +895,229 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </div>
               )}
 
-              {/* 1-Click Launch Cover Scanner & Cropper */}
-              <button
-                type="button"
-                onClick={() => setCropperTargetField(heroViewMode === 'full' ? 'full' : 'front')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                title="Add, replace, or perspective-crop this comic's cover image"
+              {/* Two-Tier Cover Source Badge */}
+              <div
+                data-testid="cover-source-badge"
+                className={`w-full px-2 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 border text-center leading-tight ${
+                  isUsingPersonalOverride
+                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    : isUsingMasterWebp
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                }`}
+                title={
+                  isUsingPersonalOverride
+                    ? 'Displaying your personal high-resolution cover override (Google Drive / Custom URL)'
+                    : isUsingMasterWebp
+                      ? 'Displaying the shared Master Catalog compressed WebP cover from Firebase Cloud Storage'
+                      : 'Default placeholder or local cover'
+                }
               >
-                <Crop className="w-3.5 h-3.5 text-sky-400" />
-                <span>Scan / Crop Cover</span>
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-2 text-center sm:text-left min-w-0 w-full">
-              <div className="flex items-center justify-between gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-bold">
-                  {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
+                <Cloud className="w-3 h-3 shrink-0" />
+                <span>
+                  {isUsingPersonalOverride
+                    ? 'High-Quality Personal Override'
+                    : isUsingMasterWebp
+                      ? 'Master Catalog Cover (WebP)'
+                      : 'Placeholder / Local Cover'}
                 </span>
               </div>
 
-            <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-tight">
-              {comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic'}{' '}
-              {!isYearDesignatedAnnual(comic) && (
-                <span className="text-slate-600 dark:text-slate-400">#{comic.issueNumber}</span>
-              )}
-            </h2>
-
-            {comic.seriesName && (
-              <p className="text-xs text-indigo-700 dark:text-indigo-400 font-semibold">{comic.seriesName}</p>
-            )}
-
-            {comic.volume && !comic.seriesName && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{comic.volume}</p>
-            )}
-
-            {/* Series Run Collection Progress Widget */}
-            {seriesInfo && seriesInfo.totalPublished > 0 && (
-              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1.5 text-left">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Target className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Series Run Progress</span>
+              {/* Manage Cover Actions Popover */}
+              <div ref={coverMenuRef} className="relative w-full">
+                <button
+                  type="button"
+                  data-testid="manage-cover-btn"
+                  disabled={isUploadingCover}
+                  onClick={() => setShowCoverMenu((prev) => !prev)}
+                  aria-expanded={showCoverMenu}
+                  aria-haspopup="menu"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-between gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  title="Scan, crop, upload, or revert cover image"
+                >
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <ImageIcon className="w-3.5 h-3.5 text-sky-300 shrink-0" />
+                    <span>{isUploadingCover ? 'Uploading...' : 'Manage Cover'}</span>
                   </span>
-                  <span className="font-extrabold text-slate-900 dark:text-slate-100">
-                    {seriesInfo.ownedInSeries} / {seriesInfo.totalPublished} issues ({seriesInfo.pct}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                  <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${showCoverMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showCoverMenu && (
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      seriesInfo.isComplete
-                        ? 'bg-gradient-to-r from-amber-400 to-amber-600'
-                        : seriesInfo.pct >= 75
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
-                        : 'bg-indigo-600'
-                    }`}
-                    style={{ width: `${seriesInfo.pct}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>
-                    {seriesInfo.isComplete ? (
-                      <span className="text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1">
-                        <Crown className="w-3 h-3 text-amber-500" />
-                        <span>Full series run collected!</span>
-                      </span>
-                    ) : (
-                      <span>
-                        <strong>{seriesInfo.remaining}</strong> {seriesInfo.remaining === 1 ? 'issue' : 'issues'} needed to complete run
+                    role="menu"
+                    data-testid="manage-cover-menu"
+                    className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-1.5 min-w-full w-48 z-30 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1.5 space-y-1"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setShowCoverMenu(false);
+                        setCropperTargetField(heroViewMode === 'full' ? 'full' : 'front');
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-2 text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap"
+                      title="Add, replace, or perspective-crop this comic's cover image"
+                    >
+                      <Crop className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                      <span>Scan / Crop Cover</span>
+                    </button>
+
+                    {(isAdmin || isVip) && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={isUploadingCover}
+                        onClick={() => {
+                          setShowCoverMenu(false);
+                          handleUploadFileToCloud(isViewingFull ? 'full' : 'front', 'override');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-2 text-left text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/60 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                        title="Upload a personal cover override to your private cloud storage slot"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>Upload Override</span>
+                      </button>
+                    )}
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={isUploadingCover}
+                        onClick={() => {
+                          setShowCoverMenu(false);
+                          handleUploadFileToCloud(isViewingFull ? 'full' : 'front', 'master');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-2 text-left text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                        title="Compress & publish a local image file to Firebase Storage Master Catalog while keeping your personal override"
+                      >
+                        <Cloud className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span>Publish Master WebP</span>
+                      </button>
+                    )}
+
+                    {!isAdmin && isVip && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={isUploadingCover}
+                        onClick={() => {
+                          setShowCoverMenu(false);
+                          handleUploadFileToCloud(isViewingFull ? 'full' : 'front', 'proposal');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-2 text-left text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                        title="Propose a high-res cover upgrade to the shared Master Catalog (Community Voting)"
+                      >
+                        <Vote className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span>Propose Master</span>
+                      </button>
+                    )}
+
+                    {isUsingPersonalOverride && Boolean(activeMasterUrl) && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-testid="revert-to-master-cover-btn"
+                        disabled={isUploadingCover}
+                        onClick={() => {
+                          setShowCoverMenu(false);
+                          void handleRevertToMasterCover(isViewingFull ? 'full' : 'front');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-2 text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap border-t border-slate-100 dark:border-slate-800 mt-1 pt-2"
+                        title="Clear your personal override and revert to the shared Master Catalog compressed WebP cover"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                        <span>Revert to Master</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {coverActionMessage && (
+                <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 text-center w-full leading-tight">
+                  {coverActionMessage}
+                </p>
+              )}
+            </div>
+
+            <div className="flex-1 space-y-2 text-center sm:text-left min-w-0 w-full">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:pr-8">
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-bold">
+                  {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
+                </span>
+                {(isEditing ? event : comic.event) && (
+                  <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                    ⚡ Event: {isEditing ? event : comic.event}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-tight sm:pr-8">
+                {isEditing ? (title || 'Untitled Comic') : (comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic')}{' '}
+                {!isYearDesignatedAnnual(comic) && (
+                  <span className="text-slate-600 dark:text-slate-400">#{isEditing ? issueNumber : comic.issueNumber}</span>
+                )}
+              </h2>
+
+              {(isEditing ? seriesName : comic.seriesName) && (
+                <p className="text-xs text-indigo-700 dark:text-indigo-400 font-semibold">
+                  {isEditing ? seriesName : comic.seriesName}
+                </p>
+              )}
+
+              {(isEditing ? volume : comic.volume) && !(isEditing ? seriesName : comic.seriesName) && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                  {isEditing ? volume : comic.volume}
+                </p>
+              )}
+
+              {/* Series Run Collection Progress Widget */}
+              {seriesInfo && seriesInfo.totalPublished > 0 && (
+                <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1.5 text-left">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Series Run Progress</span>
+                    </span>
+                    <span className="font-extrabold text-slate-900 dark:text-slate-100">
+                      {seriesInfo.ownedInSeries} / {seriesInfo.totalPublished} issues ({seriesInfo.pct}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        seriesInfo.isComplete
+                          ? 'bg-gradient-to-r from-amber-400 to-amber-600'
+                          : seriesInfo.pct >= 75
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                          : 'bg-indigo-600'
+                      }`}
+                      style={{ width: `${seriesInfo.pct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>
+                      {seriesInfo.isComplete ? (
+                        <span className="text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1">
+                          <Crown className="w-3 h-3 text-amber-500" />
+                          <span>Full series run collected!</span>
+                        </span>
+                      ) : (
+                        <span>
+                          <strong>{seriesInfo.remaining}</strong> {seriesInfo.remaining === 1 ? 'issue' : 'issues'} needed to complete run
+                        </span>
+                      )}
+                    </span>
+                    {seriesInfo.wishlistInSeries > 0 && (
+                      <span className="text-rose-600 dark:text-rose-400 font-medium">
+                        ({seriesInfo.wishlistInSeries} in wishlist)
                       </span>
                     )}
-                  </span>
-                  {seriesInfo.wishlistInSeries > 0 && (
-                    <span className="text-rose-600 dark:text-rose-400 font-medium">
-                      ({seriesInfo.wishlistInSeries} in wishlist)
-                    </span>
-                  )}
-                </div>
+                  </div>
 
-                {(onViewSeriesInCatalog || onOpenGenerateWishlist) && (
-                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                  {(onViewSeriesInCatalog || (onOpenGenerateWishlist && !seriesInfo.isComplete && seriesInfo.remaining > 0)) && (
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-wrap items-center gap-3">
                       {onViewSeriesInCatalog && (
                         <button
                           type="button"
@@ -789,55 +1147,11 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                         </button>
                       )}
                     </div>
-
-                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                      {seriesInfo.pct}% to 100%
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-              <span>W: <strong>{comic.writer || 'Unknown'}</strong></span>
-              <span>•</span>
-              <span>A: <strong>{comic.artist || 'Unknown'}</strong></span>
-            </div>
-
-            {/* Badges */}
-            <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-                <Boxes className="w-3.5 h-3.5" />
-                Box #{comic.currentBoxId}: {currentBox?.name.split('-')[1] || currentBox?.name}
-              </span>
-
-              <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5" />
-                {(comic.sizeThickness ?? 1.0).toFixed(1)}x Thickness Units
-              </span>
-
-              {comic.event && (
-                <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-                  ⚡ Event: {comic.event}
-                </span>
+                  )}
+                </div>
               )}
-
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${
-                comic.readingStatus === 'Wishlist' || (comic.copiesOwned !== undefined && comic.copiesOwned === 0)
-                  ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-900 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                  : 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-              }`}>
-                {comic.readingStatus === 'Wishlist'
-                  ? `${comic.copiesOwned ?? 0} Copies (Wishlist)`
-                  : `${comic.copiesOwned ?? 0} ${(comic.copiesOwned ?? 0) === 1 ? 'Copy' : 'Copies'} Owned`}
-              </span>
-
-              <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold px-2.5 py-1 rounded-lg">
-                {comic.format || 'Single Issue'}
-              </span>
             </div>
           </div>
-        </div>
 
         {/* Modal Main Content */}
         <div className="p-6 space-y-5">
@@ -978,18 +1292,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-amber-800 dark:text-amber-400 mb-1">Copies Owned</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={copiesOwned}
-                      onChange={(e) => setCopiesOwned(Number(e.target.value))}
-                      className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-lg px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-300 font-bold"
-                    />
-                  </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Pub Year</label>
                     <input
@@ -1014,11 +1317,111 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                     </select>
                   </div>
                 </div>
+
+                {/* Cover Image URL Edit Field */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+                      Cover Image URL or Google Drive Share Link
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCropperTargetField('front')}
+                        className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                        <span>Scan / Crop Front Cover</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCoverImage('NoImage.webp')}
+                        className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 underline font-semibold cursor-pointer"
+                      >
+                        Reset to NoImage.webp
+                      </button>
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    value={coverImage}
+                    onChange={(e) => setCoverImage(e.target.value)}
+                    placeholder="e.g. https://drive.google.com/file/d/1r5avbI2b1d3Ehhl2KNO9vshVynZZNT9Z/view?usp=drive_link"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500"
+                  />
+
+                  {/* Google Drive Link Guidance */}
+                  {extractDriveFileId(coverImage) ? (
+                    <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl text-[11px] text-blue-900 dark:text-blue-200 space-y-1">
+                      <div className="flex items-center justify-between gap-2 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          Google Drive Link Detected
+                        </span>
+                        <span className="text-[10px] font-mono bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                          ID: {extractDriveFileId(coverImage)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-snug">
+                        <strong>Check Drive Permissions:</strong> Ensure this file (or its parent folder) in Google Drive is set to <strong>"Anyone with the link can view"</strong> (General Access). If set to "Restricted", Google blocks image access.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Info className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                      <span>Supports Google Drive share links, direct image URLs, or base64 uploads.</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Full Wraparound Art URL Edit Field */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  <label className="block text-[11px] font-bold text-purple-700 dark:text-purple-400 mb-1 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                      Full Wraparound Art URL (Front + Back Cover Spread)
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCropperTargetField('full')}
+                        className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                        <span>Scan / Crop Full Spread</span>
+                      </button>
+                      {coverImageFull && (
+                        <button
+                          type="button"
+                          onClick={() => setCoverImageFull('')}
+                          className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-rose-600 underline font-semibold cursor-pointer"
+                        >
+                          Clear Full Art
+                        </button>
+                      )}
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    value={coverImageFull}
+                    onChange={(e) => setCoverImageFull(e.target.value)}
+                    placeholder="e.g. Google Drive link to wraparound or panoramic cover art"
+                    className="w-full bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-800/60 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-600"
+                  />
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Info className="w-3 h-3 text-purple-500 shrink-0" />
+                    <span>Wraparound/full-bleed back+front cover art. Shown in Full Art showcase and 3D visualizer.</span>
+                  </p>
+                </div>
               </div>
             )}
+          </div>
 
+          {/* Creators & Characters Card */}
+          <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-4">
             {/* Creators & Contributions Section */}
-            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                   <UserCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -1035,14 +1438,14 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 )}
               </div>
 
-              {/* Contributions Badges List */}
+              {/* Contributions Badges List (Writers and Pencillers sorted first) */}
               <div className={`flex flex-wrap gap-1.5 pt-1 ${!expandAllCreators && contributions.length > 8 ? 'max-h-36 overflow-y-auto pr-1' : ''}`}>
-                {contributions.length === 0 ? (
+                {sortedContributions.length === 0 ? (
                   <span className="text-xs text-slate-400 dark:text-slate-500 italic">No creators listed yet.</span>
                 ) : (
-                  contributions.map((item, idx) => (
+                  sortedContributions.map((item, idx) => (
                     <div
-                      key={item.id || idx}
+                      key={item.id || `${item.creatorName}-${item.roleName}-${idx}`}
                       className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs px-2.5 py-1 rounded-lg font-medium"
                     >
                       <span className="font-bold text-slate-900 dark:text-slate-100">{item.creatorName}</span>
@@ -1052,7 +1455,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       {isEditing && (
                         <button
                           type="button"
-                          onClick={() => handleRemoveContribution(idx)}
+                          onClick={() => handleRemoveContribution(item)}
                           className="text-slate-400 hover:text-rose-600 ml-1 font-bold cursor-pointer"
                           title="Remove creator contribution"
                         >
@@ -1216,107 +1619,6 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Cover Image URL Edit Field */}
-            {isEditing && (
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
-                    Cover Image URL or Google Drive Share Link
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setCropperTargetField('front')}
-                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <Crop className="w-3.5 h-3.5" />
-                      <span>Scan / Crop Front Cover</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCoverImage('NoImage.webp')}
-                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 underline font-semibold cursor-pointer"
-                    >
-                      Reset to NoImage.webp
-                    </button>
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  value={coverImage}
-                  onChange={(e) => setCoverImage(e.target.value)}
-                  placeholder="e.g. https://drive.google.com/file/d/1r5avbI2b1d3Ehhl2KNO9vshVynZZNT9Z/view?usp=drive_link"
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-slate-800 dark:focus:ring-indigo-500"
-                />
-
-                {/* Google Drive Link Guidance */}
-                {extractDriveFileId(coverImage) ? (
-                  <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl text-[11px] text-blue-900 dark:text-blue-200 space-y-1">
-                    <div className="flex items-center justify-between gap-2 font-bold">
-                      <span className="flex items-center gap-1.5">
-                        <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                        Google Drive Link Detected
-                      </span>
-                      <span className="text-[10px] font-mono bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                        ID: {extractDriveFileId(coverImage)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-snug">
-                      <strong>Check Drive Permissions:</strong> Ensure this file (or its parent folder) in Google Drive is set to <strong>"Anyone with the link can view"</strong> (General Access). If set to "Restricted", Google blocks image access.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <Info className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
-                    <span>Supports Google Drive share links, direct image URLs, or base64 uploads.</span>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Full Wraparound Art URL Edit Field */}
-            {isEditing && (
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                <label className="block text-[11px] font-bold text-purple-700 dark:text-purple-400 mb-1 flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    Full Wraparound Art URL (Front + Back Cover Spread)
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setCropperTargetField('full')}
-                      className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <Crop className="w-3.5 h-3.5" />
-                      <span>Scan / Crop Full Spread</span>
-                    </button>
-                    {coverImageFull && (
-                      <button
-                        type="button"
-                        onClick={() => setCoverImageFull('')}
-                        className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-rose-600 underline font-semibold cursor-pointer"
-                      >
-                        Clear Full Art
-                      </button>
-                    )}
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  value={coverImageFull}
-                  onChange={(e) => setCoverImageFull(e.target.value)}
-                  placeholder="e.g. Google Drive link to wraparound or panoramic cover art"
-                  className="w-full bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-800/60 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-600"
-                />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Info className="w-3 h-3 text-purple-500 shrink-0" />
-                  <span>Wraparound/full-bleed back+front cover art. Shown in Full Art showcase and 3D visualizer.</span>
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Issue Summary / Notes */}
@@ -1332,7 +1634,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           {/* Metadata Grid */}
           <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
             {isEditing ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[1fr_1.1fr_0.75fr_0.95fr_1.45fr] gap-3">
                 <div>
                   <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
                     Condition
@@ -1351,9 +1653,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1 flex items-center justify-between">
-                    <span>Format</span>
-                    <span className="text-[9px] text-slate-400 font-normal">({thickness.toFixed(1)}x)</span>
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
+                    Format
                   </label>
                   <select
                     value={format}
@@ -1362,13 +1663,30 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   >
                     {COMIC_FORMATS.map((fmt) => (
                       <option key={fmt} value={fmt}>
-                        {fmt} ({FORMAT_DEFAULT_THICKNESS[fmt] ?? 1.0}x)
+                        {fmt}
                       </option>
                     ))}
                     {format === 'Hardcover' && (
-                      <option value="Hardcover">Hardcover (Legacy 5.0x)</option>
+                      <option value="Hardcover">Hardcover</option>
                     )}
                   </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="comic-detail-copies-owned"
+                    className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1"
+                  >
+                    Copies Owned
+                  </label>
+                  <input
+                    id="comic-detail-copies-owned"
+                    type="number"
+                    min={0}
+                    value={copiesOwned}
+                    onChange={(e) => setCopiesOwned(Number(e.target.value))}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-bold"
+                  />
                 </div>
 
                 <div>
@@ -1391,8 +1709,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
+                <div className="sm:col-span-2 md:col-span-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
                     <label className="text-emerald-700 dark:text-emerald-400 block text-[10px] font-bold">
                       Est. Market Value
                     </label>
@@ -1447,7 +1765,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[1fr_1.1fr_0.75fr_0.95fr_1.45fr] gap-3 text-xs">
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Condition</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition || 'Near Mint'}</span>
@@ -1457,13 +1775,21 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format || 'Single Issue'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Purchase Price</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Copies Owned</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {comic.purchasePrice ? `$${comic.purchasePrice.toFixed(2)}` : 'N/A'}
+                    {comic.readingStatus === 'Wishlist' ? '0 (Wishlist)' : (comic.copiesOwned ?? 1)}
                   </span>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between gap-1">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Purchase Price</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {comic.purchasePrice != null && !Number.isNaN(Number(comic.purchasePrice))
+                      ? `$${Number(comic.purchasePrice).toFixed(2)}`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
                     <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Est. Market Value</span>
                     <div className="flex items-center gap-1">
                       <button
@@ -1502,21 +1828,25 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                      {comic.estimatedValue ? `$${comic.estimatedValue.toFixed(2)}` : 'N/A'}
+                      {comic.estimatedValue != null && !Number.isNaN(Number(comic.estimatedValue))
+                        ? `$${Number(comic.estimatedValue).toFixed(2)}`
+                        : 'N/A'}
                     </span>
-                    {comic.previousEstimatedValue !== undefined &&
-                      comic.estimatedValue !== undefined &&
-                      Math.abs(comic.estimatedValue - comic.previousEstimatedValue) >= 0.01 && (
+                    {comic.previousEstimatedValue != null &&
+                      comic.estimatedValue != null &&
+                      !Number.isNaN(Number(comic.previousEstimatedValue)) &&
+                      !Number.isNaN(Number(comic.estimatedValue)) &&
+                      Math.abs(Number(comic.estimatedValue) - Number(comic.previousEstimatedValue)) >= 0.01 && (
                         <span
                           className={`text-[10px] font-bold px-1 py-0.2 rounded ${
-                            comic.estimatedValue > comic.previousEstimatedValue
+                            Number(comic.estimatedValue) > Number(comic.previousEstimatedValue)
                               ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
                               : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
                           }`}
-                          title={`Previous value: $${comic.previousEstimatedValue.toFixed(2)}`}
+                          title={`Previous value: $${Number(comic.previousEstimatedValue).toFixed(2)}`}
                         >
-                          {comic.estimatedValue > comic.previousEstimatedValue ? '▲ +' : '▼ -'}$
-                          {Math.abs(comic.estimatedValue - comic.previousEstimatedValue).toFixed(2)}
+                          {Number(comic.estimatedValue) > Number(comic.previousEstimatedValue) ? '▲ +' : '▼ -'}$
+                          {Math.abs(Number(comic.estimatedValue) - Number(comic.previousEstimatedValue)).toFixed(2)}
                         </span>
                       )}
                   </div>
@@ -1525,7 +1855,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             )}
 
             {/* Valuation Provenance & Condition Breakdown Footer */}
-            {(valueSource || lastValuationQuote || previousEstimatedValue !== undefined || lockEstimatedValue) && (
+            {(valueSource || lastValuationQuote || (previousEstimatedValue != null && !isNaN(previousEstimatedValue)) || lockEstimatedValue) && (
               <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/70 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                 <div className="flex flex-wrap items-center gap-2">
                   {lockEstimatedValue && (
@@ -1568,7 +1898,8 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                   )}
                 </div>
 
-                {previousEstimatedValue !== undefined &&
+                {previousEstimatedValue != null &&
+                  !isNaN(previousEstimatedValue) &&
                   Number(estimatedValue || comic.estimatedValue || 0) !== previousEstimatedValue && (
                     <button
                       type="button"
@@ -1869,6 +2200,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       onUpdateComic({
                         ...comic,
                         coverImageFull: croppedDataUrl,
+                        coverImageFullOverride: croppedDataUrl,
                       });
                     } else {
                       setCoverImage(croppedDataUrl);
@@ -1876,6 +2208,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       onUpdateComic({
                         ...comic,
                         coverImage: croppedDataUrl,
+                        coverImageOverride: croppedDataUrl,
                       });
                     }
                     setCropperTargetField(null);

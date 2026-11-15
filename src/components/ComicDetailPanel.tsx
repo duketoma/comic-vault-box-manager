@@ -195,7 +195,7 @@ export const ComicDetailPanel: React.FC<ComicDetailPanelProps> = ({
                 style={{ width: `${Math.min((comic.sizeThickness / 3) * 100, 100)}%` }}
               />
             </div>
-            <span className="text-slate-700 dark:text-slate-300 font-medium">{comic.sizeThickness.toFixed(1)}x</span>
+            <span className="text-slate-700 dark:text-slate-300 font-medium">{(comic.sizeThickness ?? 1.0).toFixed(1)}x</span>
           </div>
         </div>
 

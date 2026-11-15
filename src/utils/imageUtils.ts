@@ -1,5 +1,8 @@
 import type { SyntheticEvent } from 'react';
-const noImageAsset = new URL('../../assets/NoImage.webp', import.meta.url).href;
+const noImageAsset =
+  typeof import.meta !== 'undefined' && import.meta?.url
+    ? new URL('../../assets/NoImage.webp', import.meta.url).href
+    : '/assets/NoImage.webp';
 import { buildApiUrl } from '../services/apiConfig';
 import { isAnnualComic, extractAnnualNumber, parseIssueNumber, isYearDesignatedAnnual, parseVolumeNumber } from './comicSortUtils';
 import type { ComicBook } from '../types';
@@ -185,7 +188,7 @@ function normalizeText(str: string): string {
   return String(str || '')
     .toLowerCase()
     .replace(/['’`"]/g, '')
-    .replace(/[_\-#:.,/\\\(\)\[\]]/g, ' ')
+    .replace(/[_\-#:;?!*<>|.,/\\\(\)\[\]–—]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -223,12 +226,22 @@ function buildIssueRegex(issueStr: string): RegExp | null {
   const clean = String(issueStr || '').replace(/^#/, '').trim();
   if (!clean) return null;
 
+  // Handle fractional issues like "1/2", "1/4", "3/4" matching "1 2", "1-2", "1_2", or "1/2"
+  if (clean.includes('/')) {
+    const parts = clean.split('/');
+    if (parts.length === 2) {
+      const [num, den] = parts.map((p) => p.trim());
+      return new RegExp(`(?<![0-9a-zA-Z])#?0*${num}[\\s\\-_/]+0*${den}(?![0-9a-zA-Z])`, 'i');
+    }
+  }
+
   const numMatch = clean.match(/^(-?\d+)(.*)$/);
   if (numMatch) {
     const isNegative = numMatch[1].startsWith('-');
     const digits = isNegative ? numMatch[1].slice(1) : numMatch[1];
     const suffix = numMatch[2].trim();
-    const signPrefix = isNegative ? '-\\s*' : '';
+    // Allow optional minus sign if file dropped it (e.g. JLX #1 matching JLX #-1)
+    const signPrefix = isNegative ? '-?\\s*' : '';
     if (!suffix) {
       if (digits === '0') {
         return new RegExp(`(?<![0-9a-zA-Z])#?${signPrefix}0+(?![0-9a-zA-Z])`, 'i');
@@ -281,34 +294,54 @@ export function parseStrictFullCoverFileName(fileName: string): ParsedFullCoverF
 
   // Rule 1: Annual Full
   // e.g. "X-Man Annual Full '96", "Alpha Flight Annual Full #2", "Spider-Man Annual Full 1998"
-  const annualMatch = baseName.match(/^(.+?)\s+Annual\s+Full\s+(?:#\s*)?(['’]?\d+.*)$/i);
+  const annualMatch = baseName.match(/^(.+?)\s+Annual\s+Full(?:\s+(?:#\s*)?(['’]?\d+.*))?$/i);
   if (annualMatch) {
     const title = annualMatch[1].trim();
-    const issueYear = annualMatch[2].trim();
+    const issueYear = (annualMatch[2] || '').trim();
     return {
       isStrictFullCover: true,
       hasFullWord: true,
       title,
       isAnnual: true,
       issueOrYear: issueYear,
-      normalizedFileNameForMatch: `${title} Annual ${issueYear}${ext}`,
+      normalizedFileNameForMatch: `${title} Annual ${issueYear}${ext}`.trim(),
     };
   }
 
-  // Rule 2: Regular Issue Full
-  // e.g. "Comic Title Full #1", "The Amazing Spider-Man Full #300", "Marvel Comics Presents Full 16"
-  const regularMatch = baseName.match(/^(.+?)\s+Full\s+(?:#\s*)?(-?\d+[a-zA-Z0-9.-]*)$/i);
+  // Rule 2: Regular Issue Full with optional variant/edition suffix
+  // e.g. "Comic Title Full #1", "Action Comics Full #1 (50th Anniversary...)", "Bravura Full #1 2"
+  const regularMatch = baseName.match(/^(.+?)\s+Full\s+(?:#\s*)?(-?\d+[a-zA-Z0-9.-]*(?:[\s\-_/]+\d+)?)(?:\s+(.*))?$/i);
   if (regularMatch) {
     const title = regularMatch[1].trim();
     const issue = regularMatch[2].trim();
+    const extra = (regularMatch[3] || '').trim();
     return {
       isStrictFullCover: true,
       hasFullWord: true,
       title,
       isAnnual: false,
       issueOrYear: issue,
-      normalizedFileNameForMatch: `${title} #${issue}${ext}`,
+      normalizedFileNameForMatch: `${title} #${issue}${extra ? ' ' + extra : ''}${ext}`,
     };
+  }
+
+  // Rule 3: Trailing Full on unnumbered / standalone / omnibus / book-and-record sets
+  // e.g. "Uncanny X-Men Omnibus Vol. 5 HC Full", "Power Records The Amazing Spider-Man... Full"
+  const trailingFullMatch = baseName.match(/^(.+?)\s+Full$/i);
+  if (trailingFullMatch) {
+    const candidateTitle = trailingFullMatch[1].trim();
+    // If candidateTitle ends with an issue number (e.g. "#16 Full"), 'Full' was placed after the issue number, which is a format error.
+    const endsWithIssue = /(?:#\s*\d+[a-zA-Z0-9.-]*|\bissue\s*\d+[a-zA-Z0-9.-]*)\s*$/i.test(candidateTitle);
+    if (!endsWithIssue) {
+      return {
+        isStrictFullCover: true,
+        hasFullWord: true,
+        title: candidateTitle,
+        isAnnual: false,
+        issueOrYear: '',
+        normalizedFileNameForMatch: `${candidateTitle}${ext}`,
+      };
+    }
   }
 
   return {
@@ -331,7 +364,7 @@ export function doesFullCoverMatchComic(
     publicationYear?: number;
   }
 ): boolean {
-  if (!parsedFullCover.isStrictFullCover || !parsedFullCover.title || !parsedFullCover.issueOrYear) {
+  if (!parsedFullCover.isStrictFullCover || !parsedFullCover.title) {
     return false;
   }
 
@@ -414,7 +447,7 @@ export function scoreFullCoverMatch(
   parsedFullCover: ParsedFullCoverFileName,
   comic: Partial<ComicBook>
 ): number {
-  if (!parsedFullCover.isStrictFullCover || !parsedFullCover.title || !parsedFullCover.issueOrYear) {
+  if (!parsedFullCover.isStrictFullCover || !parsedFullCover.title) {
     return 0;
   }
   if (parsedFullCover.normalizedFileNameForMatch) {
@@ -512,7 +545,15 @@ export function scoreFileNameMatch(
     }
   }
 
-  if (fileVolume !== null && comicVolume !== null && fileVolume !== comicVolume) {
+  // If the volume number in the filename is part of the comic's title or series name (e.g. "Uncanny X-Men Omnibus Vol. 5 HC"),
+  // it is part of the title/series identity, not a conflicting comicVolume!
+  const titleMentionsFileVolume = fileVolume !== null && (
+    new RegExp(`\\b(?:vol|volume|v)\\.?\\s*0*${fileVolume}\\b`, 'i').test(comic.title || '') ||
+    new RegExp(`\\b(?:vol|volume|v)\\.?\\s*0*${fileVolume}\\b`, 'i').test(comic.seriesName || '') ||
+    new RegExp(`\\b(?:vol|volume|v)\\.?\\s*0*${fileVolume}\\b`, 'i').test(comic.fullTitle || '')
+  );
+
+  if (!titleMentionsFileVolume && fileVolume !== null && comicVolume !== null && fileVolume !== comicVolume) {
     return 0; // Ineligible mismatch: comic belongs to a different volume
   }
 
@@ -587,9 +628,17 @@ export function scoreFileNameMatch(
     if (cleanIssueNumber) {
       const issueRegex = buildIssueRegex(cleanIssueNumber);
       if (!issueRegex || !issueRegex.test(baseFileNameNoVolume)) {
-        return 0;
+        // Fallback for unnumbered / standalone / omnibus / book-and-record sets where DB has issue_number = '1':
+        // If file contains NO explicit '#<num>' and cleanIssueNumber === '1', allow issueMatched = true
+        const hasExplicitOtherIssue = /(?:#\s*\d+|\bissue\s*\d+)/i.test(baseFileNameNoVolume);
+        if (cleanIssueNumber === '1' && !hasExplicitOtherIssue) {
+          issueMatched = true;
+        } else {
+          return 0;
+        }
+      } else {
+        issueMatched = true;
       }
-      issueMatched = true;
     } else {
       issueMatched = true;
     }
@@ -652,6 +701,10 @@ export function scoreFileNameMatch(
   addCandidate(comic.seriesName);
   if (comic.fullTitle) {
     addCandidate(comic.fullTitle.replace(/#\s*\S+.*$/, ''));
+    // Also candidate with just the issue number removed (e.g. "Wetworks #2 Variant..." -> "Wetworks Variant...")
+    addCandidate(comic.fullTitle.replace(/#\s*(-?\d+[a-zA-Z0-9.-]*)\s*/, ' '));
+    // Also complete fullTitle
+    addCandidate(comic.fullTitle);
   }
 
   // For Annuals: ensure both "Title Annual" and "Title" (if Annual is in format/series) are available

@@ -963,7 +963,7 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
                           </p>
                           <div className="flex items-center gap-2 mt-1 text-[10px]">
                             <span className="text-slate-800 dark:text-slate-200 font-bold bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                              {comic.sizeThickness.toFixed(1)}x Size
+                              {(comic.sizeThickness ?? 1.0).toFixed(1)}x Size
                             </span>
                             {isTrueProposedMove(comic) && (
                               <span className="text-slate-900 dark:text-slate-100 font-bold bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600">

@@ -9,6 +9,7 @@ import {
 import { compressBase64Image } from '../utils/imageUtils';
 import { sortBoxes } from '../utils/boxUtils';
 import { buildApiUrl } from './apiConfig';
+import { getAuthHeaders } from './auth';
 
 export interface CollectionResponse {
   comics: ComicBook[];
@@ -19,9 +20,14 @@ export interface CollectionResponse {
 
 async function request(path: string, options?: RequestInit) {
   const url = buildApiUrl(path);
+  const authHeaders = await getAuthHeaders();
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+      ...options?.headers,
+    },
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -328,6 +334,72 @@ export async function updateValuationScheduler(settings: {
   const response = await request('/api/valuation/scheduler', {
     method: 'POST',
     body: JSON.stringify(settings),
+  });
+  return response.json();
+}
+
+export interface UserProfileResponse {
+  uid: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: 'user' | 'admin';
+  vipTier: 'free' | 'collector' | 'archivist';
+  isBannedFromProposals: boolean;
+  storageBytesUsed: number;
+  dailyUsage: {
+    usageDate: string;
+    readsCount: number;
+    writesCount: number;
+  };
+}
+
+/**
+ * Fetches the authenticated user's profile, tier, storage usage, and daily sync quota.
+ */
+export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
+  const response = await request('/api/auth/me');
+  return response.json();
+}
+
+/**
+ * Uploads a compressed WebP cover image to Firebase Cloud Storage:
+ * - Admin with isMasterCatalog=true: writes to covers/master/* (or covers/master-full/*)
+ * - VIP user: writes to covers/users/{uid}/* as a personal high-quality override
+ */
+export async function uploadComicCoverToStorage(payload: {
+  comicId: string;
+  imageBufferBase64: string;
+  targetType?: 'front' | 'full';
+  isMasterCatalog?: boolean;
+  preservePersonalOverride?: boolean;
+  highResSourceUrl?: string;
+}): Promise<{
+  success: boolean;
+  isMaster?: boolean;
+  isPersonalOverride?: boolean;
+  storagePath: string;
+  url: string;
+  sizeBytes: number;
+}> {
+  const response = await request('/api/storage/upload-cover', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+}
+
+/**
+ * Reverts a comic's front or full cover back to the canonical master catalog WebP cover
+ * by clearing coverImageOverride / coverImageFullOverride in Firestore.
+ */
+export async function revertComicCoverToMaster(payload: {
+  comicId: string;
+  targetType?: 'front' | 'full';
+}): Promise<{ success: boolean; revertedKey: string }> {
+  const response = await request('/api/storage/revert-cover', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
   return response.json();
 }

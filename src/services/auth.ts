@@ -91,6 +91,30 @@ export const getAccessToken = async (): Promise<string | null> => {
   return null;
 };
 
+/**
+ * Returns the current Firebase Auth ID token for authenticating with the Express/Firestore backend.
+ */
+export const getFirebaseIdToken = async (): Promise<string | null> => {
+  if (typeof window !== 'undefined' && (window as any).__MOCK_AUTH__?.idToken) {
+    return (window as any).__MOCK_AUTH__.idToken;
+  }
+  const user = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Returns Authorization headers with the Firebase ID token if a user is logged in.
+ */
+export const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const idToken = await getFirebaseIdToken();
+  return idToken ? { Authorization: `Bearer ${idToken}` } : {};
+};
+
 export const logout = async () => {
   await signOut(auth);
   clearCachedAccessToken();

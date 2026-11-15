@@ -1,0 +1,64 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isVipTier1OrHigher() {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.vipTier in ['collector', 'archivist'] ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function isValidWebpUpload(maxBytes) {
+      return request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType == 'image/webp';
+    }
+
+    // 1. Canonical Master Covers (Compressed .webp only, readable by authenticated users, writable by Admin)
+    match /covers/master/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidWebpUpload(250 * 1024);
+    }
+
+    match /covers/master-full/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidWebpUpload(500 * 1024);
+    }
+
+    // 2. VIP Personal Cover Overrides (Scoped per user UID, compressed .webp max 350 KB)
+    match /covers/users/{userId}/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if (isOwner(userId) && isVipTier1OrHigher() && isValidWebpUpload(350 * 1024)) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // 3. Staged Community Cover Proposals (Compressed .webp max 350 KB; auto-deleted on reject/veto)
+    match /covers/proposals/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isVipTier1OrHigher() && isValidWebpUpload(350 * 1024);
+      allow delete: if isAdmin();
+    }
+
+    // 4. Master Catalog Snapshot JSON for Zero-Read Initial Hydration
+    match /catalog/master_catalog_snapshot.json {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

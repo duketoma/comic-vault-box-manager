@@ -1,17 +1,24 @@
 import { test, expect } from '@playwright/test';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { cleanupFirestoreTestWishlist } from '../scripts/cleanup-test-wishlist';
 
 dotenv.config({ path: ['.env.local', '.env'] });
 
 test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', () => {
   const cleanupTestData = async () => {
+    try {
+      await cleanupFirestoreTestWishlist();
+    } catch (e) {
+      console.error('Failed to cleanup Firestore test data:', e);
+    }
+
     if (process.env.DATABASE_URL) {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       try {
         await pool.query("DELETE FROM comic_books WHERE id LIKE 'c-wishlist-%' OR title LIKE 'Wishlist Hero%'");
       } catch (e) {
-        console.error('Failed to cleanup test data:', e);
+        console.error('Failed to cleanup Postgres test data:', e);
       } finally {
         await pool.end();
       }

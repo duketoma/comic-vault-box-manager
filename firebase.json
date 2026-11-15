@@ -1,0 +1,10 @@
+{
+  "firestore": {
+    "database": "ai-studio-comicvaultboxman-f278f9f7-14a3-4b40-8c16-e78aa138625d",
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "bucket": "gen-lang-client-0874195230.firebasestorage.app",
+    "rules": "storage.rules"
+  }
+}

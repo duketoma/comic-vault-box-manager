@@ -8,6 +8,8 @@ coverage/
 .env*
 !.env.example
 firebase-applet-config.json
+firebase-service-account.json
+*firebase-adminsdk*.json
 Troubleshooting/
 test-results/
 playwright-report/

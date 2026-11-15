@@ -63,40 +63,82 @@ if (-not $ServerReady) {
         }
     }
 
-    if ($UseProdBuild) {
-        $env:NODE_ENV = "production"
-        $StartedServerProcess = Start-Process -FilePath $NodeExe `
-            -ArgumentList @("`"$ProdServerCjs`"") `
-            -WorkingDirectory $ProjectRoot `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $StdOutLog `
-            -RedirectStandardError $StdErrLog `
-            -PassThru
-    } elseif (Test-Path $TsxCli) {
-        $StartedServerProcess = Start-Process -FilePath $NodeExe `
-            -ArgumentList @("`"$TsxCli`"", "server.ts") `
-            -WorkingDirectory $ProjectRoot `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $StdOutLog `
-            -RedirectStandardError $StdErrLog `
-            -PassThru
-    } else {
-        $StartedServerProcess = Start-Process -FilePath "cmd.exe" `
-            -ArgumentList @("/c", "npm run dev") `
-            -WorkingDirectory $ProjectRoot `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $StdOutLog `
-            -RedirectStandardError $StdErrLog `
-            -PassThru
+    function Start-BackendServer {
+        param([string]$Mode)
+        if ($Mode -eq "prod") {
+            $env:NODE_ENV = "production"
+            return Start-Process -FilePath $NodeExe `
+                -ArgumentList @("`"$ProdServerCjs`"") `
+                -WorkingDirectory $ProjectRoot `
+                -WindowStyle Hidden `
+                -RedirectStandardOutput $StdOutLog `
+                -RedirectStandardError $StdErrLog `
+                -PassThru
+        } elseif (Test-Path $TsxCli) {
+            $env:NODE_ENV = "development"
+            return Start-Process -FilePath $NodeExe `
+                -ArgumentList @("`"$TsxCli`"", "server.ts") `
+                -WorkingDirectory $ProjectRoot `
+                -WindowStyle Hidden `
+                -RedirectStandardOutput $StdOutLog `
+                -RedirectStandardError $StdErrLog `
+                -PassThru
+        } else {
+            $env:NODE_ENV = "development"
+            return Start-Process -FilePath "cmd.exe" `
+                -ArgumentList @("/c", "npm run dev") `
+                -WorkingDirectory $ProjectRoot `
+                -WindowStyle Hidden `
+                -RedirectStandardOutput $StdOutLog `
+                -RedirectStandardError $StdErrLog `
+                -PassThru
+        }
     }
 
-    # Quick 1.5s check in case production server is ready immediately
-    for ($i = 0; $i -lt 6; $i++) {
+    $SelectedMode = if ($UseProdBuild) { "prod" } else { "dev" }
+    $StartedServerProcess = Start-BackendServer -Mode $SelectedMode
+
+    # Quick check for server readiness (or early process crash)
+    for ($i = 0; $i -lt 8; $i++) {
         if (Test-ServerReady -Url $HealthUrl) {
             $ServerReady = $true
             break
         }
+        if ($StartedServerProcess.HasExited) {
+            break
+        }
         Start-Sleep -Milliseconds 250
+    }
+
+    # If the production build exited unexpectedly on startup, seamlessly fall back to dev mode
+    if (-not $ServerReady -and $StartedServerProcess.HasExited -and $SelectedMode -eq "prod") {
+        Write-Warning "Production server build exited unexpectedly (exit code $($StartedServerProcess.ExitCode)). Falling back to dev server..."
+        $StartedServerProcess = Start-BackendServer -Mode "dev"
+        for ($i = 0; $i -lt 8; $i++) {
+            if (Test-ServerReady -Url $HealthUrl) {
+                $ServerReady = $true
+                break
+            }
+            if ($StartedServerProcess.HasExited) {
+                break
+            }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+
+    # If server process crashed completely in both modes, show an informative alert
+    if (-not $ServerReady -and $StartedServerProcess.HasExited) {
+        $ErrorDetails = ""
+        if (Test-Path $StdErrLog) {
+            $ErrorDetails = (Get-Content $StdErrLog -Tail 10) -join "`n"
+        }
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.MessageBox]::Show(
+            "Comic Archive Pro server failed to start.`n`nDetails:`n$ErrorDetails`n`nCheck logs\server-error.log for more information.",
+            "Comic Archive Pro Startup Error",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
     }
 }
 
@@ -136,12 +178,15 @@ if ($BrowserExe) {
         "--disable-extensions"
     )
 
+    $BrowserLaunchTime = Get-Date
     $BrowserProc = Start-Process -FilePath $BrowserExe -ArgumentList $BrowserArgs -PassThru
 
     if (-not $NoWait -and $StartedServerProcess -and $BrowserProc) {
         # Wait for the standalone app window to close, then cleanly shut down the server we started
         $BrowserProc.WaitForExit()
-        if (-not $StartedServerProcess.HasExited) {
+        $WindowLifetimeSeconds = ((Get-Date) - $BrowserLaunchTime).TotalSeconds
+        # If the browser process exited in under 3 seconds, Chrome handed off to an already-running instance; keep the server alive.
+        if ($WindowLifetimeSeconds -ge 3 -and -not $StartedServerProcess.HasExited) {
             Stop-Process -Id $StartedServerProcess.Id -Force -ErrorAction SilentlyContinue
         }
     }

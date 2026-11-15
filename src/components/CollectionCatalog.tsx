@@ -1498,7 +1498,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   {/* Equivalent Size Thickness Badge */}
                   <div className="comic-caption-badge absolute top-2 left-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
                     <Layers className="w-3 h-3 text-slate-600 dark:text-slate-400" />
-                    <span>{comic.sizeThickness.toFixed(1)}x Size</span>
+                    <span>{(comic.sizeThickness ?? 1.0).toFixed(1)}x Size</span>
                   </div>
 
                   {/* Full Art Badge */}
@@ -1938,7 +1938,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                      {comic.sizeThickness.toFixed(1)}x
+                      {(comic.sizeThickness ?? 1.0).toFixed(1)}x
                     </td>
                     <td className="py-3 px-3 whitespace-nowrap">
                       {comic.readingStatus === 'Wishlist' || comic.currentBoxId < 0 ? (

@@ -77,14 +77,17 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     // Click on the comic card to open ComicDetailModal
     await comicHeading.click();
 
-    // The sticky top header should be visible with comic title & issue number
-    const stickyHeader = page.locator('div').filter({ hasText: /The Avengers\s*#400/ }).first();
-    await expect(stickyHeader).toBeVisible();
-
     // Verify the modal does not exceed viewport boundaries
     const viewportSize = page.viewportSize();
     expect(viewportSize).not.toBeNull();
     const modal = page.locator('.max-h-\\[92vh\\]');
+    await expect(modal).toBeVisible();
+
+    // Hero displays consolidated comic title, issue number, and publisher/date pill without a duplicate top header
+    await expect(modal.getByRole('heading', { name: /The Avengers\s*#400/i })).toHaveCount(1);
+    await expect(modal.getByText(/Marvel Comics • 1996 May/i)).toHaveCount(1);
+    await expect(modal.getByText(/Thickness Units/i)).toHaveCount(0);
+
     // Wait for entrance spring animation to settle before measuring bounding box
     await page.waitForTimeout(550);
     const modalBox = await modal.boundingBox();
@@ -154,5 +157,135 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     // Press Escape to close modal
     await page.keyboard.press('Escape');
     await expect(page.locator('.max-h-\\[92vh\\]')).not.toBeVisible();
+  });
+
+  test('Comic Detail Modal cleanup: Manage Cover popover, Copies Owned metadata grid, Series Run Progress, and Creator sorting', async ({ page }) => {
+    const ghostRiderComic: ComicBook = {
+      id: 'test-ghost-rider-26',
+      title: 'Ghost Rider',
+      seriesName: 'Ghost Rider (Vol. 2) (1990 - 2007)',
+      issueNumber: '26',
+      volume: 'Vol. 2',
+      publisher: 'Marvel Comics',
+      publicationYear: 1992,
+      publicationMonth: 'April',
+      genre: 'Superhero',
+      writer: 'Howard Mackie',
+      artist: 'Javier Saltares',
+      coverImage: 'NoImage.webp',
+      format: 'Single Issue',
+      sizeThickness: 1.0,
+      copiesOwned: 2,
+      currentBoxId: 1,
+      readingStatus: 'Unread',
+      readCount: 0,
+      condition: 'Near Mint',
+      tags: ['90s'],
+      event: 'Rise of the Midnight Sons',
+      creatorContributions: [
+        { id: 'c-ed', creatorName: 'Bobbie Chase', roleName: 'Editor' },
+        { id: 'c-col', creatorName: 'Gregory Wright', roleName: 'Colorist' },
+        { id: 'c-ink', creatorName: 'Mark Texeira', roleName: 'Inker' },
+        { id: 'c-pen', creatorName: 'Javier Saltares', roleName: 'Penciller' },
+        { id: 'c-wri', creatorName: 'Howard Mackie', roleName: 'Writer' },
+      ],
+      characterAppearances: [],
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    };
+
+    await page.route('**/api/collection', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          comics: [ghostRiderComic],
+          boxes: [{ id: 1, name: 'Box 01 - Marvel Heroes', maxCapacity: 150 }],
+          seriesTotals: [{ seriesName: 'Ghost Rider (Vol. 2) (1990 - 2007)', issueCount: 96 }],
+        }),
+      });
+    });
+
+    await page.route(/.*\/api\/comics.*/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      });
+    });
+
+    await page.addInitScript((comic) => {
+      window.localStorage.setItem('comic_vault_comics', JSON.stringify([comic]));
+      window.localStorage.setItem(
+        'comic_vault_series_totals',
+        JSON.stringify([{ seriesName: 'Ghost Rider (Vol. 2) (1990 - 2007)', issueCount: 96 }])
+      );
+    }, ghostRiderComic);
+
+    await page.goto('/');
+
+    const card = page.getByRole('heading', { name: /Ghost Rider/i });
+    await expect(card).toBeVisible();
+    await card.click();
+
+    const modal = page.locator('.max-h-\\[92vh\\]');
+    await expect(modal).toBeVisible();
+
+    // 1. Consolidated Hero identity (single title/issue heading & publisher/date pill; no Thickness Units or duplicate Box pill in Hero)
+    await expect(modal.getByRole('heading', { name: /Ghost Rider\s*#26/i })).toHaveCount(1);
+    await expect(modal.getByText(/Marvel Comics • 1992 April/i)).toHaveCount(1);
+    await expect(modal.getByText('Ghost Rider (Vol. 2) (1990 - 2007)')).toBeVisible();
+    await expect(modal.getByText(/⚡ Event: Rise of the Midnight Sons/i)).toBeVisible();
+    await expect(modal.getByText(/Thickness Units/i)).toHaveCount(0);
+
+    // 2. Series Run Progress omits redundant "% to 100%" footer text
+    await expect(modal.getByText(/1 \/ 96 issues \(1%\)/i)).toBeVisible();
+    await expect(modal.getByText(/% to 100%/i)).toHaveCount(0);
+
+    // 3. Manage Cover popover toggles cover actions menu with Scan / Crop Cover
+    await expect(modal.getByTestId('cover-source-badge')).toBeVisible();
+    const manageCoverBtn = modal.getByTestId('manage-cover-btn');
+    await expect(manageCoverBtn).toBeVisible();
+    await expect(modal.getByTestId('manage-cover-menu')).toHaveCount(0);
+
+    await manageCoverBtn.click();
+    const coverMenu = modal.getByTestId('manage-cover-menu');
+    await expect(coverMenu).toBeVisible();
+    await expect(coverMenu.getByRole('menuitem', { name: /Scan \/ Crop Cover/i })).toBeVisible();
+
+    // Pressing Escape closes only the Manage Cover popover, keeping the modal open
+    await page.keyboard.press('Escape');
+    await expect(coverMenu).toHaveCount(0);
+    await expect(modal).toBeVisible();
+
+    // 4. Creators & Role Contributions orders Writer and Penciller first
+    const creatorNames = await modal
+      .locator('h4:has-text("Comic Creators & Role Contributions")')
+      .locator('..')
+      .locator('..')
+      .locator('.inline-flex > span:first-child')
+      .allTextContents();
+    expect(creatorNames).toEqual([
+      'Howard Mackie',
+      'Javier Saltares',
+      'Mark Texeira',
+      'Gregory Wright',
+      'Bobbie Chase',
+    ]);
+
+    // 5. Copies Owned appears in the bottom Metadata Grid in both View and Edit modes
+    const metadataGrid = modal.locator('div').filter({ hasText: /^Condition/ }).filter({ hasText: /Est\. Market Value/ }).first();
+    await expect(metadataGrid).toContainText('Copies Owned');
+    await expect(metadataGrid).toContainText('2');
+
+    await modal.getByRole('button', { name: /Edit Values/i }).click();
+    const copiesInput = modal.getByLabel('Copies Owned');
+    await expect(copiesInput).toBeVisible();
+    await expect(copiesInput).toHaveValue('2');
+    await copiesInput.fill('3');
+
+    await modal.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(modal.getByRole('button', { name: /Edit Values/i })).toBeVisible();
+    await expect(metadataGrid).toContainText('3');
   });
 });
