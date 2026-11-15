@@ -40,7 +40,8 @@ export const FIREBASE_STORAGE_BUCKET =
 function resolveServiceAccountCredential() {
   const rawKey = (process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim();
   if (!rawKey) {
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const gac = (process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
+    if (gac && fs.existsSync(path.resolve(gac))) {
       return applicationDefault();
     }
     return null;
@@ -74,6 +75,21 @@ function resolveServiceAccountCredential() {
   );
 }
 
+/**
+ * Returns true when Firebase Admin credentials or a Firestore emulator are configured,
+ * allowing server routes and scripts to fall back cleanly to PostgreSQL when absent.
+ */
+export function isFirestoreConfigured(): boolean {
+  if ((process.env.FIRESTORE_EMULATOR_HOST || '').trim()) {
+    return true;
+  }
+  try {
+    return resolveServiceAccountCredential() !== null;
+  } catch {
+    return false;
+  }
+}
+
 let cachedApp: App | null = null;
 let cachedFirestore: Firestore | null = null;
 
@@ -84,7 +100,12 @@ export function getFirebaseAdminApp(): App {
     return cachedApp;
   }
 
+  const hasEmulator = Boolean((process.env.FIRESTORE_EMULATOR_HOST || '').trim());
   const credential = resolveServiceAccountCredential();
+  if (!credential && !hasEmulator) {
+    throw new Error('Firebase Admin credentials are not configured.');
+  }
+
   cachedApp = initializeApp(
     credential
       ? {

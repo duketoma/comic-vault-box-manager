@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getFirestoreDb } from '../firebaseAdmin.ts';
+import { getFirestoreDb, isFirestoreConfigured } from '../firebaseAdmin.ts';
 
 export interface TierLimits {
   dailyReads: number;
@@ -25,6 +25,9 @@ export function getNextUtcMidnightIso(now = new Date()): string {
  * and enforces soft-cap bounds according to the user's VIP tier.
  */
 export async function quotaMiddleware(req: Request, res: Response, next: NextFunction) {
+  if (!isFirestoreConfigured()) {
+    return next();
+  }
   const user = req.user;
   if (!user) {
     return next();

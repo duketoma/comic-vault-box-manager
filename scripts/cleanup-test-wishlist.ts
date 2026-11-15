@@ -1,9 +1,12 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: ['.env.local', '.env'] });
 
-import { getFirestoreDb } from '../server/firebaseAdmin';
+import { getFirestoreDb, isFirestoreConfigured } from '../server/firebaseAdmin';
 
 export async function cleanupFirestoreTestWishlist() {
+  if (!isFirestoreConfigured()) {
+    return;
+  }
   const db = getFirestoreDb();
   const uid = process.env.ADMIN_FIREBASE_UID || 'QDLamXAoKGV7HiHzWv7u2whr2tu1';
   console.log(`Checking comics for uid: ${uid}`);

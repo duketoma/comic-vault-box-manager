@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { getFirestoreDb, getFirebaseStorageBucket } from '../firebaseAdmin.ts';
+import { getFirestoreDb, getFirebaseStorageBucket, isFirestoreConfigured } from '../firebaseAdmin.ts';
 import { optionalAuth, requireAdmin, requireAuth } from '../middleware/auth.ts';
 import { quotaMiddleware } from '../middleware/quota.ts';
 import {
@@ -36,6 +36,9 @@ function sendError(res: Response, err: any, fallbackMessage: string) {
  */
 proposalsRouter.get('/api/proposals', optionalAuth, quotaMiddleware, async (req: Request, res: Response) => {
   try {
+    if (!isFirestoreConfigured()) {
+      return res.json({ proposals: [], count: 0 });
+    }
     const proposals = await listProposals(getDeps(), req.user || null, {
       status: typeof req.query.status === 'string' ? req.query.status : undefined,
       limit: Number(req.query.limit) || undefined,

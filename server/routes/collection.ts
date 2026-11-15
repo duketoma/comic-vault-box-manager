@@ -2,15 +2,60 @@ import express from 'express';
 import { ComicBook } from '../../src/types';
 import { isSampleComicId } from '../../src/data/initialData';
 import { sortComicsByBoxOrder } from '../../src/utils/comicSortUtils';
-import { getFirestoreDb } from '../firebaseAdmin.ts';
+import { getFirestoreDb, isFirestoreConfigured } from '../firebaseAdmin.ts';
 import { optionalAuth } from '../middleware/auth.ts';
 import { quotaMiddleware } from '../middleware/quota.ts';
+import {
+  pool,
+  databaseErrorMessage,
+  comicColumns,
+  comicValues,
+  rowToComic,
+  comicUpsertSql,
+  upsertComicsBatch,
+  recordDeletionTombstones,
+  clearDeletionTombstones,
+} from '../db';
 
 export const collectionRouter = express.Router();
 
 // Apply auth and quota middleware to all collection routes
 collectionRouter.use(optionalAuth);
 collectionRouter.use(quotaMiddleware);
+
+const PG_CREATOR_TYPES_SQL = `
+  SELECT DISTINCT type_name FROM (
+    SELECT type_name FROM creator_types WHERE type_name IS NOT NULL AND TRIM(type_name) != ''
+    UNION
+    SELECT creator_type AS type_name FROM title_contributors WHERE creator_type IS NOT NULL AND TRIM(creator_type) != ''
+  ) all_types
+  ORDER BY type_name ASC
+`;
+
+function ensurePostgresPool(res: express.Response): boolean {
+  if (!pool) {
+    res
+      .status(503)
+      .json({ error: 'DATABASE_URL is not configured. Add it to .env.local and restart the server.' });
+    return false;
+  }
+  return true;
+}
+
+function mapPgBoxRow(box: Record<string, any>, fallbackTimestamp: string) {
+  return {
+    id: Number(box.id),
+    name: box.name,
+    location: box.location,
+    maxCapacity: Number(box.max_capacity),
+    colorTag: box.color_tag,
+    notes: box.notes ?? undefined,
+    updatedAt:
+      box.updated_at instanceof Date
+        ? box.updated_at.toISOString()
+        : String(box.updated_at || fallbackTimestamp),
+  };
+}
 
 function isPlaceholderCover(cover?: unknown): boolean {
   if (!cover || typeof cover !== 'string') return true;
@@ -131,13 +176,29 @@ function docToComic(data: Record<string, any>): ComicBook {
  * Returns the authenticated user's profile, role, VIP tier, storage usage, and daily sync quota.
  */
 collectionRouter.get('/api/auth/me', async (req, res) => {
+  const user = req.user!;
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const fallbackProfile = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName || 'Creator Admin',
+    avatarUrl: null,
+    role: user.role,
+    vipTier: user.vipTier,
+    isBannedFromProposals: Boolean(user.isBannedFromProposals),
+    storageBytesUsed: 0,
+    dailyUsage: { usageDate: todayDate, readsCount: 0, writesCount: 0 },
+  };
+
+  if (!isFirestoreConfigured()) {
+    return res.json(fallbackProfile);
+  }
+
   try {
-    const user = req.user!;
     const db = getFirestoreDb();
     const userDocSnap = await db.collection('users').doc(user.uid).get();
     const data = userDocSnap.exists ? userDocSnap.data() || {} : {};
 
-    const todayDate = new Date().toISOString().slice(0, 10);
     const dailyUsage =
       data.dailyUsage?.usageDate === todayDate
         ? data.dailyUsage
@@ -155,25 +216,44 @@ collectionRouter.get('/api/auth/me', async (req, res) => {
       dailyUsage,
     });
   } catch {
-    res.json({
-      uid: req.user?.uid || 'admin-primary',
-      email: req.user?.email || '',
-      displayName: req.user?.displayName || 'Creator Admin',
-      avatarUrl: null,
-      role: req.user?.role || 'admin',
-      vipTier: req.user?.vipTier || 'archivist',
-      isBannedFromProposals: false,
-      storageBytesUsed: 0,
-      dailyUsage: { usageDate: new Date().toISOString().slice(0, 10), readsCount: 0, writesCount: 0 },
-    });
+    res.json(fallbackProfile);
   }
 });
 
 /**
  * GET /api/collection
- * Fetches user-scoped collection, boxes, and shared series totals from Cloud Firestore.
+ * Fetches user-scoped collection, boxes, and shared series totals from Cloud Firestore (or PostgreSQL fallback).
  */
 collectionRouter.get('/api/collection', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const [comics, boxes, seriesTotals, creatorTypesResult, timeRes] = await Promise.all([
+        pool!.query('SELECT * FROM comic_books ORDER BY created_at DESC, title ASC'),
+        pool!.query('SELECT id, name, location, max_capacity, color_tag, notes, updated_at FROM storage_boxes WHERE id > 0 ORDER BY id'),
+        pool!.query('SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC'),
+        pool!.query(PG_CREATOR_TYPES_SQL),
+        pool!.query('SELECT NOW() AS server_time'),
+      ]);
+      const serverTimestamp =
+        timeRes.rows[0]?.server_time instanceof Date
+          ? timeRes.rows[0].server_time.toISOString()
+          : new Date().toISOString();
+
+      return res.json({
+        comics: comics.rows.map(rowToComic).filter((c) => !isSampleComicId(String(c.id))),
+        boxes: boxes.rows.map((box) => mapPgBoxRow(box, serverTimestamp)),
+        seriesTotals: seriesTotals.rows,
+        creatorTypes: creatorTypesResult.rows.map((r) => r.type_name),
+        serverTimestamp,
+      });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL collection read failed:', detail);
+      return res.status(500).json({ error: `Unable to load collection from PostgreSQL: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -253,6 +333,19 @@ collectionRouter.put('/api/comics/:id', async (req, res) => {
     return res.sendStatus(204);
   }
 
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      await pool!.query(comicUpsertSql, comicValues(req.body));
+      await clearDeletionTombstones(pool!, 'comic', [req.params.id]);
+      return res.sendStatus(204);
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL comic save failed:', detail);
+      return res.status(500).json({ error: `Unable to save comic: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -283,6 +376,18 @@ collectionRouter.put('/api/comics/:id', async (req, res) => {
  * Deletes a comic from user's collection and records a deletion tombstone.
  */
 collectionRouter.delete('/api/comics/:id', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      await pool!.query('DELETE FROM comic_books WHERE id = $1', [req.params.id]);
+      await recordDeletionTombstones(pool!, 'comic', [req.params.id]);
+      return res.sendStatus(204);
+    } catch (error) {
+      console.error('PostgreSQL comic deletion failed:', error);
+      return res.status(500).json({ error: 'Unable to delete comic.' });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -313,6 +418,39 @@ collectionRouter.delete('/api/comics/:id', async (req, res) => {
 collectionRouter.put('/api/comics', async (req, res) => {
   if (!Array.isArray(req.body?.comics)) {
     return res.status(400).json({ error: 'comics must be an array.' });
+  }
+
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    const validComics = req.body.comics.filter((comic: { id: string }) => !isSampleComicId(comic?.id));
+    const client = await pool!.connect();
+    try {
+      await client.query('BEGIN');
+      const ids = validComics.map((comic: { id: string }) => comic.id);
+      const deletedRes = await client.query(
+        ids.length
+          ? 'DELETE FROM comic_books WHERE NOT (id = ANY($1::text[])) RETURNING id'
+          : 'DELETE FROM comic_books RETURNING id',
+        ids.length ? [ids] : []
+      );
+      if (deletedRes.rows.length > 0) {
+        await recordDeletionTombstones(
+          client,
+          'comic',
+          deletedRes.rows.map((r) => r.id)
+        );
+      }
+      await upsertComicsBatch(client, validComics);
+      await client.query('COMMIT');
+      return res.sendStatus(204);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL comic replacement failed:', detail);
+      return res.status(500).json({ error: `Unable to replace comics: ${detail}` });
+    } finally {
+      client.release();
+    }
   }
 
   try {
@@ -371,6 +509,25 @@ collectionRouter.post('/api/comics/batch', async (req, res) => {
     return res.status(400).json({ error: 'comics must be an array.' });
   }
 
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    const validComics = req.body.comics.filter((comic: { id: string }) => !isSampleComicId(comic?.id));
+    const client = await pool!.connect();
+    try {
+      await client.query('BEGIN');
+      await upsertComicsBatch(client, validComics);
+      await client.query('COMMIT');
+      return res.status(200).json({ success: true, count: validComics.length });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL comic batch insert failed:', detail);
+      return res.status(500).json({ error: `Unable to batch save comics: ${detail}` });
+    } finally {
+      client.release();
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -407,6 +564,26 @@ collectionRouter.put('/api/boxes/:id', async (req, res) => {
     return res.status(400).json({ error: 'Box ID must match the request path.' });
   }
 
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const box = req.body;
+      await pool!.query(
+        `INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location,
+         max_capacity = EXCLUDED.max_capacity, color_tag = EXCLUDED.color_tag, notes = EXCLUDED.notes, updated_at = NOW()`,
+        [box.id, box.name, box.location, box.maxCapacity, box.colorTag, box.notes ?? null]
+      );
+      await clearDeletionTombstones(pool!, 'box', [box.id]);
+      return res.sendStatus(204);
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL box save failed:', detail);
+      return res.status(500).json({ error: `Unable to save box: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -439,6 +616,49 @@ collectionRouter.put('/api/boxes/:id', async (req, res) => {
 collectionRouter.put('/api/boxes', async (req, res) => {
   if (!Array.isArray(req.body?.boxes)) {
     return res.status(400).json({ error: 'boxes must be an array.' });
+  }
+
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    const client = await pool!.connect();
+    try {
+      await client.query('BEGIN');
+      for (const box of req.body.boxes) {
+        await client.query(
+          `INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location,
+           max_capacity = EXCLUDED.max_capacity, color_tag = EXCLUDED.color_tag, notes = EXCLUDED.notes, updated_at = NOW()`,
+          [box.id, box.name, box.location, box.maxCapacity, box.colorTag, box.notes ?? null]
+        );
+      }
+      const ids = req.body.boxes.map((box: { id: number }) => box.id);
+      if (ids.length > 0) {
+        await clearDeletionTombstones(client, 'box', ids);
+      }
+      const deletedRes = await client.query(
+        ids.length
+          ? 'DELETE FROM storage_boxes WHERE id > 0 AND NOT (id = ANY($1::integer[])) RETURNING id'
+          : 'DELETE FROM storage_boxes WHERE id > 0 RETURNING id',
+        ids.length ? [ids] : []
+      );
+      if (deletedRes.rows.length > 0) {
+        await recordDeletionTombstones(
+          client,
+          'box',
+          deletedRes.rows.map((r) => r.id)
+        );
+      }
+      await client.query('COMMIT');
+      return res.sendStatus(204);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL box replacement failed:', detail);
+      return res.status(500).json({ error: `Unable to replace boxes: ${detail}` });
+    } finally {
+      client.release();
+    }
   }
 
   try {
@@ -485,6 +705,19 @@ collectionRouter.put('/api/boxes', async (req, res) => {
  * Deletes a storage box and records a tombstone.
  */
 collectionRouter.delete('/api/boxes/:id', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      await pool!.query('DELETE FROM storage_boxes WHERE id = $1', [req.params.id]);
+      await recordDeletionTombstones(pool!, 'box', [req.params.id]);
+      return res.sendStatus(204);
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL box deletion failed:', detail);
+      return res.status(500).json({ error: `Unable to delete box: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const boxId = String(req.params.id);
@@ -511,9 +744,290 @@ collectionRouter.delete('/api/boxes/:id', async (req, res) => {
 
 /**
  * POST /api/sync
- * Bidirectional delta sync between client IndexedDB and Cloud Firestore.
+ * Bidirectional delta sync between client IndexedDB and Cloud Firestore (or PostgreSQL fallback).
  */
 collectionRouter.post('/api/sync', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    const client = await pool!.connect();
+    try {
+      const rawLastSyncAt = req.body?.lastSyncAt;
+      const lastSyncDate =
+        typeof rawLastSyncAt === 'string' && rawLastSyncAt.trim() && !Number.isNaN(Date.parse(rawLastSyncAt))
+          ? new Date(rawLastSyncAt)
+          : null;
+      const mutations: Array<{
+        entityKey?: string;
+        entityType: 'comic' | 'box' | 'series_total';
+        entityId: string;
+        operation: 'UPSERT' | 'DELETE';
+        payload?: Record<string, any>;
+        baseStatus?: string;
+        updatedAt?: string;
+      }> = Array.isArray(req.body?.mutations) ? req.body.mutations : [];
+
+      await client.query('BEGIN');
+
+      const sortedMutations = [...mutations].sort((a, b) => {
+        const order = (m: typeof a) => {
+          if (m.entityType === 'box' && m.operation === 'UPSERT') return 1;
+          if (m.entityType === 'series_total') return 2;
+          if (m.entityType === 'comic' && m.operation === 'UPSERT') return 3;
+          if (m.entityType === 'comic' && m.operation === 'DELETE') return 4;
+          if (m.entityType === 'box' && m.operation === 'DELETE') return 5;
+          return 6;
+        };
+        return order(a) - order(b);
+      });
+
+      const existingBoxesRes = await client.query('SELECT id, updated_at FROM storage_boxes');
+      const validBoxIds = new Set<number>(existingBoxesRes.rows.map((r) => Number(r.id)));
+      validBoxIds.add(0);
+      validBoxIds.add(-1);
+      const boxUpdatedAtMap = new Map<number, number>(
+        existingBoxesRes.rows.map((r) => [Number(r.id), r.updated_at ? new Date(r.updated_at).getTime() : 0])
+      );
+
+      let pushedCount = 0;
+
+      for (const mut of sortedMutations) {
+        if (!mut || !mut.entityType || !mut.entityId) continue;
+        const clientUpdatedMs =
+          mut.updatedAt && !Number.isNaN(Date.parse(mut.updatedAt))
+            ? new Date(mut.updatedAt).getTime()
+            : Date.now();
+
+        if (mut.entityType === 'box') {
+          const boxId = Number(mut.entityId);
+          if (!Number.isInteger(boxId) || boxId <= 0) continue;
+
+          if (mut.operation === 'UPSERT' && mut.payload) {
+            const box = mut.payload;
+            const serverBoxMs = boxUpdatedAtMap.get(boxId) ?? 0;
+            if (!validBoxIds.has(boxId) || clientUpdatedMs >= serverBoxMs) {
+              await client.query(
+                `INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                 ON CONFLICT (id) DO UPDATE SET
+                   name = EXCLUDED.name,
+                   location = EXCLUDED.location,
+                   max_capacity = EXCLUDED.max_capacity,
+                   color_tag = EXCLUDED.color_tag,
+                   notes = EXCLUDED.notes,
+                   updated_at = NOW()`,
+                [
+                  boxId,
+                  String(box.name || `Box ${boxId}`),
+                  String(box.location || 'Storage Shelf'),
+                  Math.min(150, Math.max(10, Number(box.maxCapacity) || 150)),
+                  String(box.colorTag || '#3B82F6'),
+                  box.notes ?? null,
+                ]
+              );
+              await clearDeletionTombstones(client, 'box', [boxId]);
+              validBoxIds.add(boxId);
+              boxUpdatedAtMap.set(boxId, Date.now());
+              pushedCount++;
+            }
+          } else if (mut.operation === 'DELETE') {
+            const serverBoxMs = boxUpdatedAtMap.get(boxId) ?? 0;
+            if (clientUpdatedMs >= serverBoxMs) {
+              await client.query('DELETE FROM storage_boxes WHERE id = $1', [boxId]);
+              await recordDeletionTombstones(client, 'box', [boxId]);
+              validBoxIds.delete(boxId);
+              pushedCount++;
+            }
+          }
+        } else if (mut.entityType === 'series_total' && mut.operation === 'UPSERT' && mut.payload) {
+          const item = mut.payload;
+          const publisher = String(item.publisher || 'Unknown Publisher').trim();
+          const seriesName = String(item.seriesName || '').trim();
+          const volume = String(item.volume ?? '').trim();
+          const issueCount = Math.max(0, parseInt(String(item.issueCount), 10) || 0);
+          if (seriesName) {
+            await client.query(
+              `INSERT INTO series_issue_totals (publisher, series_name, volume, issue_count, updated_at)
+               VALUES ($1, $2, $3, $4, NOW())
+               ON CONFLICT (series_name, volume) DO UPDATE SET
+                 publisher = EXCLUDED.publisher,
+                 issue_count = EXCLUDED.issue_count,
+                 updated_at = NOW()`,
+              [publisher, seriesName, volume, issueCount]
+            );
+            pushedCount++;
+          }
+        } else if (mut.entityType === 'comic') {
+          const comicId = String(mut.entityId);
+          if (isSampleComicId(comicId)) continue;
+
+          if (mut.operation === 'UPSERT' && mut.payload) {
+            const incoming: Record<string, any> = { ...mut.payload, id: comicId };
+            const existingRes = await client.query('SELECT * FROM comic_books WHERE id = $1', [comicId]);
+
+            let comicToSave: Record<string, unknown> | null = null;
+
+            if (existingRes.rows.length === 0) {
+              const tombRes = await client.query(
+                "SELECT deleted_at FROM deleted_records WHERE entity_type = 'comic' AND entity_id = $1",
+                [comicId]
+              );
+              const deletedMs =
+                tombRes.rows.length > 0 && tombRes.rows[0].deleted_at
+                  ? new Date(tombRes.rows[0].deleted_at).getTime()
+                  : 0;
+              const isPurchaseOrNew =
+                mut.baseStatus === 'Wishlist' ||
+                incoming.readingStatus !== 'Wishlist' ||
+                clientUpdatedMs >= deletedMs;
+
+              if (isPurchaseOrNew) {
+                comicToSave = incoming;
+              }
+            } else {
+              const serverRow = existingRes.rows[0];
+              const serverComic = rowToComic(serverRow);
+              const serverUpdatedMs = serverRow.updated_at ? new Date(serverRow.updated_at).getTime() : 0;
+
+              const isWishlistPurchase =
+                (mut.baseStatus === 'Wishlist' || serverComic.readingStatus === 'Wishlist') &&
+                incoming.readingStatus !== 'Wishlist' &&
+                Number(incoming.copiesOwned ?? 1) > 0;
+
+              if (clientUpdatedMs >= serverUpdatedMs) {
+                comicToSave = {
+                  ...serverComic,
+                  ...incoming,
+                  coverImage:
+                    !isPlaceholderCover(incoming.coverImage)
+                      ? incoming.coverImage
+                      : !isPlaceholderCover(serverComic.coverImage)
+                      ? serverComic.coverImage
+                      : incoming.coverImage || 'NoImage.webp',
+                  coverImageFull:
+                    incoming.coverImageFull || (serverComic.coverImageFull as string | undefined),
+                };
+              } else {
+                comicToSave = {
+                  ...serverComic,
+                  ...(isWishlistPurchase
+                    ? {
+                        readingStatus: incoming.readingStatus,
+                        copiesOwned: Math.max(1, Number(incoming.copiesOwned) || 1),
+                        currentBoxId: incoming.currentBoxId ?? serverComic.currentBoxId,
+                        purchasePrice: incoming.purchasePrice ?? serverComic.purchasePrice,
+                        condition: incoming.condition || serverComic.condition,
+                      }
+                    : {}),
+                  coverImage:
+                    !isPlaceholderCover(incoming.coverImage) && isPlaceholderCover(serverComic.coverImage)
+                      ? incoming.coverImage
+                      : serverComic.coverImage,
+                  coverImageFull:
+                    (serverComic.coverImageFull as string | undefined) || incoming.coverImageFull,
+                  notes:
+                    incoming.notes && !serverComic.notes ? incoming.notes : serverComic.notes,
+                };
+              }
+            }
+
+            if (comicToSave) {
+              if (comicToSave.readingStatus === 'Wishlist') {
+                comicToSave.copiesOwned = 0;
+                comicToSave.currentBoxId = -1;
+              }
+              const targetBoxId = Number(comicToSave.currentBoxId);
+              if (!validBoxIds.has(targetBoxId)) {
+                const firstValidBox = validBoxIds.values().next().value;
+                comicToSave.currentBoxId = firstValidBox ?? null;
+              }
+              await client.query(comicUpsertSql, comicValues(comicToSave));
+              await clearDeletionTombstones(client, 'comic', [comicId]);
+              pushedCount++;
+            }
+          } else if (mut.operation === 'DELETE') {
+            const existingRes = await client.query('SELECT updated_at FROM comic_books WHERE id = $1', [comicId]);
+            const serverUpdatedMs =
+              existingRes.rows.length > 0 && existingRes.rows[0].updated_at
+                ? new Date(existingRes.rows[0].updated_at).getTime()
+                : 0;
+            if (existingRes.rows.length === 0 || clientUpdatedMs >= serverUpdatedMs) {
+              await client.query('DELETE FROM comic_books WHERE id = $1', [comicId]);
+              await recordDeletionTombstones(client, 'comic', [comicId]);
+              pushedCount++;
+            }
+          }
+        }
+      }
+
+      const timeRes = await client.query('SELECT NOW() AS server_time');
+      const serverTimestamp =
+        timeRes.rows[0]?.server_time instanceof Date
+          ? timeRes.rows[0].server_time.toISOString()
+          : new Date().toISOString();
+
+      const creatorTypesResult = await client.query(PG_CREATOR_TYPES_SQL);
+      const creatorTypes = creatorTypesResult.rows.map((r) => r.type_name);
+
+      if (!lastSyncDate) {
+        const comicsRes = await client.query('SELECT * FROM comic_books ORDER BY created_at DESC, title ASC');
+        const boxesRes = await client.query('SELECT id, name, location, max_capacity, color_tag, notes, updated_at FROM storage_boxes WHERE id > 0 ORDER BY id');
+        const seriesTotalsRes = await client.query('SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC');
+
+        await client.query('COMMIT');
+
+        return res.json({
+          serverTimestamp,
+          isFullSync: true,
+          pushedCount,
+          comics: comicsRes.rows.map(rowToComic).filter((c) => !isSampleComicId(String(c.id))),
+          boxes: boxesRes.rows.map((box) => mapPgBoxRow(box, serverTimestamp)),
+          seriesTotals: seriesTotalsRes.rows,
+          creatorTypes,
+          deletedComicIds: [],
+          deletedBoxIds: [],
+        });
+      } else {
+        const lastSyncIso = lastSyncDate.toISOString();
+        const comicsRes = await client.query('SELECT * FROM comic_books WHERE updated_at >= $1 ORDER BY created_at DESC, title ASC', [lastSyncIso]);
+        const boxesRes = await client.query('SELECT id, name, location, max_capacity, color_tag, notes, updated_at FROM storage_boxes WHERE id > 0 AND updated_at >= $1 ORDER BY id', [lastSyncIso]);
+        const seriesTotalsRes = await client.query('SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals WHERE updated_at >= $1 ORDER BY series_name ASC', [lastSyncIso]);
+        const deletedRes = await client.query('SELECT entity_type, entity_id FROM deleted_records WHERE deleted_at >= $1', [lastSyncIso]);
+
+        await client.query('COMMIT');
+
+        const deletedComicIds: string[] = [];
+        const deletedBoxIds: number[] = [];
+        for (const row of deletedRes.rows) {
+          if (row.entity_type === 'comic') {
+            deletedComicIds.push(String(row.entity_id));
+          } else if (row.entity_type === 'box') {
+            const bId = Number(row.entity_id);
+            if (Number.isInteger(bId)) deletedBoxIds.push(bId);
+          }
+        }
+
+        return res.json({
+          serverTimestamp,
+          isFullSync: false,
+          pushedCount,
+          comics: comicsRes.rows.map(rowToComic).filter((c) => !isSampleComicId(String(c.id))),
+          boxes: boxesRes.rows.map((box) => mapPgBoxRow(box, serverTimestamp)),
+          seriesTotals: seriesTotalsRes.rows,
+          creatorTypes,
+          deletedComicIds,
+          deletedBoxIds,
+        });
+      }
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL bidirectional sync failed:', detail);
+      return res.status(500).json({ error: `Unable to synchronize collection: ${detail}` });
+    } finally {
+      client.release();
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -759,6 +1273,44 @@ collectionRouter.post('/api/sync', async (req, res) => {
  * GET /api/boxes/:id/comics
  */
 collectionRouter.get('/api/boxes/:id/comics', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const boxId = Number(req.params.id);
+      if (!Number.isInteger(boxId) || boxId < 0) {
+        return res.status(400).json({ error: 'Box ID must be a non-negative integer.' });
+      }
+
+      const boxResult = await pool!.query('SELECT id, name FROM storage_boxes WHERE id = $1', [boxId]);
+      if (boxResult.rows.length === 0) {
+        return res.status(404).json({ error: `Box ${boxId} not found.` });
+      }
+
+      const comicsResult = await pool!.query(
+        `SELECT ${comicColumns.join(', ')}
+         FROM comic_books
+         WHERE current_box_id = $1
+         ORDER BY title ASC, issue_number ASC, created_at ASC, id ASC`,
+        [boxId]
+      );
+
+      const rawComics = comicsResult.rows.map(rowToComic) as unknown as ComicBook[];
+      const comics = sortComicsByBoxOrder(rawComics);
+      return res.json({
+        box: {
+          id: boxResult.rows[0].id,
+          name: boxResult.rows[0].name,
+        },
+        comics,
+        count: comics.length,
+      });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL box comics fetch failed:', detail);
+      return res.status(500).json({ error: `Unable to fetch comics for box: ${detail}` });
+    }
+  }
+
   try {
     const boxId = Number(req.params.id);
     if (!Number.isInteger(boxId) || boxId < 0) {
@@ -795,6 +1347,20 @@ collectionRouter.get('/api/boxes/:id/comics', async (req, res) => {
  * GET /api/series-totals
  */
 collectionRouter.get('/api/series-totals', async (_req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const result = await pool!.query(
+        'SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC'
+      );
+      return res.json(result.rows);
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL series totals fetch failed:', detail);
+      return res.status(500).json({ error: `Unable to load series totals: ${detail}` });
+    }
+  }
+
   try {
     const db = getFirestoreDb();
     const snap = await db.collection('series_issue_totals').get();
@@ -819,6 +1385,45 @@ collectionRouter.get('/api/series-totals', async (_req, res) => {
  * POST /api/series-totals
  */
 collectionRouter.post('/api/series-totals', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    const client = await pool!.connect();
+    try {
+      const { seriesTotals = [] } = req.body;
+      if (!Array.isArray(seriesTotals)) {
+        return res.status(400).json({ error: 'seriesTotals must be an array.' });
+      }
+      await client.query('BEGIN');
+      let upserted = 0;
+      for (const item of seriesTotals) {
+        const publisher = String(item.publisher || 'Unknown Publisher').trim();
+        const seriesName = String(item.seriesName || '').trim();
+        const volume = String(item.volume ?? '').trim();
+        const issueCount = Math.max(0, parseInt(item.issueCount, 10) || 0);
+        if (!seriesName) continue;
+        await client.query(
+          `INSERT INTO series_issue_totals (publisher, series_name, volume, issue_count, updated_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (series_name, volume) DO UPDATE SET
+             publisher = EXCLUDED.publisher,
+             issue_count = EXCLUDED.issue_count,
+             updated_at = NOW()`,
+          [publisher, seriesName, volume, issueCount]
+        );
+        upserted++;
+      }
+      await client.query('COMMIT');
+      return res.json({ success: true, count: upserted });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL series totals save failed:', detail);
+      return res.status(500).json({ error: `Unable to save series totals: ${detail}` });
+    } finally {
+      client.release();
+    }
+  }
+
   try {
     const { seriesTotals = [] } = req.body;
     if (!Array.isArray(seriesTotals)) {
@@ -861,6 +1466,18 @@ collectionRouter.post('/api/series-totals', async (req, res) => {
  * GET /api/creator-types
  */
 collectionRouter.get('/api/creator-types', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const result = await pool!.query(PG_CREATOR_TYPES_SQL);
+      return res.json({ creatorTypes: result.rows.map((r) => r.type_name) });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      console.error('PostgreSQL creator-types read failed:', detail);
+      return res.status(500).json({ error: `Unable to load creator types: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -886,6 +1503,36 @@ collectionRouter.get('/api/creator-types', async (req, res) => {
  * GET /api/creators
  */
 collectionRouter.get('/api/creators', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const result = await pool!.query(`
+        SELECT 
+          c.id,
+          c.first_name as "firstName",
+          c.last_name as "lastName",
+          c.full_name as "fullName",
+          COUNT(DISTINCT tc.full_title) as "issueCount",
+          ARRAY_AGG(DISTINCT tc.series_name) FILTER (WHERE tc.series_name IS NOT NULL) as "series",
+          COALESCE(
+            json_agg(DISTINCT jsonb_build_object('roleName', tc.creator_type)) FILTER (WHERE tc.creator_type IS NOT NULL),
+            '[]'::json
+          ) as "roles",
+          bool_or(tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%') AND 
+          bool_or(tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%') as "isMultiRole"
+        FROM creators c
+        LEFT JOIN title_contributors tc ON LOWER(TRIM(tc.creator_full_name)) = LOWER(TRIM(c.full_name))
+        GROUP BY c.id, c.first_name, c.last_name, c.full_name
+        ORDER BY "issueCount" DESC, c.full_name ASC
+      `);
+
+      return res.json({ success: true, creators: result.rows });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      return res.status(500).json({ error: `Failed to load creators: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
@@ -927,6 +1574,86 @@ collectionRouter.get('/api/creators', async (req, res) => {
  * GET /api/reports/creators
  */
 collectionRouter.get('/api/reports/creators', async (req, res) => {
+  if (!isFirestoreConfigured()) {
+    if (!ensurePostgresPool(res)) return;
+    try {
+      const topCreators = await pool!.query(`
+        SELECT 
+          tc.creator_full_name as "creatorName",
+          COUNT(DISTINCT tc.full_title) as "issueCount",
+          ARRAY_AGG(DISTINCT tc.creator_type) as "roleList",
+          bool_or(tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%') AND 
+          bool_or(tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%') as "isMultiRole"
+        FROM title_contributors tc
+        GROUP BY tc.creator_full_name
+        ORDER BY "issueCount" DESC
+        LIMIT 50
+      `);
+
+      const multiRoleCreators = await pool!.query(`
+        SELECT 
+          tc.creator_full_name as "creatorName",
+          COUNT(DISTINCT tc.full_title) as "issueCount",
+          ARRAY_AGG(DISTINCT tc.creator_type) as "roleList",
+          COUNT(DISTINCT CASE WHEN tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%' THEN tc.full_title END) as "artIssues",
+          COUNT(DISTINCT CASE WHEN tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%' THEN tc.full_title END) as "storyIssues"
+        FROM title_contributors tc
+        GROUP BY tc.creator_full_name
+        HAVING bool_or(tc.creator_type ILIKE '%pencill%' OR tc.creator_type ILIKE '%artist%')
+           AND bool_or(tc.creator_type ILIKE '%writer%' OR tc.creator_type ILIKE '%story%' OR tc.creator_type ILIKE '%script%')
+        ORDER BY "issueCount" DESC
+        LIMIT 50
+      `);
+
+      const roleDistribution = await pool!.query(`
+        SELECT 
+          creator_type as "roleName",
+          COUNT(*) as "contributionsCount",
+          COUNT(DISTINCT full_title) as "issuesCount",
+          COUNT(DISTINCT creator_full_name) as "creatorsCount"
+        FROM title_contributors
+        GROUP BY creator_type
+        ORDER BY "contributionsCount" DESC
+      `);
+
+      const characterStats = await pool!.query(`
+        SELECT 
+          character_name as "characterName",
+          COUNT(*) as "totalAppearances",
+          COUNT(DISTINCT full_title) as "issuesCount",
+          COUNT(*) FILTER (WHERE appearance_type ILIKE '%main%') as "mainCount",
+          COUNT(*) FILTER (WHERE appearance_type ILIKE '%supporting%') as "supportingCount",
+          COUNT(*) FILTER (WHERE appearance_type ILIKE '%cameo%') as "cameoCount"
+        FROM title_character_appearances
+        GROUP BY character_name
+        ORDER BY "totalAppearances" DESC
+        LIMIT 50
+      `);
+
+      const counts = await pool!.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM creators) as "totalCreators",
+          (SELECT COUNT(*) FROM creator_types) as "totalCreatorTypes",
+          (SELECT COUNT(*) FROM title_contributors) as "totalContributions",
+          (SELECT COUNT(*) FROM title_character_appearances) as "totalAppearances",
+          (SELECT COUNT(DISTINCT comic_id) FROM title_contributors WHERE comic_id IS NOT NULL) as "comicsWithContributors",
+          (SELECT COUNT(DISTINCT comic_id) FROM title_character_appearances WHERE comic_id IS NOT NULL) as "comicsWithCharacters"
+      `);
+
+      return res.json({
+        success: true,
+        topCreators: topCreators.rows,
+        multiRoleCreators: multiRoleCreators.rows,
+        roleDistribution: roleDistribution.rows,
+        characterStats: characterStats.rows,
+        summary: counts.rows[0],
+      });
+    } catch (error) {
+      const detail = databaseErrorMessage(error);
+      return res.status(500).json({ error: `Failed to load creator reports: ${detail}` });
+    }
+  }
+
   try {
     const uid = req.user!.uid;
     const db = getFirestoreDb();

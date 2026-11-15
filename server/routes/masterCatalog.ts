@@ -1,6 +1,7 @@
 import express from 'express';
-import { getFirestoreDb, getFirebaseStorageBucket } from '../firebaseAdmin.ts';
+import { getFirestoreDb, getFirebaseStorageBucket, isFirestoreConfigured } from '../firebaseAdmin.ts';
 import { optionalAuth, requireAdmin } from '../middleware/auth.ts';
+import { pool, rowToComic, comicColumns } from '../db';
 
 export const masterCatalogRouter = express.Router();
 
@@ -11,6 +12,35 @@ export const masterCatalogRouter = express.Router();
  */
 masterCatalogRouter.get('/api/catalog/snapshot', optionalAuth, async (_req, res) => {
   try {
+    if (!isFirestoreConfigured()) {
+      if (!pool) {
+        return res.json({
+          version: 1,
+          generatedAt: new Date().toISOString(),
+          comicCount: 0,
+          seriesTotalCount: 0,
+          comics: [],
+          seriesTotals: [],
+        });
+      }
+      const [comicsRes, seriesRes] = await Promise.all([
+        pool.query(`SELECT ${comicColumns.join(', ')} FROM comic_books ORDER BY created_at DESC, title ASC`),
+        pool.query(
+          'SELECT id, publisher, series_name AS "seriesName", volume, issue_count AS "issueCount", updated_at AS "updatedAt" FROM series_issue_totals ORDER BY series_name ASC'
+        ),
+      ]);
+      const comics = comicsRes.rows.map(rowToComic);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.json({
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        comicCount: comics.length,
+        seriesTotalCount: seriesRes.rows.length,
+        comics,
+        seriesTotals: seriesRes.rows,
+      });
+    }
+
     const bucket = getFirebaseStorageBucket();
     const file = bucket.file('catalog/master_catalog_snapshot.json');
     const [exists] = await file.exists();
@@ -56,6 +86,41 @@ masterCatalogRouter.get('/api/catalog/search', optionalAuth, async (req, res) =>
       return res.json({ comics: [], count: 0 });
     }
 
+    if (!isFirestoreConfigured()) {
+      if (!pool) {
+        return res.json({ comics: [], count: 0 });
+      }
+      const pattern = `%${query}%`;
+      const [matchesRes, countRes] = await Promise.all([
+        pool.query(
+          `SELECT ${comicColumns.join(', ')}
+           FROM comic_books
+           WHERE title ILIKE $1
+              OR full_title ILIKE $1
+              OR series_name ILIKE $1
+              OR publisher ILIKE $1
+              OR LOWER(COALESCE(issue_number, '')) = $2
+           ORDER BY series_name ASC, issue_number ASC
+           LIMIT 50`,
+          [pattern, query]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS total
+           FROM comic_books
+           WHERE title ILIKE $1
+              OR full_title ILIKE $1
+              OR series_name ILIKE $1
+              OR publisher ILIKE $1
+              OR LOWER(COALESCE(issue_number, '')) = $2`,
+          [pattern, query]
+        ),
+      ]);
+      return res.json({
+        comics: matchesRes.rows.map(rowToComic),
+        count: countRes.rows[0]?.total ?? matchesRes.rows.length,
+      });
+    }
+
     const db = getFirestoreDb();
     const snap = await db.collection('master_comics').limit(300).get();
 
@@ -93,6 +158,19 @@ masterCatalogRouter.get('/api/catalog/search', optionalAuth, async (req, res) =>
  */
 masterCatalogRouter.get('/api/catalog/:id', optionalAuth, async (req, res) => {
   try {
+    if (!isFirestoreConfigured()) {
+      if (!pool) {
+        return res.status(404).json({ error: 'Comic not found in Master Catalog.' });
+      }
+      const comicRes = await pool.query(`SELECT ${comicColumns.join(', ')} FROM comic_books WHERE id = $1`, [
+        req.params.id,
+      ]);
+      if (comicRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Comic not found in Master Catalog.' });
+      }
+      return res.json(rowToComic(comicRes.rows[0]));
+    }
+
     const db = getFirestoreDb();
     const doc = await db.collection('master_comics').doc(req.params.id).get();
     if (!doc.exists) {
@@ -110,6 +188,10 @@ masterCatalogRouter.get('/api/catalog/:id', optionalAuth, async (req, res) => {
  */
 masterCatalogRouter.post('/api/catalog/direct-edit', requireAdmin, async (req, res) => {
   try {
+    if (!isFirestoreConfigured()) {
+      return res.status(503).json({ error: 'Firestore is not configured.' });
+    }
+
     const { id, updates } = req.body;
     if (!id || !updates || typeof updates !== 'object') {
       return res.status(400).json({ error: 'id and updates object are required.' });
