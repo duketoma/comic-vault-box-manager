@@ -29,7 +29,8 @@
     "android:open": "npx cap open android",
     "android:run": "npx cap run android",
     "desktop:launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/launch-app.ps1",
-    "desktop:shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-desktop-shortcut.ps1"
+    "desktop:shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-desktop-shortcut.ps1",
+    "demo:video": "node scripts/record-demo-video.mjs"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.2.1",
