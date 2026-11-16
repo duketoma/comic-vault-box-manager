@@ -274,7 +274,7 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     ]);
 
     // 5. Copies Owned appears in the bottom Metadata Grid in both View and Edit modes
-    const metadataGrid = modal.locator('div').filter({ hasText: /^Condition/ }).filter({ hasText: /Est\. Market Value/ }).first();
+    const metadataGrid = modal.locator('div').filter({ hasText: /^Condition/ }).filter({ hasText: /Est\. Value/ }).first();
     await expect(metadataGrid).toContainText('Copies Owned');
     await expect(metadataGrid).toContainText('2');
 
