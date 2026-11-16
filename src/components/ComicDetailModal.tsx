@@ -1634,15 +1634,15 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
           {/* Metadata Grid */}
           <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
             {isEditing ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[1fr_1.1fr_0.75fr_0.95fr_1.45fr] gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[0.95fr_1.05fr_0.7fr_0.9fr_2.05fr] gap-2.5 items-start">
                 <div>
-                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold leading-tight mb-1 whitespace-nowrap">
                     Condition
                   </label>
                   <select
                     value={condition}
                     onChange={(e) => handleConditionChange(e.target.value as ComicCondition)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-semibold"
+                    className="w-full h-[30px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-100 font-semibold"
                   >
                     {COMIC_CONDITIONS.map((cnd) => (
                       <option key={cnd} value={cnd}>
@@ -1653,13 +1653,13 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold leading-tight mb-1 whitespace-nowrap">
                     Format
                   </label>
                   <select
                     value={format}
                     onChange={(e) => handleFormatChange(e.target.value as ComicFormat)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-semibold"
+                    className="w-full h-[30px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-100 font-semibold"
                   >
                     {COMIC_FORMATS.map((fmt) => (
                       <option key={fmt} value={fmt}>
@@ -1675,7 +1675,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 <div>
                   <label
                     htmlFor="comic-detail-copies-owned"
-                    className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1"
+                    className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold leading-tight mb-1 whitespace-nowrap"
                   >
                     Copies Owned
                   </label>
@@ -1685,16 +1685,16 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                     min={0}
                     value={copiesOwned}
                     onChange={(e) => setCopiesOwned(Number(e.target.value))}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-bold"
+                    className="w-full h-[30px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-100 font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold mb-1">
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold leading-tight mb-1 whitespace-nowrap">
                     Purchase Price
                   </label>
                   <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400 text-xs pointer-events-none font-bold">
+                    <span className="absolute inset-y-0 left-0 pl-2 flex items-center text-slate-400 text-xs pointer-events-none font-bold">
                       $
                     </span>
                     <input
@@ -1704,129 +1704,99 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       placeholder="0.00"
                       value={purchasePrice}
                       onChange={(e) => setPurchasePrice(e.target.value)}
-                      className="w-full pl-6 pr-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-100 font-bold"
+                      className="w-full h-[30px] pl-5 pr-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-100 font-bold"
                     />
                   </div>
                 </div>
 
                 <div className="sm:col-span-2 md:col-span-1">
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-                    <label className="text-emerald-700 dark:text-emerald-400 block text-[10px] font-bold">
-                      Est. Market Value
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleLookupMarketValue(false)}
-                        disabled={isLookingUpValue}
-                        title="Lookup condition-adjusted market value (PriceCharting / eBay)"
-                        aria-label="Lookup Value"
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-2.5 h-2.5 ${isLookingUpValue ? 'animate-spin' : ''}`} />
-                        <span>{isLookingUpValue ? 'Looking up...' : 'Lookup'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleToggleLockValue}
-                        title={
-                          lockEstimatedValue
-                            ? 'Value Locked (Protected from periodic batch updates)'
-                            : 'Lock Value to protect from periodic batch updates'
-                        }
-                        aria-label={lockEstimatedValue ? 'Unlock Value' : 'Lock Value'}
-                        className={`p-0.5 rounded border transition-colors cursor-pointer ${
-                          lockEstimatedValue
-                            ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        {lockEstimatedValue ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-                      </button>
+                  <label className="text-slate-600 dark:text-slate-400 block text-[10px] font-bold leading-tight mb-1 whitespace-nowrap">
+                    Est. Value
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1 min-w-0">
+                      <span className="absolute inset-y-0 left-0 pl-2 flex items-center text-emerald-600 dark:text-emerald-400 text-xs pointer-events-none font-bold">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={estimatedValue}
+                        onChange={(e) => {
+                          setEstimatedValue(e.target.value);
+                          setValueSource('Manual');
+                        }}
+                        className="w-full h-[30px] pl-5 pr-2 py-1 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800/80 rounded-lg text-xs text-emerald-700 dark:text-emerald-400 font-bold"
+                      />
                     </div>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-emerald-600 dark:text-emerald-400 text-xs pointer-events-none font-bold">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={estimatedValue}
-                      onChange={(e) => {
-                        setEstimatedValue(e.target.value);
-                        setValueSource('Manual');
-                      }}
-                      className="w-full pl-6 pr-2.5 py-1.5 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800/80 rounded-lg text-xs text-emerald-700 dark:text-emerald-400 font-bold"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => handleLookupMarketValue(false)}
+                      disabled={isLookingUpValue}
+                      title="Lookup condition-adjusted market value (PriceCharting / eBay)"
+                      aria-label="Lookup Value"
+                      className="h-[30px] px-2 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-300/60 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold inline-flex items-center gap-1 shrink-0 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 shrink-0 ${isLookingUpValue ? 'animate-spin' : ''}`} />
+                      <span>Lookup</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleToggleLockValue}
+                      title={
+                        lockEstimatedValue
+                          ? 'Value Locked (Protected from periodic batch updates)'
+                          : 'Lock Value to protect from periodic batch updates'
+                      }
+                      aria-label={lockEstimatedValue ? 'Unlock Value' : 'Lock Value'}
+                      className={`h-[30px] w-[30px] rounded-lg border inline-flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                        lockEstimatedValue
+                          ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                          : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {lockEstimatedValue ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[1fr_1.1fr_0.75fr_0.95fr_1.45fr] gap-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[0.95fr_1.05fr_0.7fr_0.9fr_2.05fr] gap-2.5 text-xs items-start">
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Condition</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition || 'Near Mint'}</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] leading-tight mb-1 whitespace-nowrap">Condition</span>
+                  <div className="min-h-[22px] flex items-center">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.condition || 'Near Mint'}</span>
+                  </div>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Format</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format || 'Single Issue'}</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] leading-tight mb-1 whitespace-nowrap">Format</span>
+                  <div className="min-h-[22px] flex items-center">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{comic.format || 'Single Issue'}</span>
+                  </div>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Copies Owned</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {comic.readingStatus === 'Wishlist' ? '0 (Wishlist)' : (comic.copiesOwned ?? 1)}
-                  </span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] leading-tight mb-1 whitespace-nowrap">Copies Owned</span>
+                  <div className="min-h-[22px] flex items-center">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {comic.readingStatus === 'Wishlist' ? '0 (Wishlist)' : (comic.copiesOwned ?? 1)}
+                    </span>
+                  </div>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Purchase Price</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {comic.purchasePrice != null && !Number.isNaN(Number(comic.purchasePrice))
-                      ? `$${Number(comic.purchasePrice).toFixed(2)}`
-                      : 'N/A'}
-                  </span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] leading-tight mb-1 whitespace-nowrap">Purchase Price</span>
+                  <div className="min-h-[22px] flex items-center">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {comic.purchasePrice != null && !Number.isNaN(Number(comic.purchasePrice))
+                        ? `$${Number(comic.purchasePrice).toFixed(2)}`
+                        : 'N/A'}
+                    </span>
+                  </div>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
-                  <div className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Est. Market Value</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleLookupMarketValue(true)}
-                        disabled={isLookingUpValue || lockEstimatedValue}
-                        title={
-                          lockEstimatedValue
-                            ? 'Value is locked. Unlock to refresh market value.'
-                            : 'Refresh Market Value now'
-                        }
-                        aria-label="Lookup Value"
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/70 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-40"
-                      >
-                        <RefreshCw className={`w-2.5 h-2.5 ${isLookingUpValue ? 'animate-spin' : ''}`} />
-                        <span>{isLookingUpValue ? '...' : 'Refresh'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleToggleLockValue}
-                        title={
-                          lockEstimatedValue
-                            ? 'Value Locked (Protected from periodic batch updates)'
-                            : 'Lock Value to protect from periodic batch updates'
-                        }
-                        aria-label={lockEstimatedValue ? 'Unlock Value' : 'Lock Value'}
-                        className={`p-0.5 rounded border transition-colors cursor-pointer ${
-                          lockEstimatedValue
-                            ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        {lockEstimatedValue ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] leading-tight mb-1 whitespace-nowrap">Est. Value</span>
+                  <div className="min-h-[22px] flex items-center gap-1.5 flex-wrap">
                     <span className="font-semibold text-emerald-700 dark:text-emerald-400">
                       {comic.estimatedValue != null && !Number.isNaN(Number(comic.estimatedValue))
                         ? `$${Number(comic.estimatedValue).toFixed(2)}`
@@ -1849,6 +1819,38 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                           {Math.abs(Number(comic.estimatedValue) - Number(comic.previousEstimatedValue)).toFixed(2)}
                         </span>
                       )}
+                    <button
+                      type="button"
+                      onClick={() => handleLookupMarketValue(true)}
+                      disabled={isLookingUpValue || lockEstimatedValue}
+                      title={
+                        lockEstimatedValue
+                          ? 'Value is locked. Unlock to refresh market value.'
+                          : 'Refresh Market Value now'
+                      }
+                      aria-label="Lookup Value"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/70 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      <RefreshCw className={`w-2.5 h-2.5 ${isLookingUpValue ? 'animate-spin' : ''}`} />
+                      <span>{isLookingUpValue ? '...' : 'Refresh'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleToggleLockValue}
+                      title={
+                        lockEstimatedValue
+                          ? 'Value Locked (Protected from periodic batch updates)'
+                          : 'Lock Value to protect from periodic batch updates'
+                      }
+                      aria-label={lockEstimatedValue ? 'Unlock Value' : 'Lock Value'}
+                      className={`p-0.5 rounded border transition-colors cursor-pointer ${
+                        lockEstimatedValue
+                          ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      {lockEstimatedValue ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                    </button>
                   </div>
                 </div>
               </div>
