@@ -2009,12 +2009,12 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
           </div>
 
           {/* Filter, Sort & Search Toolbar for Series */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2">
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 xl:pb-0">
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1 xl:pb-0">
               <button
                 onClick={() => setSeriesRunFilter('in_progress_all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                   seriesRunFilter === 'in_progress_all'
                     ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -2024,29 +2024,29 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
               </button>
               <button
                 onClick={() => setSeriesRunFilter('complete')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                   seriesRunFilter === 'complete'
                     ? 'bg-amber-500 text-amber-950 shadow-xs'
                     : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100'
                 }`}
               >
-                <Crown className="w-3.5 h-3.5" />
+                <Crown className="w-3 h-3 shrink-0" />
                 <span>Complete Runs ({seriesOverviewStats.completedRuns})</span>
               </button>
               <button
                 onClick={() => setSeriesRunFilter('near')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                   seriesRunFilter === 'near'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-100'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                <Sparkles className="w-3 h-3 text-indigo-500 shrink-0" />
                 <span>Near Complete ≥75% ({seriesOverviewStats.nearCompleteRuns})</span>
               </button>
               <button
                 onClick={() => setSeriesRunFilter('under_75')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                   seriesRunFilter === 'under_75'
                     ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -2057,18 +2057,18 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
             </div>
 
             {/* Sort & Search Controls */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
               {/* Sort By Dropdown & Direction Toggle */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                  <Filter className="w-3 h-3 text-slate-400 hidden 2xl:inline" />
                   <span className="hidden sm:inline">Sort:</span>
                 </label>
                 <select
                   value={seriesSortBy}
                   onChange={(e) => setSeriesSortBy(e.target.value as 'completion' | 'alphabetical')}
                   aria-label="Sort Series By"
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-[11px] rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
                 >
                   <option value="completion">Closest to Completion</option>
                   <option value="alphabetical">Alphabetical (A-Z)</option>
@@ -2081,10 +2081,10 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
                       ? (seriesSortDirection === 'desc' ? 'Sorted: Highest completion % to lowest (Click to reverse)' : 'Sorted: Lowest completion % to highest (Click to reverse)')
                       : (seriesSortDirection === 'asc' ? 'Sorted: A to Z (Click to reverse)' : 'Sorted: Z to A (Click to reverse)')
                   }
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer shadow-xs"
+                  className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
                 >
-                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                  <span className="text-xs">
+                  <ArrowUpDown className="w-3 h-3 text-slate-500 dark:text-slate-400 shrink-0" />
+                  <span className="text-[11px]">
                     {seriesSortBy === 'completion'
                       ? (seriesSortDirection === 'desc' ? 'High → Low' : 'Low → High')
                       : (seriesSortDirection === 'asc' ? 'A → Z' : 'Z → A')}
@@ -2093,21 +2093,21 @@ export const ReadingStats: React.FC<ReadingStatsProps> = ({
               </div>
 
               {/* Series Search */}
-              <div className="relative min-w-[200px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <div className="relative w-full sm:w-48 shrink-0">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search series or publisher..."
                   value={seriesSearchQuery}
                   onChange={(e) => setSeriesSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-7 pr-6 py-1.5 text-[11px] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 {seriesSearchQuery && (
                   <button
                     onClick={() => setSeriesSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 )}
               </div>
