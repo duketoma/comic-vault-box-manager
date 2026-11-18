@@ -428,7 +428,22 @@ export const GoogleDriveCoversModal: React.FC<GoogleDriveCoversModalProps> = ({
       }
     } catch (err: any) {
       console.error('Sign in failed:', err);
-      setAuthError(err?.message || String(err));
+      const code = String(err?.code || '');
+      const rawMessage = String(err?.message || err || '');
+      let friendlyMessage = rawMessage;
+
+      if (code === 'auth/popup-closed-by-user' || rawMessage.includes('popup-closed-by-user')) {
+        friendlyMessage =
+          'The Google sign-in window closed or timed out before completing login. Please click "Sign in with Google" again and finish all permission prompts in the popup.';
+      } else if (code === 'auth/cancelled-popup-request' || rawMessage.includes('cancelled-popup-request')) {
+        friendlyMessage =
+          'Sign-in was interrupted by another popup request. Please close any extra Google login windows and try again.';
+      } else if (code === 'auth/popup-blocked' || rawMessage.includes('popup-blocked')) {
+        friendlyMessage =
+          'The browser blocked the Google sign-in popup. Please allow popups for this site and try again.';
+      }
+
+      setAuthError(friendlyMessage);
     } finally {
       setIsSigningIn(false);
     }

@@ -90,6 +90,9 @@ export async function findComicCoversFolder(accessToken: string): Promise<DriveF
 
     return null;
   } catch (err) {
+    if (err instanceof DriveAuthError || (err as any)?.isAuthError) {
+      throw err;
+    }
     console.error('findComicCoversFolder error:', err);
     return null;
   }
@@ -152,6 +155,9 @@ export async function getDriveImagesInFolder(
         pageToken = undefined;
       }
     } catch (fetchErr: any) {
+      if (fetchErr instanceof DriveAuthError || fetchErr?.isAuthError) {
+        throw fetchErr;
+      }
       console.warn(`Drive fetch interrupted on page ${pageCount}:`, fetchErr?.message);
       break;
     }
@@ -211,7 +217,10 @@ export async function scanDriveComicCovers(
             };
           }
         }
-      } catch {
+      } catch (noImgErr: any) {
+        if (noImgErr instanceof DriveAuthError || noImgErr?.isAuthError) {
+          throw noImgErr;
+        }
         // Ignore fallback error
       }
 

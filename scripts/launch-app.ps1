@@ -175,7 +175,8 @@ if ($BrowserExe) {
         "--window-size=1440,920",
         "--no-first-run",
         "--no-default-browser-check",
-        "--disable-extensions"
+        "--disable-extensions",
+        "--disable-features=ThirdPartyStoragePartitioning,TrackingProtection3pcd"
     )
 
     $BrowserLaunchTime = Get-Date
