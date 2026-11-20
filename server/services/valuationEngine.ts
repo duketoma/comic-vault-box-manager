@@ -38,6 +38,7 @@ export interface ComicValuationInput {
 
 interface RawMarketQuote {
   matchedTitle: string;
+  matchedYear?: number;
   source: 'PriceCharting' | 'eBay Market' | 'Era Guide (Estimate)';
   sourceUrl: string;
   baseNearMintValue: number;
@@ -63,20 +64,118 @@ const BROWSER_HEADERS = {
 const PRICECHARTING_VARIANT_PATTERN =
   /\b(variant|incentive|sketch|virgin|facsimile|reprint|[2-9](?:nd|rd|th)\s+print(?:ing)?|second\s+print(?:ing)?|third\s+print(?:ing)?|fourth\s+print(?:ing)?|newsstand|direct\s+edition|foil|chromium|embossed|hologram|ashcan|preview|polybagged|canadian(?:\s+price)?|whitman|mark\s+jewelers)\b|\[[^\]]+\]/i;
 
+const PRICECHARTING_URL_VARIANT_PATTERN =
+  /(?:^|[/-])(facsimile|reprint|variant|newsstand|virgin|foil|sketch|ashcan|preview|[2-9](?:nd|rd|th)-print)(?:$|[/-])/i;
+
+const PRICECHARTING_REPRINT_PATTERN =
+  /\b(facsimile|reprint)\b|(?:^|[/-])(facsimile|reprint)(?:$|[/-])/i;
+
 /**
- * Strips volume years, issue suffixes, and extra punctuation to build a clean series search query.
+ * Extracts a numeric volume (1..99) from an explicit volume string or embedded in series/title text.
+ */
+export function parseVolumeNumber(input: Pick<ComicValuationInput, 'volume' | 'seriesName' | 'title'>): number | undefined {
+  const tryExtract = (raw?: string, allowBareInteger = false): number | undefined => {
+    if (!raw) return undefined;
+    const trimmed = String(raw).trim();
+    if (!trimmed) return undefined;
+
+    const volMatch = trimmed.match(/(?:\bvol(?:ume)?\.?\s*|\bv)(\d{1,2})\b/i);
+    if (volMatch) {
+      const n = parseInt(volMatch[1], 10);
+      if (n >= 1 && n <= 99) return n;
+    }
+    if (allowBareInteger) {
+      const bareMatch = trimmed.match(/^(\d{1,2})$/);
+      if (bareMatch) {
+        const n = parseInt(bareMatch[1], 10);
+        if (n >= 1 && n <= 99) return n;
+      }
+    }
+    return undefined;
+  };
+
+  return (
+    tryExtract(input.volume, true) ??
+    tryExtract(input.seriesName, false) ??
+    tryExtract(input.title, false)
+  );
+}
+
+/**
+ * Extracts a series publication year range (e.g., "(1987 - 1998)" or "(1987)") from metadata text.
+ */
+function extractSeriesYearRange(texts: Array<string | undefined>): {
+  seriesStartYear?: number;
+  seriesEndYear?: number;
+} {
+  for (const text of texts) {
+    if (!text) continue;
+    const match = text.match(/\(\s*((?:19|20)\d{2})\s*(?:[-–]\s*((?:19|20)\d{2}|present))?\s*\)/i);
+    if (match) {
+      const start = parseInt(match[1], 10);
+      const end =
+        match[2] && !/^present$/i.test(match[2]) ? parseInt(match[2], 10) : undefined;
+      if (start >= 1930 && start <= 2035) {
+        return {
+          seriesStartYear: start,
+          seriesEndYear: end && end >= start && end <= 2035 ? end : undefined,
+        };
+      }
+    }
+  }
+  return {};
+}
+
+export function extractYearFromTextOrUrl(title: string, url?: string): number | undefined {
+  const titleMatch = title.match(/\(\s*((?:19|20)\d{2})\s*\)/);
+  if (titleMatch) {
+    const y = parseInt(titleMatch[1], 10);
+    if (y >= 1930 && y <= 2035) return y;
+  }
+  if (url) {
+    const urlMatch = url.match(/-((?:19|20)\d{2})(?:$|[/?#])/);
+    if (urlMatch) {
+      const y = parseInt(urlMatch[1], 10);
+      if (y >= 1930 && y <= 2035) return y;
+    }
+  }
+  return undefined;
+}
+
+function isVariantOrReprint(title: string, url?: string): boolean {
+  if (PRICECHARTING_VARIANT_PATTERN.test(title)) return true;
+  if (url && PRICECHARTING_URL_VARIANT_PATTERN.test(url)) return true;
+  return false;
+}
+
+/**
+ * Strips volume years, volume tags, issue suffixes, and extra punctuation to build a clean series search query,
+ * while preserving parsed volumeNumber and series year range for accurate multi-volume disambiguation.
  */
 export function normalizeComicSearchParts(input: ComicValuationInput): {
   cleanTitle: string;
   cleanIssue: string;
+  volumeNumber?: number;
   year?: number;
+  seriesStartYear?: number;
+  seriesEndYear?: number;
   cacheKey: string;
 } {
   const rawSeries = (input.seriesName || input.title || '').trim();
+  const volumeNumber = parseVolumeNumber(input);
+  const { seriesStartYear, seriesEndYear } = extractSeriesYearRange([
+    input.seriesName,
+    input.title,
+    input.volume,
+  ]);
+
   const cleanTitle = rawSeries
-    .replace(/\(\s*\d{4}\s*(?:-\s*(?:\d{4}|present))?\s*\)/gi, '')
-    .replace(/\bvol(?:ume)?\.?\s*\d+\b/gi, '')
+    .replace(/\(\s*\d{4}\s*(?:[-–]\s*(?:\d{4}|present))?\s*\)/gi, '')
+    .replace(/\(\s*vol(?:ume)?\.?\s*\d+\s*\)/gi, '')
+    .replace(/,?\s*\bvol(?:ume)?\.?\s*\d+\b/gi, '')
     .replace(/#\s*[a-zA-Z0-9.-]+$/i, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/[,:\-\s]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -85,16 +184,32 @@ export function normalizeComicSearchParts(input: ComicValuationInput): {
     .trim();
   const cleanIssue = rawIssue || '1';
 
-  const year =
+  const inputYear =
     input.publicationYear && input.publicationYear >= 1930 && input.publicationYear <= 2035
       ? Number(input.publicationYear)
       : undefined;
 
-  const cacheKey = `${cleanTitle.toLowerCase()}|${cleanIssue.toLowerCase()}|${year || ''}|${(
+  let year = inputYear;
+  const currentYear = new Date().getFullYear();
+  if (!year && seriesStartYear && cleanIssue === '1') {
+    year = seriesStartYear;
+  } else if (
+    year &&
+    seriesStartYear &&
+    seriesEndYear &&
+    cleanIssue === '1' &&
+    year >= currentYear &&
+    seriesEndYear < year - 1
+  ) {
+    // Wishlist generator sometimes defaults publicationYear to current year when no owned reference date exists
+    year = seriesStartYear;
+  }
+
+  const cacheKey = `${cleanTitle.toLowerCase()}|${cleanIssue.toLowerCase()}|v${volumeNumber || ''}|${year || ''}|${(
     input.format || 'Single Issue'
   ).toLowerCase()}`;
 
-  return { cleanTitle, cleanIssue, year, cacheKey };
+  return { cleanTitle, cleanIssue, volumeNumber, year, seriesStartYear, seriesEndYear, cacheKey };
 }
 
 /**
@@ -183,8 +298,21 @@ function parsePriceChartingProductPage(html: string, url: string): RawMarketQuot
   const baseNearMintValue = gradeTable['9.2'] || nm || gradeTable['9.4'] || ungraded;
   if (baseNearMintValue <= 0) return null;
 
+  let matchedYear = extractYearFromTextOrUrl(matchedTitle, url);
+  if (!matchedYear) {
+    const releaseMatch = html.match(/Release Date:<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (releaseMatch) {
+      const yMatch = releaseMatch[1].match(/\b((?:19|20)\d{2})\b/);
+      if (yMatch) {
+        const y = parseInt(yMatch[1], 10);
+        if (y >= 1930 && y <= 2035) matchedYear = y;
+      }
+    }
+  }
+
   return {
     matchedTitle,
+    matchedYear,
     source: 'PriceCharting',
     sourceUrl: url,
     baseNearMintValue,
@@ -198,6 +326,184 @@ function parsePriceChartingProductPage(html: string, url: string): RawMarketQuot
   };
 }
 
+export interface PriceChartingCandidate {
+  title: string;
+  url: string;
+  rowYear?: number;
+  rowVolume?: number;
+  isVariant: boolean;
+  exactSeriesMatch: boolean;
+  wordScore: number;
+  ungraded?: number;
+  gradedMid?: number;
+  gradedHigh?: number;
+}
+
+export interface VolumeYearTarget {
+  cleanTitle: string;
+  year?: number;
+  volumeNumber?: number;
+  seriesStartYear?: number;
+  seriesEndYear?: number;
+  queryWantsVariant: boolean;
+}
+
+/**
+ * Validates that a resolved PriceCharting product quote does not contradict the target comic's
+ * volume, publication year, series year span, or variant/reprint status.
+ */
+function isQuoteCompatibleWithTarget(quote: RawMarketQuote, target: VolumeYearTarget): boolean {
+  if (!target.queryWantsVariant && isVariantOrReprint(quote.matchedTitle, quote.sourceUrl)) {
+    return false;
+  }
+
+  const quoteVol = parseVolumeNumber({ title: quote.matchedTitle });
+  if (target.volumeNumber && quoteVol && quoteVol !== target.volumeNumber) {
+    return false;
+  }
+
+  if (target.year && quote.matchedYear && Math.abs(quote.matchedYear - target.year) > 3) {
+    return false;
+  }
+
+  if (target.seriesStartYear && quote.matchedYear && quote.matchedYear < target.seriesStartYear - 1) {
+    return false;
+  }
+
+  if (target.seriesEndYear && quote.matchedYear && quote.matchedYear > target.seriesEndYear + 1) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Ranks PriceCharting directory/search rows with strict volume & publication year disambiguation,
+ * ensuring Vol. 2+ comics never silently fall back to Vol. 1 (earliest year) editions.
+ */
+export function selectBestPriceChartingCandidate(
+  candidates: PriceChartingCandidate[],
+  target: VolumeYearTarget
+): { candidate: PriceChartingCandidate; score: number } | null {
+  if (candidates.length === 0) return null;
+
+  // Gather all distinct years for exact-series non-variant candidates before filtering,
+  // so we can identify Vol. 1 (earliest year) and chronological volume ordering.
+  const primaryPool = candidates.filter((c) => c.exactSeriesMatch && !c.isVariant && c.rowYear);
+  const yearPool = primaryPool.length > 0 ? primaryPool : candidates.filter((c) => !c.isVariant && c.rowYear);
+  const allSeriesYears = Array.from(new Set(yearPool.map((c) => c.rowYear as number))).sort((a, b) => a - b);
+  const earliestYear = allSeriesYears.length > 0 ? allSeriesYears[0] : undefined;
+
+  // Determine chronological target year when volumeNumber is specified without a publicationYear
+  let chronologicalTargetYear: number | undefined;
+  const hasExplicitVolumeMatch =
+    Boolean(target.volumeNumber) && candidates.some((c) => c.rowVolume === target.volumeNumber);
+
+  if (target.volumeNumber && target.volumeNumber > 1 && !target.year && !target.seriesStartYear && !hasExplicitVolumeMatch) {
+    if (allSeriesYears.length <= 1) {
+      // Only a single edition (typically Vol. 1 on page 1 of a console directory) was found.
+      // Refuse to return Vol. 1 for a Vol. 2+ comic so caller can try search/fallback.
+      return null;
+    }
+    chronologicalTargetYear =
+      allSeriesYears[Math.min(target.volumeNumber - 1, allSeriesYears.length - 1)];
+  } else if (target.volumeNumber === 1 && !target.year && !hasExplicitVolumeMatch && allSeriesYears.length >= 2) {
+    chronologicalTargetYear = allSeriesYears[0];
+  }
+
+  let best: { candidate: PriceChartingCandidate; score: number } | null = null;
+
+  for (const c of candidates) {
+    // 0. Hard reject facsimile/reprint editions unless explicitly requested
+    if (
+      !target.queryWantsVariant &&
+      (PRICECHARTING_REPRINT_PATTERN.test(c.title) || PRICECHARTING_REPRINT_PATTERN.test(c.url))
+    ) {
+      continue;
+    }
+
+    // 1. Hard reject explicit volume mismatch
+    if (target.volumeNumber && c.rowVolume && c.rowVolume !== target.volumeNumber) {
+      continue;
+    }
+
+    // 2. Hard reject series year-range conflicts
+    if (target.seriesStartYear && c.rowYear && c.rowYear < target.seriesStartYear - 1) {
+      continue;
+    }
+    if (target.seriesEndYear && c.rowYear && c.rowYear > target.seriesEndYear + 1) {
+      continue;
+    }
+
+    // 3. Hard reject publication year mismatch (> 3 years drift)
+    if (target.year && c.rowYear && Math.abs(c.rowYear - target.year) > 3) {
+      continue;
+    }
+
+    // 4. Hard reject Vol. 1 (earliest edition) when searching for Vol. 2+ and multiple editions exist
+    if (
+      target.volumeNumber &&
+      target.volumeNumber > 1 &&
+      !hasExplicitVolumeMatch &&
+      allSeriesYears.length >= 2 &&
+      earliestYear !== undefined &&
+      c.rowYear === earliestYear &&
+      !(target.year && Math.abs(target.year - earliestYear) <= 1)
+    ) {
+      continue;
+    }
+
+    let score = c.wordScore;
+
+    if (c.exactSeriesMatch) {
+      score += 10;
+    }
+
+    if (c.isVariant && !target.queryWantsVariant) {
+      score -= 14;
+    } else if (!c.isVariant) {
+      score += 10;
+    } else {
+      score += 6;
+    }
+
+    if (target.volumeNumber && c.rowVolume === target.volumeNumber) {
+      score += 22;
+    }
+
+    if (target.year && c.rowYear) {
+      const diff = Math.abs(c.rowYear - target.year);
+      if (diff === 0) score += 24;
+      else if (diff === 1) score += 14;
+      else if (diff === 2) score += 6;
+      else if (diff === 3) score += 2;
+    } else if (chronologicalTargetYear && c.rowYear) {
+      if (c.rowYear === chronologicalTargetYear) {
+        score += 18;
+      } else {
+        const diff = Math.abs(c.rowYear - chronologicalTargetYear);
+        score += Math.max(0, 8 - Math.floor(diff / 2));
+      }
+    }
+
+    const isBetter =
+      !best ||
+      score > best.score ||
+      (score === best.score && !c.isVariant && best.candidate.isVariant) ||
+      (score === best.score &&
+        target.year !== undefined &&
+        c.rowYear !== undefined &&
+        best.candidate.rowYear !== undefined &&
+        Math.abs(c.rowYear - target.year) < Math.abs(best.candidate.rowYear - target.year));
+
+    if (isBetter) {
+      best = { candidate: c, score };
+    }
+  }
+
+  return best;
+}
+
 /**
  * Primary Free Source: PriceCharting Public Comic Book Guide
  * Employs direct canonical slug resolution and series console directory scanning
@@ -206,11 +512,31 @@ function parsePriceChartingProductPage(html: string, url: string): RawMarketQuot
 async function lookupPriceCharting(
   cleanTitle: string,
   cleanIssue: string,
-  year?: number
+  options?: {
+    year?: number;
+    volumeNumber?: number;
+    seriesStartYear?: number;
+    seriesEndYear?: number;
+  }
 ): Promise<RawMarketQuote | null> {
+  const year = options?.year;
+  const volumeNumber = options?.volumeNumber;
+  const seriesStartYear = options?.seriesStartYear;
+  const seriesEndYear = options?.seriesEndYear;
+
   const titleWithoutThe = cleanTitle.replace(/^the\s+/i, '');
   const titleSlug = toSlug(titleWithoutThe);
   const fullTitleSlug = toSlug(cleanTitle);
+  const queryWantsVariant = PRICECHARTING_VARIANT_PATTERN.test(cleanTitle);
+
+  const target: VolumeYearTarget = {
+    cleanTitle,
+    year,
+    volumeNumber,
+    seriesStartYear,
+    seriesEndYear,
+    queryWantsVariant,
+  };
 
   const consoleSlugs = Array.from(
     new Set([
@@ -233,13 +559,21 @@ async function lookupPriceCharting(
         );
       }
     }
-    candidateUrls.push(
-      `https://www.pricecharting.com/game/${cSlug}/${titleSlug}-${cleanIssue}`
-    );
-    if (fullTitleSlug !== titleSlug) {
+    if (volumeNumber && volumeNumber > 1) {
       candidateUrls.push(
-        `https://www.pricecharting.com/game/${cSlug}/${fullTitleSlug}-${cleanIssue}`
+        `https://www.pricecharting.com/game/${cSlug}/${titleSlug}-vol-${volumeNumber}-${cleanIssue}`
       );
+    }
+    // Never probe the yearless canonical URL when targeting Vol. 2+ (yearless canonical URLs resolve to Vol. 1)
+    if (!volumeNumber || volumeNumber <= 1) {
+      candidateUrls.push(
+        `https://www.pricecharting.com/game/${cSlug}/${titleSlug}-${cleanIssue}`
+      );
+      if (fullTitleSlug !== titleSlug) {
+        candidateUrls.push(
+          `https://www.pricecharting.com/game/${cSlug}/${fullTitleSlug}-${cleanIssue}`
+        );
+      }
     }
   }
 
@@ -258,7 +592,7 @@ async function lookupPriceCharting(
       if (res.ok && !res.url.includes('/search-products')) {
         const html = await res.text();
         const quote = parsePriceChartingProductPage(html, res.url);
-        if (quote) {
+        if (quote && isQuoteCompatibleWithTarget(quote, target)) {
           return quote;
         }
       }
@@ -267,7 +601,19 @@ async function lookupPriceCharting(
     }
   }
 
-  // Phase 2: Console series directory page scan (handles subtitle variations)
+  const normalizedTitleKey = titleWithoutThe.toLowerCase();
+  const isExactSeriesPrefix = (rowTitle: string): boolean => {
+    const seriesPrefix = rowTitle
+      .replace(/\[[^\]]+\]/g, ' ')
+      .replace(/\s*#\s*.*$/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^the\s+/i, '')
+      .toLowerCase();
+    return seriesPrefix === normalizedTitleKey;
+  };
+
+  // Phase 2: Console series directory page scan (collects all matching rows and disambiguates by volume & year)
   for (const cSlug of consoleSlugs) {
     const consoleUrl = `https://www.pricecharting.com/console/${cSlug}`;
     try {
@@ -283,46 +629,39 @@ async function lookupPriceCharting(
         const html = await res.text();
         const rowRegex = /<tr[^>]*id="product-\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
         const issueRegex = new RegExp(`(?:#|\\bissue\\s*)0*${escapeRegExp(cleanIssue)}(?!\\d)`, 'i');
+        const consoleCandidates: PriceChartingCandidate[] = [];
         let m: RegExpExecArray | null;
-        let candidateRowUrl: string | null = null;
-        let foundNonVariant = false;
 
-        while ((m = rowRegex.exec(html)) !== null && !foundNonVariant) {
+        while ((m = rowRegex.exec(html)) !== null) {
           const rowHtml = m[1];
           const titleMatch = rowHtml.match(
             /<td class="title"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i
           );
-          if (titleMatch) {
-            const rawRowTitle = titleMatch[2].replace(/<[^>]+>/g, '').trim();
-            if (issueRegex.test(rawRowTitle)) {
-              if (
-                !year ||
-                rawRowTitle.includes(String(year)) ||
-                rawRowTitle.includes(String(year - 1)) ||
-                rawRowTitle.includes(String(year + 1))
-              ) {
-                const prodUrl = titleMatch[1].startsWith('http')
-                  ? titleMatch[1]
-                  : `https://www.pricecharting.com${titleMatch[1]}`;
-                const isVariant =
-                  PRICECHARTING_VARIANT_PATTERN.test(rawRowTitle) &&
-                  !PRICECHARTING_VARIANT_PATTERN.test(cleanTitle);
+          if (!titleMatch) continue;
 
-                if (!isVariant) {
-                  candidateRowUrl = prodUrl;
-                  foundNonVariant = true;
-                } else if (!candidateRowUrl) {
-                  candidateRowUrl = prodUrl;
-                }
-              }
-            }
-          }
+          const rawRowTitle = titleMatch[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (!issueRegex.test(rawRowTitle)) continue;
+
+          const prodUrl = titleMatch[1].startsWith('http')
+            ? titleMatch[1]
+            : `https://www.pricecharting.com${titleMatch[1]}`;
+
+          consoleCandidates.push({
+            title: rawRowTitle,
+            url: prodUrl,
+            rowYear: extractYearFromTextOrUrl(rawRowTitle, prodUrl),
+            rowVolume: parseVolumeNumber({ title: rawRowTitle }),
+            isVariant: isVariantOrReprint(rawRowTitle, prodUrl),
+            exactSeriesMatch: isExactSeriesPrefix(rawRowTitle),
+            wordScore: 20,
+          });
         }
 
-        if (candidateRowUrl) {
+        const picked = selectBestPriceChartingCandidate(consoleCandidates, target);
+        if (picked) {
           const prodController = new AbortController();
           const prodTimeout = setTimeout(() => prodController.abort(), 5000);
-          const prodRes = await fetch(candidateRowUrl, {
+          const prodRes = await fetch(picked.candidate.url, {
             headers: BROWSER_HEADERS,
             signal: prodController.signal,
           });
@@ -330,8 +669,10 @@ async function lookupPriceCharting(
 
           if (prodRes.ok) {
             const prodHtml = await prodRes.text();
-            const quote = parsePriceChartingProductPage(prodHtml, candidateRowUrl);
-            if (quote) return quote;
+            const quote = parsePriceChartingProductPage(prodHtml, picked.candidate.url);
+            if (quote && isQuoteCompatibleWithTarget(quote, target)) {
+              return quote;
+            }
           }
         }
       }
@@ -363,7 +704,7 @@ async function lookupPriceCharting(
       // Case 1: PriceCharting redirected directly to a single comic product page
       if (finalUrl.includes('/game/comic-books-') || finalUrl.includes('/game/')) {
         const directQuote = parsePriceChartingProductPage(html, finalUrl);
-        if (directQuote) {
+        if (directQuote && isQuoteCompatibleWithTarget(directQuote, target)) {
           return directQuote;
         }
       }
@@ -392,15 +733,7 @@ async function lookupPriceCharting(
         .split(/[^a-z0-9]+/)
         .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
 
-      let bestCandidate: {
-        score: number;
-        isVariant: boolean;
-        matchedTitle: string;
-        productUrl: string;
-        ungraded: number;
-        gradedMid?: number;
-        gradedHigh?: number;
-      } | null = null;
+      const searchCandidates: PriceChartingCandidate[] = [];
 
       let match: RegExpExecArray | null;
       while ((match = rowRegex.exec(html)) !== null) {
@@ -434,59 +767,40 @@ async function lookupPriceCharting(
         const requiredMatches = titleWords.length >= 2 ? Math.ceil(titleWords.length * 0.5) : titleWords.length;
         if (wordMatches < requiredMatches) continue;
 
-        let score = 10 + wordMatches * 6;
-        if (year && rowHtml.includes(String(year))) {
-          score += 8;
-        }
-
-        const isVariantRow = PRICECHARTING_VARIANT_PATTERN.test(rowTitle);
-        const queryWantsVariant = PRICECHARTING_VARIANT_PATTERN.test(cleanTitle);
-
-        if (isVariantRow && !queryWantsVariant) {
-          score -= 10;
-        } else if (!isVariantRow) {
-          score += 6;
-        }
-
-        // Exact series prefix match bonus (e.g. "X-Men #48" matches cleanTitle "X-Men")
-        const seriesPrefix = rowTitle.replace(/\s*#\s*.*$/, '').trim();
-        if (seriesPrefix.localeCompare(cleanTitle, undefined, { sensitivity: 'accent', usage: 'search' }) === 0 ||
-            seriesPrefix.toLowerCase() === cleanTitle.toLowerCase()) {
-          score += 8;
-        }
-
-        if (
-          !bestCandidate ||
-          score > bestCandidate.score ||
-          (score === bestCandidate.score && !isVariantRow && bestCandidate.isVariant)
-        ) {
-          bestCandidate = {
-            score,
-            isVariant: isVariantRow,
-            matchedTitle: rowTitle,
-            productUrl: href,
-            ungraded,
-            gradedMid: cibMatch ? parseDollarString(cibMatch[1]) : undefined,
-            gradedHigh: newMatch ? parseDollarString(newMatch[1]) : undefined,
-          };
-        }
+        searchCandidates.push({
+          title: rowTitle,
+          url: href,
+          rowYear: extractYearFromTextOrUrl(rowTitle, href),
+          rowVolume: parseVolumeNumber({ title: rowTitle }),
+          isVariant: isVariantOrReprint(rowTitle, href),
+          exactSeriesMatch: isExactSeriesPrefix(rowTitle),
+          wordScore: 10 + wordMatches * 6,
+          ungraded,
+          gradedMid: cibMatch ? parseDollarString(cibMatch[1]) : undefined,
+          gradedHigh: newMatch ? parseDollarString(newMatch[1]) : undefined,
+        });
       }
 
-      if (bestCandidate && bestCandidate.productUrl) {
+      const bestPicked = selectBestPriceChartingCandidate(searchCandidates, target);
+      if (bestPicked && bestPicked.candidate.url) {
+        const bestCandidate = bestPicked.candidate;
         // Fetch the product page to get the exact Near Mint price and full grade table
         try {
           const prodController = new AbortController();
           const prodTimeout = setTimeout(() => prodController.abort(), 4000);
-          const prodResponse = await fetch(bestCandidate.productUrl, {
+          const prodResponse = await fetch(bestCandidate.url, {
             headers: BROWSER_HEADERS,
             signal: prodController.signal,
           });
           clearTimeout(prodTimeout);
           if (prodResponse.ok) {
             const prodHtml = await prodResponse.text();
-            const parsedQuote = parsePriceChartingProductPage(prodHtml, bestCandidate.productUrl);
+            const parsedQuote = parsePriceChartingProductPage(prodHtml, bestCandidate.url);
             if (parsedQuote) {
-              parsedQuote.confidence = bestCandidate.score >= 20 ? 'high' : 'medium';
+              if (!isQuoteCompatibleWithTarget(parsedQuote, target)) {
+                return null;
+              }
+              parsedQuote.confidence = bestPicked.score >= 20 ? 'high' : 'medium';
               return parsedQuote;
             }
           }
@@ -494,19 +808,22 @@ async function lookupPriceCharting(
           // Fall back gracefully to candidate search summary
         }
 
-        return {
-          matchedTitle: bestCandidate.matchedTitle,
-          source: 'PriceCharting',
-          sourceUrl: bestCandidate.productUrl,
-          baseNearMintValue: bestCandidate.ungraded,
-          graded80Value: bestCandidate.gradedMid,
-          graded92Value: bestCandidate.gradedHigh,
-          graded98Value: bestCandidate.gradedHigh
-            ? Number((bestCandidate.gradedHigh * 1.45).toFixed(2))
-            : undefined,
-          confidence: bestCandidate.score >= 20 ? 'high' : 'medium',
-          fetchedAt: Date.now(),
-        };
+        if (bestCandidate.ungraded && bestCandidate.ungraded > 0) {
+          return {
+            matchedTitle: bestCandidate.title,
+            matchedYear: bestCandidate.rowYear,
+            source: 'PriceCharting',
+            sourceUrl: bestCandidate.url,
+            baseNearMintValue: bestCandidate.ungraded,
+            graded80Value: bestCandidate.gradedMid,
+            graded92Value: bestCandidate.gradedHigh,
+            graded98Value: bestCandidate.gradedHigh
+              ? Number((bestCandidate.gradedHigh * 1.45).toFixed(2))
+              : undefined,
+            confidence: bestPicked.score >= 20 ? 'high' : 'medium',
+            fetchedAt: Date.now(),
+          };
+        }
       }
     }
 
@@ -524,9 +841,11 @@ async function lookupPriceCharting(
 async function lookupEbayMarket(
   cleanTitle: string,
   cleanIssue: string,
-  year?: number
+  year?: number,
+  volumeNumber?: number
 ): Promise<RawMarketQuote | null> {
-  const query = `"${cleanTitle}" #${cleanIssue}${year ? ` ${year}` : ''} -lot -set -run -facsimile -reprint`;
+  const volumeTerm = volumeNumber && volumeNumber > 1 && !year ? ` "Vol ${volumeNumber}"` : '';
+  const query = `"${cleanTitle}"${volumeTerm} #${cleanIssue}${year ? ` ${year}` : ''} -lot -set -run -facsimile -reprint`;
   const ebaySoldUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(
     query
   )}&_sacat=259104&LH_Sold=1&LH_Complete=1&_ipg=60`;
@@ -560,6 +879,15 @@ async function lookupEbayMarket(
       if (!issuePattern.test(itemTitle)) continue;
       if (/\b(lot|set of|full run|complete run|facsimile|reprint|poster|print only|digital)\b/i.test(itemTitle)) {
         continue;
+      }
+
+      if (volumeNumber) {
+        const itemVol = parseVolumeNumber({ title: itemTitle });
+        if (itemVol && itemVol !== volumeNumber) continue;
+      }
+      if (year) {
+        const itemYear = extractYearFromTextOrUrl(itemTitle);
+        if (itemYear && Math.abs(itemYear - year) > 3) continue;
       }
 
       const price = parseDollarString(priceMatch[1]);
@@ -772,7 +1100,8 @@ export async function lookupComicMarketValue(
   input: ComicValuationInput,
   options?: { bypassCache?: boolean }
 ): Promise<ComicValuationResult> {
-  const { cleanTitle, cleanIssue, year, cacheKey } = normalizeComicSearchParts(input);
+  const { cleanTitle, cleanIssue, volumeNumber, year, seriesStartYear, seriesEndYear, cacheKey } =
+    normalizeComicSearchParts(input);
 
   if (!options?.bypassCache) {
     const cached = quoteCache.get(cacheKey);
@@ -781,9 +1110,14 @@ export async function lookupComicMarketValue(
     }
   }
 
-  let quote = await lookupPriceCharting(cleanTitle, cleanIssue, year);
+  let quote = await lookupPriceCharting(cleanTitle, cleanIssue, {
+    year,
+    volumeNumber,
+    seriesStartYear,
+    seriesEndYear,
+  });
   if (!quote) {
-    quote = await lookupEbayMarket(cleanTitle, cleanIssue, year);
+    quote = await lookupEbayMarket(cleanTitle, cleanIssue, year, volumeNumber);
   }
   if (!quote) {
     quote = buildEraGuideFallbackQuote(input, cleanTitle, cleanIssue, year);
