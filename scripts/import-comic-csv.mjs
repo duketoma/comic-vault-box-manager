@@ -156,6 +156,7 @@ try {
   const comics = rows.map(toComic);
   await client.query('BEGIN');
   await client.query(`INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes) VALUES
+    (-1, 'Box -1: Wishlist', 'Unassigned', 9999, '#f43f5e', 'System container for wishlisted comics'),
     (0, 'Box 00 - Unassigned', 'Internal', 1, '#94A3B8', 'Virtual box for unassigned comics'),
     (1, 'Box 01 - Amazing Spider-Man & Marvel Silver Age', 'Top Shelf - Left', 150, '#EF4444', 'Silver & Bronze Age Marvel keys'),
     (2, 'Box 02 - X-Men & Mutants (1980s-1990s)', 'Top Shelf - Center', 150, '#F59E0B', 'Uncanny X-Men, X-Force, Wolverine'),
