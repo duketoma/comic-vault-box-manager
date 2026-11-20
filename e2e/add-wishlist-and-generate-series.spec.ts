@@ -16,7 +16,9 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     if (process.env.DATABASE_URL) {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       try {
-        await pool.query("DELETE FROM comic_books WHERE id LIKE 'c-wishlist-%' OR title LIKE 'Wishlist Hero%'");
+        await pool.query(
+          "DELETE FROM comic_books WHERE id LIKE 'c-wishlist-%' OR title LIKE 'Wishlist Hero%' OR (series_name = 'Captain America (Vol. 1)' AND reading_status = 'Wishlist')"
+        );
       } catch (e) {
         console.error('Failed to cleanup Postgres test data:', e);
       } finally {
@@ -25,9 +27,63 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     }
   };
 
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     test.setTimeout(60_000);
     await cleanupTestData();
+
+    // Intercept comic write & sync endpoints so E2E tests verify the full UI flow without persisting synthetic comics to Firestore/PostgreSQL
+    await page.route(/.*\/api\/comics(\/.*)?$/, async (route) => {
+      const method = route.request().method();
+      if (method === 'PUT' || method === 'DELETE') {
+        await route.fulfill({ status: 204 });
+      } else if (method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/comics/batch', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const count = Array.isArray(body.comics) ? body.comics.length : 0;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, count }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
   });
 
   test.afterAll(async () => {

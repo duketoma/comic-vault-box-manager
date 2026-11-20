@@ -109,6 +109,22 @@ function getSeriesSyncKey(item: SeriesIssueTotal): string {
   return `${String(item.seriesName || '').trim().toLowerCase()}|${String(item.volume || '').trim().toLowerCase()}`;
 }
 
+export function normalizeLocalComic(c: ComicBook): ComicBook {
+  if (c.readingStatus === 'Wishlist') {
+    return {
+      ...c,
+      copiesOwned: 0,
+      currentBoxId: -1,
+    };
+  }
+  const rawBox = Number(c.currentBoxId ?? 0);
+  return {
+    ...c,
+    copiesOwned: Math.max(1, Number(c.copiesOwned) || 1),
+    currentBoxId: Number.isFinite(rawBox) && rawBox >= 0 ? rawBox : 0,
+  };
+}
+
 /**
  * Loads the complete local database snapshot from IndexedDB.
  * Automatically synchronizes existing localStorage data on startup.
@@ -117,13 +133,20 @@ export async function loadLocalSnapshot(): Promise<LocalDbSnapshot> {
   try {
     const db = await openLocalDb();
 
-    // Check if localStorage has seeded comics (e.g. test runner or initial run)
+    // Check if localStorage has seeded comics (e.g. test runner or initial migration)
     const rawComics =
       typeof window !== 'undefined' && window.localStorage
         ? localStorage.getItem('comic_vault_comics')
         : null;
     if (rawComics) {
-      await syncFromLocalStorage(db);
+      const checkTx = db.transaction([STORE_META], 'readonly');
+      const migratedMeta = await getFromStore<{ key: string; value: boolean }>(
+        checkTx.objectStore(STORE_META),
+        'migratedFromLocalStorage'
+      );
+      if (!migratedMeta?.value) {
+        await syncFromLocalStorage(db);
+      }
     }
 
     return await readSnapshotFromDb(db);
@@ -149,12 +172,16 @@ async function syncFromLocalStorage(db: IDBDatabase): Promise<void> {
     const seriesStore = tx.objectStore(STORE_SERIES_TOTALS);
     const metaStore = tx.objectStore(STORE_META);
 
+    const existingLastSync = await getFromStore<{ key: string; value: string | null }>(
+      metaStore,
+      'lastSyncAt'
+    );
+
     if (parsedComics.length > 0) {
       comicStore.clear();
       for (const c of parsedComics) {
         if (c && c.id && !isSampleComicId(c.id)) {
-          const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
-          comicStore.put(clean);
+          comicStore.put(normalizeLocalComic(c));
         }
       }
     }
@@ -176,7 +203,7 @@ async function syncFromLocalStorage(db: IDBDatabase): Promise<void> {
     }
 
     metaStore.put({ key: 'migratedFromLocalStorage', value: true });
-    if (parsedComics.length > 0) {
+    if (parsedComics.length > 0 && !existingLastSync?.value) {
       metaStore.put({ key: 'lastSyncAt', value: new Date().toISOString() });
     }
 
@@ -206,7 +233,7 @@ async function readSnapshotFromDb(db: IDBDatabase): Promise<LocalDbSnapshot> {
 
   const comics = rawComics
     .filter((c) => c && c.id && !isSampleComicId(c.id))
-    .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c))
+    .map(normalizeLocalComic)
     .sort((a, b) => {
       const dateCmp = String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
       if (dateCmp !== 0) return dateCmp;
@@ -251,7 +278,7 @@ function loadFallbackSnapshotFromLocalStorage(): LocalDbSnapshot {
   const boxes = sortBoxes(savedBoxes ? JSON.parse(savedBoxes) : DEFAULT_BOXES);
   const comics: ComicBook[] = (savedComics ? JSON.parse(savedComics) : INITIAL_COMICS)
     .filter((c: ComicBook) => !isSampleComicId(c.id))
-    .map((c: ComicBook) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
+    .map(normalizeLocalComic);
   const seriesTotals: SeriesIssueTotal[] = savedSeries ? JSON.parse(savedSeries) : [];
 
   return {
@@ -271,14 +298,34 @@ function loadFallbackSnapshotFromLocalStorage(): LocalDbSnapshot {
 export async function putLocalComicsDirect(comics: ComicBook[]): Promise<void> {
   if (comics.length === 0) return;
   const db = await openLocalDb();
-  const tx = db.transaction([STORE_COMICS], 'readwrite');
+  const tx = db.transaction([STORE_COMICS, STORE_OUTBOX], 'readwrite');
   const comicStore = tx.objectStore(STORE_COMICS);
+  const outboxStore = tx.objectStore(STORE_OUTBOX);
 
-  for (const c of comics) {
-    if (c && c.id && !isSampleComicId(c.id)) {
-      const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
-      comicStore.put(clean);
+  const [existingComics, pendingOutbox] = await Promise.all([
+    getAllFromStore<ComicBook>(comicStore),
+    getAllFromStore<SyncMutation>(outboxStore),
+  ]);
+
+  const pendingUpsertIds = new Set<string>();
+  for (const mut of pendingOutbox) {
+    if (mut.entityType === 'comic' && mut.operation === 'UPSERT') {
+      pendingUpsertIds.add(mut.entityId);
     }
+  }
+
+  const validComics = comics.filter((c) => c && c.id && !isSampleComicId(c.id));
+  const incomingIds = new Set(validComics.map((c) => c.id));
+
+  // Prune stale local records no longer returned by the server unless pending local upload
+  for (const existing of existingComics) {
+    if (!incomingIds.has(existing.id) && !pendingUpsertIds.has(existing.id)) {
+      comicStore.delete(existing.id);
+    }
+  }
+
+  for (const c of validComics) {
+    comicStore.put(normalizeLocalComic(c));
   }
 
   await new Promise<void>((resolve, reject) => {
@@ -295,12 +342,13 @@ export async function saveLocalComicAndEnqueue(
   baseStatus?: ReadingStatus
 ): Promise<SyncMutation[]> {
   const nowIso = new Date().toISOString();
-  const prepared = await prepareComic({
-    ...comic,
-    copiesOwned: comic.readingStatus === 'Wishlist' ? 0 : comic.copiesOwned,
-    createdAt: comic.createdAt || nowIso,
-    updatedAt: nowIso,
-  });
+  const prepared = await prepareComic(
+    normalizeLocalComic({
+      ...comic,
+      createdAt: comic.createdAt || nowIso,
+      updatedAt: nowIso,
+    })
+  );
 
   const db = await openLocalDb();
   const tx = db.transaction([STORE_COMICS, STORE_OUTBOX], 'readwrite');
@@ -344,12 +392,13 @@ export async function saveLocalComicsBatchAndEnqueue(
     comics
       .filter((c) => c && c.id && !isSampleComicId(c.id))
       .map((c) =>
-        prepareComic({
-          ...c,
-          copiesOwned: c.readingStatus === 'Wishlist' ? 0 : c.copiesOwned,
-          createdAt: c.createdAt || nowIso,
-          updatedAt: nowIso,
-        })
+        prepareComic(
+          normalizeLocalComic({
+            ...c,
+            createdAt: c.createdAt || nowIso,
+            updatedAt: nowIso,
+          })
+        )
       )
   );
 
@@ -396,12 +445,13 @@ export async function replaceAllLocalComicsAndEnqueue(newComics: ComicBook[]): P
     newComics
       .filter((c) => c && c.id && !isSampleComicId(c.id))
       .map((c) =>
-        prepareComic({
-          ...c,
-          copiesOwned: c.readingStatus === 'Wishlist' ? 0 : c.copiesOwned,
-          createdAt: c.createdAt || nowIso,
-          updatedAt: c.updatedAt || nowIso,
-        })
+        prepareComic(
+          normalizeLocalComic({
+            ...c,
+            createdAt: c.createdAt || nowIso,
+            updatedAt: c.updatedAt || nowIso,
+          })
+        )
       )
   );
 
@@ -659,8 +709,7 @@ export async function applyServerSyncResponse(
           comicStore.put(pendingMut.payload);
         }
       } else {
-        const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
-        comicStore.put(clean);
+        comicStore.put(normalizeLocalComic(c));
       }
     }
 
@@ -697,8 +746,7 @@ export async function applyServerSyncResponse(
       if (!c || !c.id || isSampleComicId(c.id)) continue;
       const pendingMut = currentOutboxMap.get(`comic:${c.id}`);
       if (!pendingMut) {
-        const clean = c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
-        comicStore.put(clean);
+        comicStore.put(normalizeLocalComic(c));
       }
     }
 

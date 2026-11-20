@@ -120,7 +120,13 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [issueNumber, setIssueNumber] = useState(comic?.issueNumber || '1');
   const [readingStatus, setReadingStatus] = useState(comic?.readingStatus || 'Unread');
   const [userRating, setUserRating] = useState(comic?.userRating || 0);
-  const [boxId, setBoxId] = useState(comic?.currentBoxId || 0);
+  const [boxId, setBoxId] = useState(
+    comic?.readingStatus === 'Wishlist'
+      ? -1
+      : (comic?.currentBoxId ?? 0) >= 0
+        ? (comic?.currentBoxId ?? 0)
+        : 0
+  );
   const [notes, setNotes] = useState(comic?.notes || '');
   const [thickness, setThickness] = useState(comic?.sizeThickness ?? 1.0);
   const [coverImage, setCoverImage] = useState(comic?.coverImage || '');
@@ -154,7 +160,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
   const [event, setEvent] = useState(comic?.event || '');
   const [publicationYear, setPublicationYear] = useState<number>(comic?.publicationYear || 0);
   const [publicationMonth, setPublicationMonth] = useState<string>(comic?.publicationMonth || '');
-  const initialCopies = comic?.readingStatus === 'Wishlist' ? 0 : (comic?.copiesOwned !== undefined ? comic.copiesOwned : 1);
+  const initialCopies = comic?.readingStatus === 'Wishlist' ? 0 : Math.max(1, Number(comic?.copiesOwned) || 1);
   const [copiesOwned, setCopiesOwned] = useState(initialCopies);
 
   // Creator Contributions State
@@ -177,7 +183,13 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setIssueNumber(comic.issueNumber || '1');
     setReadingStatus(comic.readingStatus || 'Unread');
     setUserRating(comic.userRating || 0);
-    setBoxId(comic.currentBoxId || 0);
+    setBoxId(
+      comic.readingStatus === 'Wishlist'
+        ? -1
+        : (comic.currentBoxId ?? 0) >= 0
+          ? (comic.currentBoxId ?? 0)
+          : 0
+    );
     setNotes(comic.notes || '');
     setThickness(comic.sizeThickness ?? 1.0);
     setCoverImage(comic.coverImage || '');
@@ -207,7 +219,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
     setEvent(comic.event || '');
     setPublicationYear(comic.publicationYear || 0);
     setPublicationMonth(comic.publicationMonth || '');
-    const initialCopies = comic.readingStatus === 'Wishlist' ? 0 : (comic.copiesOwned !== undefined ? comic.copiesOwned : 1);
+    const initialCopies = comic.readingStatus === 'Wishlist' ? 0 : Math.max(1, Number(comic.copiesOwned) || 1);
     setCopiesOwned(initialCopies);
     setContributions(getInitialContributions(comic));
     setNewCreatorName('');
@@ -643,7 +655,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
       publicationYear: Number(publicationYear) || comic.publicationYear,
       publicationMonth: publicationMonth.trim() || undefined,
       publicationDate: formatIsoComicDate(Number(publicationYear) || comic.publicationYear, publicationMonth.trim() || undefined, comic.publicationDate),
-      copiesOwned: readingStatus === 'Wishlist' ? 0 : (Number(copiesOwned) >= 0 ? Number(copiesOwned) : 0),
+      copiesOwned: readingStatus === 'Wishlist' ? 0 : Math.max(1, Number(copiesOwned) || 1),
       writer: writerContrib ? writerContrib.creatorName : comic.writer,
       artist: artistContrib ? artistContrib.creatorName : comic.artist,
       creatorContributions: contributions,
@@ -1171,10 +1183,24 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Stored Box Location</label>
                 <select
                   disabled={!isEditing}
-                  value={boxId}
-                  onChange={(e) => setBoxId(Number(e.target.value))}
+                  value={readingStatus === 'Wishlist' ? -1 : boxId}
+                  onChange={(e) => {
+                    const nextBox = Number(e.target.value);
+                    setBoxId(nextBox);
+                    if (nextBox >= 0 && readingStatus === 'Wishlist') {
+                      setReadingStatus('Unread');
+                      if (Number(copiesOwned) <= 0) {
+                        setCopiesOwned(1);
+                      }
+                    }
+                  }}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 disabled:opacity-80"
                 >
+                  {(readingStatus === 'Wishlist' || boxId < 0) && (
+                    <option value={-1} disabled>
+                      Wishlist (Unassigned — Select Box #0 or #1+ to Own)
+                    </option>
+                  )}
                   <option value={0}>Box #0: Unallocated / Staging Queue</option>
                   {sortBoxes(boxes).map((b) => (
                     <option key={b.id} value={b.id}>
@@ -1190,7 +1216,21 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                 <select
                   disabled={!isEditing}
                   value={readingStatus}
-                  onChange={(e) => setReadingStatus(e.target.value as any)}
+                  onChange={(e) => {
+                    const nextStatus = e.target.value as 'Unread' | 'Reading' | 'Read' | 'Wishlist';
+                    setReadingStatus(nextStatus);
+                    if (nextStatus === 'Wishlist') {
+                      setCopiesOwned(0);
+                      setBoxId(-1);
+                    } else if (readingStatus === 'Wishlist' || Number(copiesOwned) <= 0 || boxId < 0) {
+                      if (Number(copiesOwned) <= 0) {
+                        setCopiesOwned(1);
+                      }
+                      if (boxId < 0) {
+                        setBoxId(0);
+                      }
+                    }
+                  }}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 disabled:opacity-80"
                 >
                   <option value="Unread">Unread</option>

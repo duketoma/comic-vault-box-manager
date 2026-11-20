@@ -90,6 +90,47 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
       });
     });
 
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/boxes/*/comics', async (route) => {
+      const boxComics = testComics.map((c) =>
+        c.id === 'comic-spiderman-300'
+          ? { ...c, coverImageFull: 'https://lh3.googleusercontent.com/d/gdrive-spiderman-full-id=s1600' }
+          : c
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          box: { id: 1, name: 'Box 01' },
+          comics: boxComics,
+          count: boxComics.length,
+        }),
+      });
+    });
+
     // Intercept Google Drive API calls
     await page.route('**/drive/v3/files*', async (route) => {
       const url = route.request().url();
@@ -228,7 +269,7 @@ test.describe('Google Drive Full Wraparound Cover Art Integration & Showcase', (
     }
 
     // Verify Full Art button appears in 3D viewer toolbar
-    const fullArtToolbarBtn = page.getByRole('button', { name: 'Full Art' });
+    const fullArtToolbarBtn = page.getByRole('button', { name: /View Full (Wraparound Cover Art|Art Spread)/i }).first();
     if (await fullArtToolbarBtn.isVisible()) {
       await fullArtToolbarBtn.click({ force: true, noWaitAfter: true });
       await expect(page.getByRole('button', { name: /Full Spread/i })).toBeVisible();

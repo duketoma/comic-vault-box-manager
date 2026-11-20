@@ -74,12 +74,36 @@ test.describe('Negative Comic Issue Numbers Handling (e.g. #-1)', () => {
   });
 
   test('ComicDetailModal allows editing Issue # to a negative issue number and saves', async ({ page }) => {
-    // Intercept PUT /api/comics/:id
+    // Intercept PUT /api/comics/:id and POST /api/sync so test edits never persist
     let savedComic: any = null;
     await page.route(/.*\/api\/comics\/.*/, async (route) => {
       if (route.request().method() === 'PUT') {
         savedComic = route.request().postDataJSON();
         await route.fulfill({ status: 204 });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
       } else {
         await route.continue();
       }

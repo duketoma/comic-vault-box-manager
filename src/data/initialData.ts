@@ -24,7 +24,40 @@ export const DEFAULT_BOXES: StorageBox[] = [
  */
 export function isSampleComicId(id?: string | null): boolean {
   if (!id) return false;
-  return /^c-0(0[1-9]|1[0-4])$/i.test(id.trim());
+  return /^(c-0(0[1-9]|1[0-4])|undefined|null)$/i.test(id.trim());
+}
+
+const E2E_FIXTURE_IDS = new Set([
+  'undefined',
+  'null',
+  'xmen-ann-95',
+  'uncanny-ann-95',
+  'comic-spiderman-300',
+  'comic-xman-annual-96',
+  'comic-mcp-16',
+]);
+
+/**
+ * Returns true if the comic ID belongs to a known Playwright E2E test fixture or corrupt placeholder.
+ * Enforced on the server so E2E fixtures never persist into or leak out of Firestore/PostgreSQL.
+ */
+export function isE2ETestComicId(id?: string | null): boolean {
+  if (!id) return true;
+  const trimmed = String(id).trim();
+  if (!trimmed || isSampleComicId(trimmed) || E2E_FIXTURE_IDS.has(trimmed)) return true;
+  return /^(test-|stamp-test-|e2e-test-|comic-perf-|rc-c\d+)/i.test(trimmed);
+}
+
+/**
+ * Returns true if the comic record matches a Playwright E2E test fixture or generated synthetic hero.
+ */
+export function isE2ETestComicRecord(comic?: Partial<ComicBook> | Record<string, any> | null): boolean {
+  if (!comic) return true;
+  const id = String(comic.id ?? '').trim();
+  if (isE2ETestComicId(id)) return true;
+  const title = String(comic.title ?? '').trim();
+  if (/^Wishlist Hero\b/i.test(title)) return true;
+  return false;
 }
 
 export const INITIAL_COMICS: ComicBook[] = [];

@@ -109,8 +109,8 @@ function toComic(row, index) {
     coverImage: cleaned(row['Cover Image Link']) || cleaned(row['Image Link']) || 'https://drive.google.com/file/d/1h-E8ndmQeDajXJaZKqRW9JU9PjXZH0jX/view?usp=sharing',
     format: 'Single Issue',
     sizeThickness: Math.max(0.1, numberOr(row['Equivalant Comic Book Size Per Issue'], 1)),
-    currentBoxId: wishlist && !box ? 0 : (box > 0 ? box : (proposedBox && proposedBox > 0 ? proposedBox : 0)),
-    proposedBoxId: proposedBox ?? undefined,
+    currentBoxId: wishlist ? -1 : (box >= 0 ? box : (proposedBox && proposedBox > 0 ? proposedBox : 0)),
+    proposedBoxId: wishlist ? -1 : (proposedBox ?? undefined),
     readingStatus: wishlist ? 'Wishlist' : markedRead ? 'Read' : 'Unread',
     readCount: markedRead ? 1 : 0,
     userRating: integerOr(row['My Rating']),
@@ -156,7 +156,7 @@ try {
   const comics = rows.map(toComic);
   await client.query('BEGIN');
   await client.query(`INSERT INTO storage_boxes (id, name, location, max_capacity, color_tag, notes) VALUES
-    (0, 'Box 00 - Unassigned / Wishlist', 'Internal', 1, '#94A3B8', 'Hidden internal box for unassigned wishlist comics'),
+    (0, 'Box 00 - Unassigned', 'Internal', 1, '#94A3B8', 'Virtual box for unassigned comics'),
     (1, 'Box 01 - Amazing Spider-Man & Marvel Silver Age', 'Top Shelf - Left', 150, '#EF4444', 'Silver & Bronze Age Marvel keys'),
     (2, 'Box 02 - X-Men & Mutants (1980s-1990s)', 'Top Shelf - Center', 150, '#F59E0B', 'Uncanny X-Men, X-Force, Wolverine'),
     (3, 'Box 03 - Batman & Gotham Detective Run', 'Top Shelf - Right', 150, '#3B82F6', 'Batman Vol. 1 & 2, Detective Comics'),

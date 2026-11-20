@@ -708,6 +708,7 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
                   onChange={(e) => setTargetBoxId(parseInt(e.target.value, 10))}
                   className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-xs cursor-pointer max-w-[150px] sm:max-w-[180px] truncate"
                 >
+                  <option value={0}>Box #0: Unallocated / Staging Queue</option>
                   {boxes.map((b) => (
                     <option key={b.id} value={b.id}>
                       Box #{b.id}: {b.name}

@@ -305,10 +305,33 @@ async function main() {
 
     // Step C: Commit master_comics and users/{adminUid}/comics (2 ops per comic -> chunkSize 200 = 400 ops/batch)
     console.log('Committing master_comics & Admin user_comics...');
-    const pairedComics = masterComics.map((mc, idx) => ({
-      masterComic: mc,
-      userComic: userComics[idx],
-    }));
+    const existingUserSnap = await userRef.collection('comics').get();
+    const existingUserMap = new Map(existingUserSnap.docs.map((d) => [d.id, d.data()]));
+
+    const pairedComics = masterComics.map((mc, idx) => {
+      let uc = userComics[idx];
+      const existingUc = existingUserMap.get(uc.id);
+      if (existingUc) {
+        const fsUpdatedMs = existingUc.updatedAt ? Date.parse(existingUc.updatedAt) : 0;
+        const pgUpdatedMs = uc.updatedAt ? Date.parse(uc.updatedAt) : 0;
+        const fsOwnedWhilePgWishlist = existingUc.readingStatus !== 'Wishlist' && uc.readingStatus === 'Wishlist';
+        if (fsOwnedWhilePgWishlist || (!Number.isNaN(fsUpdatedMs) && fsUpdatedMs > pgUpdatedMs)) {
+          const fsStatus = existingUc.readingStatus || uc.readingStatus;
+          const fsRawBox = Number(existingUc.currentBoxId ?? uc.currentBoxId ?? 0);
+          uc = {
+            ...uc,
+            readingStatus: fsStatus,
+            currentBoxId: fsStatus === 'Wishlist' ? -1 : (Number.isFinite(fsRawBox) && fsRawBox >= 0 ? fsRawBox : 0),
+            proposedBoxId: existingUc.proposedBoxId ?? uc.proposedBoxId,
+            copiesOwned: fsStatus === 'Wishlist' ? 0 : Math.max(1, Number(existingUc.copiesOwned) || 1),
+          };
+        }
+      }
+      return {
+        masterComic: mc,
+        userComic: uc,
+      };
+    });
     await commitInBatches(
       pairedComics,
       'comics (master + admin instance)',

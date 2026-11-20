@@ -171,6 +171,30 @@ test.describe('Swappable Comic UI Themes & Dynamic Motion FX Studio', () => {
       });
     });
 
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible();
 

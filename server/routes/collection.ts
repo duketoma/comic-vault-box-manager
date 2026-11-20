@@ -1,6 +1,6 @@
 import express from 'express';
 import { ComicBook } from '../../src/types';
-import { isSampleComicId } from '../../src/data/initialData';
+import { isSampleComicId, isE2ETestComicId, isE2ETestComicRecord } from '../../src/data/initialData';
 import { sortComicsByBoxOrder } from '../../src/utils/comicSortUtils';
 import { getFirestoreDb, isFirestoreConfigured } from '../firebaseAdmin.ts';
 import { optionalAuth } from '../middleware/auth.ts';
@@ -40,6 +40,28 @@ function ensurePostgresPool(res: express.Response): boolean {
     return false;
   }
   return true;
+}
+
+function normalizeServerComicPayload(comic: Record<string, any>): Record<string, any> {
+  const readingStatus =
+    comic.readingStatus === 'Wishlist' || comic.reading_status === 'Wishlist'
+      ? 'Wishlist'
+      : comic.readingStatus || comic.reading_status || 'Unread';
+  if (readingStatus === 'Wishlist') {
+    return {
+      ...comic,
+      readingStatus: 'Wishlist',
+      copiesOwned: 0,
+      currentBoxId: -1,
+    };
+  }
+  const rawBox = Number(comic.currentBoxId ?? comic.current_box_id ?? 0);
+  return {
+    ...comic,
+    readingStatus,
+    copiesOwned: Math.max(1, Number(comic.copiesOwned ?? comic.copies_owned) || 1),
+    currentBoxId: Number.isFinite(rawBox) && rawBox >= 0 ? rawBox : 0,
+  };
 }
 
 function mapPgBoxRow(box: Record<string, any>, fallbackTimestamp: string) {
@@ -241,7 +263,7 @@ collectionRouter.get('/api/collection', async (req, res) => {
           : new Date().toISOString();
 
       return res.json({
-        comics: comics.rows.map(rowToComic).filter((c) => !isSampleComicId(String(c.id))),
+        comics: comics.rows.map(rowToComic).filter((c) => !isE2ETestComicRecord(c)),
         boxes: boxes.rows.map((box) => mapPgBoxRow(box, serverTimestamp)),
         seriesTotals: seriesTotals.rows,
         creatorTypes: creatorTypesResult.rows.map((r) => r.type_name),
@@ -267,7 +289,7 @@ collectionRouter.get('/api/collection', async (req, res) => {
 
     const comics = comicsSnap.docs
       .map((d) => docToComic(d.data()))
-      .filter((c) => !isSampleComicId(String(c.id)));
+      .filter((c) => !isE2ETestComicRecord(c));
 
     const serverTimestamp = new Date().toISOString();
 
@@ -329,14 +351,15 @@ collectionRouter.put('/api/comics/:id', async (req, res) => {
   if (req.body?.id !== req.params.id) {
     return res.status(400).json({ error: 'Comic ID must match the request path.' });
   }
-  if (isSampleComicId(req.params.id)) {
+  if (isSampleComicId(req.params.id) || isE2ETestComicId(req.params.id) || isE2ETestComicRecord(req.body)) {
     return res.sendStatus(204);
   }
 
   if (!isFirestoreConfigured()) {
     if (!ensurePostgresPool(res)) return;
     try {
-      await pool!.query(comicUpsertSql, comicValues(req.body));
+      const normalizedComic = normalizeServerComicPayload(req.body);
+      await pool!.query(comicUpsertSql, comicValues(normalizedComic));
       await clearDeletionTombstones(pool!, 'comic', [req.params.id]);
       return res.sendStatus(204);
     } catch (error) {
@@ -354,7 +377,7 @@ collectionRouter.put('/api/comics/:id', async (req, res) => {
     const tombstoneRef = userRef.collection('deleted_records').doc(`comic_${req.params.id}`);
 
     const payload = {
-      ...req.body,
+      ...normalizeServerComicPayload(req.body),
       id: req.params.id,
       updatedAt: new Date().toISOString(),
     };
@@ -422,7 +445,9 @@ collectionRouter.put('/api/comics', async (req, res) => {
 
   if (!isFirestoreConfigured()) {
     if (!ensurePostgresPool(res)) return;
-    const validComics = req.body.comics.filter((comic: { id: string }) => !isSampleComicId(comic?.id));
+    const validComics = req.body.comics
+      .filter((comic: Record<string, any>) => !isE2ETestComicRecord(comic))
+      .map(normalizeServerComicPayload);
     const client = await pool!.connect();
     try {
       await client.query('BEGIN');
@@ -457,7 +482,9 @@ collectionRouter.put('/api/comics', async (req, res) => {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
     const userRef = db.collection('users').doc(uid);
-    const validComics = req.body.comics.filter((comic: { id: string }) => !isSampleComicId(comic?.id));
+    const validComics = req.body.comics
+      .filter((comic: Record<string, any>) => !isE2ETestComicRecord(comic))
+      .map(normalizeServerComicPayload);
     const nowIso = new Date().toISOString();
 
     const existingSnap = await userRef.collection('comics').get();
@@ -511,7 +538,9 @@ collectionRouter.post('/api/comics/batch', async (req, res) => {
 
   if (!isFirestoreConfigured()) {
     if (!ensurePostgresPool(res)) return;
-    const validComics = req.body.comics.filter((comic: { id: string }) => !isSampleComicId(comic?.id));
+    const validComics = req.body.comics
+      .filter((comic: Record<string, any>) => !isE2ETestComicRecord(comic))
+      .map(normalizeServerComicPayload);
     const client = await pool!.connect();
     try {
       await client.query('BEGIN');
@@ -532,7 +561,9 @@ collectionRouter.post('/api/comics/batch', async (req, res) => {
     const uid = req.user!.uid;
     const db = getFirestoreDb();
     const userRef = db.collection('users').doc(uid);
-    const validComics = req.body.comics.filter((comic: { id: string }) => !isSampleComicId(comic?.id));
+    const validComics = req.body.comics
+      .filter((comic: Record<string, any>) => !isE2ETestComicRecord(comic))
+      .map(normalizeServerComicPayload);
     const nowIso = new Date().toISOString();
 
     for (let offset = 0; offset < validComics.length; offset += 200) {
@@ -858,7 +889,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
           }
         } else if (mut.entityType === 'comic') {
           const comicId = String(mut.entityId);
-          if (isSampleComicId(comicId)) continue;
+          if (isE2ETestComicId(comicId) || (mut.payload && isE2ETestComicRecord(mut.payload))) continue;
 
           if (mut.operation === 'UPSERT' && mut.payload) {
             const incoming: Record<string, any> = { ...mut.payload, id: comicId };
@@ -890,8 +921,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
 
               const isWishlistPurchase =
                 (mut.baseStatus === 'Wishlist' || serverComic.readingStatus === 'Wishlist') &&
-                incoming.readingStatus !== 'Wishlist' &&
-                Number(incoming.copiesOwned ?? 1) > 0;
+                incoming.readingStatus !== 'Wishlist';
 
               if (clientUpdatedMs >= serverUpdatedMs) {
                 comicToSave = {
@@ -913,7 +943,10 @@ collectionRouter.post('/api/sync', async (req, res) => {
                     ? {
                         readingStatus: incoming.readingStatus,
                         copiesOwned: Math.max(1, Number(incoming.copiesOwned) || 1),
-                        currentBoxId: incoming.currentBoxId ?? serverComic.currentBoxId,
+                        currentBoxId:
+                          Number(incoming.currentBoxId ?? serverComic.currentBoxId ?? 0) >= 0
+                            ? Number(incoming.currentBoxId ?? serverComic.currentBoxId ?? 0)
+                            : 0,
                         purchasePrice: incoming.purchasePrice ?? serverComic.purchasePrice,
                         condition: incoming.condition || serverComic.condition,
                       }
@@ -934,11 +967,14 @@ collectionRouter.post('/api/sync', async (req, res) => {
               if (comicToSave.readingStatus === 'Wishlist') {
                 comicToSave.copiesOwned = 0;
                 comicToSave.currentBoxId = -1;
+              } else {
+                comicToSave.copiesOwned = Math.max(1, Number(comicToSave.copiesOwned) || 1);
+                const rawBox = Number(comicToSave.currentBoxId ?? 0);
+                comicToSave.currentBoxId = Number.isFinite(rawBox) && rawBox >= 0 ? rawBox : 0;
               }
               const targetBoxId = Number(comicToSave.currentBoxId);
               if (!validBoxIds.has(targetBoxId)) {
-                const firstValidBox = validBoxIds.values().next().value;
-                comicToSave.currentBoxId = firstValidBox ?? null;
+                comicToSave.currentBoxId = comicToSave.readingStatus === 'Wishlist' ? -1 : 0;
               }
               await client.query(comicUpsertSql, comicValues(comicToSave));
               await clearDeletionTombstones(client, 'comic', [comicId]);
@@ -979,7 +1015,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
           serverTimestamp,
           isFullSync: true,
           pushedCount,
-          comics: comicsRes.rows.map(rowToComic).filter((c) => !isSampleComicId(String(c.id))),
+          comics: comicsRes.rows.map(rowToComic).filter((c) => !isE2ETestComicRecord(c)),
           boxes: boxesRes.rows.map((box) => mapPgBoxRow(box, serverTimestamp)),
           seriesTotals: seriesTotalsRes.rows,
           creatorTypes,
@@ -1010,7 +1046,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
           serverTimestamp,
           isFullSync: false,
           pushedCount,
-          comics: comicsRes.rows.map(rowToComic).filter((c) => !isSampleComicId(String(c.id))),
+          comics: comicsRes.rows.map(rowToComic).filter((c) => !isE2ETestComicRecord(c)),
           boxes: boxesRes.rows.map((box) => mapPgBoxRow(box, serverTimestamp)),
           seriesTotals: seriesTotalsRes.rows,
           creatorTypes,
@@ -1099,7 +1135,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
         }
       } else if (mut.entityType === 'comic') {
         const comicId = String(mut.entityId);
-        if (isSampleComicId(comicId)) continue;
+        if (isE2ETestComicId(comicId) || (mut.payload && isE2ETestComicRecord(mut.payload))) continue;
         const comicRef = userRef.collection('comics').doc(comicId);
         const tombRef = userRef.collection('deleted_records').doc(`comic_${comicId}`);
 
@@ -1117,8 +1153,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
 
             const isWishlistPurchase =
               (mut.baseStatus === 'Wishlist' || serverData.readingStatus === 'Wishlist') &&
-              incoming.readingStatus !== 'Wishlist' &&
-              Number(incoming.copiesOwned ?? 1) > 0;
+              incoming.readingStatus !== 'Wishlist';
 
             if (clientUpdatedMs >= serverUpdatedMs) {
               comicToSave = {
@@ -1137,7 +1172,10 @@ collectionRouter.post('/api/sync', async (req, res) => {
                   ? {
                       readingStatus: incoming.readingStatus,
                       copiesOwned: Math.max(1, Number(incoming.copiesOwned) || 1),
-                      currentBoxId: incoming.currentBoxId ?? serverData.currentBoxId,
+                      currentBoxId:
+                        Number(incoming.currentBoxId ?? serverData.currentBoxId ?? 0) >= 0
+                          ? Number(incoming.currentBoxId ?? serverData.currentBoxId ?? 0)
+                          : 0,
                       purchasePrice: incoming.purchasePrice ?? serverData.purchasePrice,
                       condition: incoming.condition || serverData.condition,
                     }
@@ -1156,6 +1194,10 @@ collectionRouter.post('/api/sync', async (req, res) => {
             if (comicToSave.readingStatus === 'Wishlist') {
               comicToSave.copiesOwned = 0;
               comicToSave.currentBoxId = -1;
+            } else {
+              comicToSave.copiesOwned = Math.max(1, Number(comicToSave.copiesOwned) || 1);
+              const rawBox = Number(comicToSave.currentBoxId ?? 0);
+              comicToSave.currentBoxId = Number.isFinite(rawBox) && rawBox >= 0 ? rawBox : 0;
             }
             comicToSave.updatedAt = nowIso;
 
@@ -1190,7 +1232,7 @@ collectionRouter.post('/api/sync', async (req, res) => {
 
     let pulledComics = allComicsSnap.docs
       .map((d) => docToComic(d.data()))
-      .filter((c) => !isSampleComicId(String(c.id)));
+      .filter((c) => !isE2ETestComicRecord(c));
 
     if (!isFullSync) {
       pulledComics = pulledComics.filter((c) => new Date(c.updatedAt).getTime() >= lastSyncMs);
@@ -1294,7 +1336,9 @@ collectionRouter.get('/api/boxes/:id/comics', async (req, res) => {
         [boxId]
       );
 
-      const rawComics = comicsResult.rows.map(rowToComic) as unknown as ComicBook[];
+      const rawComics = (comicsResult.rows.map(rowToComic) as unknown as ComicBook[]).filter(
+        (c) => !isE2ETestComicRecord(c)
+      );
       const comics = sortComicsByBoxOrder(rawComics);
       return res.json({
         box: {
@@ -1327,7 +1371,9 @@ collectionRouter.get('/api/boxes/:id/comics', async (req, res) => {
     ]);
 
     const boxName = boxDoc.exists ? boxDoc.data()?.name || `Box #${boxId}` : `Box #${boxId}`;
-    const rawComics = comicsSnap.docs.map((d) => docToComic(d.data()));
+    const rawComics = comicsSnap.docs
+      .map((d) => docToComic(d.data()))
+      .filter((c) => !isE2ETestComicRecord(c));
     const comics = sortComicsByBoxOrder(rawComics);
 
     res.json({

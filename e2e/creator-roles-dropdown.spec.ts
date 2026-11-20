@@ -3,6 +3,47 @@ import { test, expect } from '@playwright/test';
 test.describe('Comic Detail Modal - Comprehensive Creator Role Types Dropdown', () => {
   test('Role dropdown displays all database and standard creator types and supports custom roles', async ({ page }) => {
     test.setTimeout(60_000);
+
+    // Intercept comic write & sync endpoints so saving synthetic test creators never mutates real DB records
+    await page.route(/.*\/api\/comics.*/, async (route) => {
+      const method = route.request().method();
+      if (method === 'PUT' || method === 'DELETE') {
+        await route.fulfill({ status: 204 });
+      } else if (method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     await page.goto('/');
 
     // Wait for the app and collection to load from database

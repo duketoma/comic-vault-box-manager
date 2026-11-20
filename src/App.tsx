@@ -31,6 +31,7 @@ import {
   saveLocalComicsBatchAndEnqueue,
   setLastSyncTimestamp,
   SyncMutation,
+  normalizeLocalComic,
 } from './services/localDbService';
 import { performBidirectionalSync, SyncStatusState } from './services/syncService';
 import {
@@ -154,7 +155,7 @@ export default function App() {
     const parsed: ComicBook[] = saved ? JSON.parse(saved) : INITIAL_COMICS;
     return parsed
       .filter((c) => !isSampleComicId(c.id))
-      .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
+      .map(normalizeLocalComic);
   });
 
   const [isLoadingCollection, setIsLoadingCollection] = useState<boolean>(true);
@@ -306,7 +307,7 @@ export default function App() {
         if (storedComics.length > 0) {
           const clean = storedComics
             .filter((c) => !isSampleComicId(c.id))
-            .map((c) => (c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c));
+            .map(normalizeLocalComic);
           setComics(clean);
           void putLocalComicsDirect(clean);
         } else if (storedBoxes.length === 0) {
@@ -405,12 +406,11 @@ export default function App() {
   // Handlers update the UI immediately, persist to IndexedDB + sync_outbox, and send to backend REST API.
   const handleAddComic = (newComic: ComicBook) => {
     const nowIso = new Date().toISOString();
-    const cleanComic: ComicBook = {
+    const cleanComic: ComicBook = normalizeLocalComic({
       ...newComic,
-      copiesOwned: newComic.readingStatus === 'Wishlist' ? 0 : newComic.copiesOwned,
       createdAt: newComic.createdAt || nowIso,
       updatedAt: nowIso,
-    };
+    });
     const nextComics = [cleanComic, ...comics];
     setComics(nextComics);
     const burst = evaluateCollectionActionBurst(comics, nextComics, seriesTotals, [cleanComic.id]);
@@ -425,12 +425,13 @@ export default function App() {
 
   const handleBatchAddComics = async (newComics: ComicBook[]) => {
     const nowIso = new Date().toISOString();
-    const cleanComics = newComics.map((c) => ({
-      ...c,
-      copiesOwned: c.readingStatus === 'Wishlist' ? 0 : c.copiesOwned,
-      createdAt: c.createdAt || nowIso,
-      updatedAt: nowIso,
-    }));
+    const cleanComics = newComics.map((c) =>
+      normalizeLocalComic({
+        ...c,
+        createdAt: c.createdAt || nowIso,
+        updatedAt: nowIso,
+      })
+    );
     setComics((prev) => [...cleanComics, ...prev]);
     const outbox = await saveLocalComicsBatchAndEnqueue(cleanComics);
     updateOutboxStatus(outbox);
@@ -449,12 +450,11 @@ export default function App() {
       ? updatedComic.currentBoxId
       : updatedComic.proposedBoxId ?? updatedComic.currentBoxId;
 
-    const cleanComic: ComicBook = {
+    const cleanComic: ComicBook = normalizeLocalComic({
       ...updatedComic,
       proposedBoxId: resolvedProposedBoxId,
-      copiesOwned: updatedComic.readingStatus === 'Wishlist' ? 0 : updatedComic.copiesOwned,
       updatedAt: nowIso,
-    };
+    });
     const nextComics = comics.map((c) => (c.id === cleanComic.id ? cleanComic : c));
     setComics(nextComics);
     setSelectedComic((prev) => (prev && prev.id === cleanComic.id ? cleanComic : prev));
@@ -474,8 +474,7 @@ export default function App() {
     const changedComics: ComicBook[] = [];
 
     const cleanList = updatedComics.map((c) => {
-      const clean: ComicBook =
-        c.readingStatus === 'Wishlist' ? { ...c, copiesOwned: 0 } : c;
+      const clean: ComicBook = normalizeLocalComic(c);
       const prev = existingMap.get(clean.id);
       if (
         !prev ||
@@ -556,7 +555,7 @@ export default function App() {
     const updatedList = comics.map((c) => {
       if (idSet.has(c.id)) {
         baseStatuses.set(c.id, c.readingStatus);
-        const targetBox = targetBoxId !== undefined ? targetBoxId : c.currentBoxId > 0 ? c.currentBoxId : 1;
+        const targetBox = targetBoxId !== undefined ? (targetBoxId >= 0 ? targetBoxId : 0) : c.currentBoxId >= 0 ? c.currentBoxId : 0;
         const updatedComic: ComicBook = {
           ...c,
           readingStatus: 'Unread' as const,

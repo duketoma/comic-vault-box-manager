@@ -56,7 +56,7 @@
    - Never persist large comic collections solely into `localStorage`, which hits a ~5 MB WebView quota limit and silently drops persistence.
    - All client-side collection reads and mutations (`ComicBook`, `StorageBox`, `SeriesIssueTotal`) must persist through `src/services/localDbService.ts` (`ComicVaultLocalDB` in IndexedDB) and enqueue mutations into the `sync_outbox` object store before triggering `performBidirectionalSync()` (`src/services/syncService.ts`).
    - Every client-side mutation must stamp a fresh ISO 8601 `updatedAt: new Date().toISOString()` on modified records. When transitioning a comic's status (especially from `'Wishlist'` to owned), always pass the prior `baseStatus` into `saveLocalComicAndEnqueue` / `saveLocalComicsBatchAndEnqueue` so `POST /api/sync` preserves offline wishlist purchases even if PC metadata changed while separated.
-   - When hydrating from backend `loadCollection()`, write directly to IndexedDB via `putLocalComicsDirect(clean)` and update `lastSyncAt = now` to avoid enqueuing the entire collection into `sync_outbox` or triggering redundant full delta syncs.
+   - When hydrating from backend `loadCollection()`, write directly to IndexedDB via `putLocalComicsDirect(clean)` and update `lastSyncAt = now` to avoid enqueuing the entire collection into `sync_outbox` or triggering redundant full delta syncs. `putLocalComicsDirect(clean)` must also prune stale local IndexedDB records no longer present in the authoritative server response (unless they have a pending `UPSERT` in `sync_outbox`), and `loadLocalSnapshot()` must only run `syncFromLocalStorage()` once per unmigrated DB (`migratedFromLocalStorage`) without overwriting an existing `lastSyncAt`.
    - In React top-level state (`App.tsx`), keep collection hydration callbacks stable with empty dependency arrays (`[]`) and ref pointers (`comicsRef`, `boxesRef`) to prevent infinite hydration loops and visual skeleton thrashing. Always call standard REST endpoints (`replaceComics`, `saveComic`, etc.) in tandem with local outbox enqueueing so existing REST API test intercepts remain fully functional.
 
 10. **Cloud Firestore & PostgreSQL Sync Tombstones (`server/routes/collection.ts` & `server/db.ts`)**:
@@ -80,6 +80,10 @@
 13. **Storage Box Hierarchy & Wishlist Box Partitioning (`Box 0` vs `Box -1`)**:
    - `Box 0` is strictly reserved for *owned* unallocated / staging comics (e.g., newly acquired comics or issues temporarily removed from a box). Never assign wishlisted comics to Box 0.
    - Wishlisted comics must always be assigned to Box ID `-1` behind the scenes across all creation, editing, and import pathways (`AddAndScanModal`, `ComicDetailModal`, `GenerateSeriesWishlistModal`, `GoogleSheetsImporter`, `seriesDateProjection`).
+   - Enforce symmetric normalization across client state (`normalizeLocalComic` in `localDbService.ts` / `App.tsx`), modal editors (`ComicDetailModal`), server write/batch/sync routes (`normalizeServerComicPayload` & `POST /api/sync` in `server/routes/collection.ts`), and CSV/DB migration scripts:
+     - `readingStatus === 'Wishlist'` → `currentBoxId: -1`, `copiesOwned: 0`.
+     - `readingStatus !== 'Wishlist'` (Owned: `'Unread' | 'Reading' | 'Read'`) → `currentBoxId >= 0` (defaulting `< 0` or invalid boxes to `0`), `copiesOwned: Math.max(1, Number(copiesOwned) || 1)`.
+   - In `ComicDetailModal`, render a disabled `<option value={-1}>` when `readingStatus === 'Wishlist'` so Wishlist items never masquerade as `Box #0`, and automatically synchronize transitions between `Reading Status` and `Stored Box Location` (selecting Box `>= 0` on a Wishlist comic transitions `readingStatus` to `'Unread'` and `copiesOwned` to `1`; selecting `'Wishlist'` transitions `boxId` to `-1` and `copiesOwned` to `0`).
    - PostgreSQL requires an initialized container record `id = -1` in `storage_boxes` (`Box -1: Wishlist`) to satisfy foreign key constraints (`REFERENCES storage_boxes(id)`).
    - In physical storage box dropdowns, Box 0 must be formatted consistently with physical boxes using `#` and `:` (`Box #0: Unallocated / Staging Queue` matching `Box #1: ...`), while Box `-1` must be excluded from physical storage box selectors.
 
@@ -93,6 +97,12 @@
 15. **Playwright Production Bundle Freshness & Server Port Lifecycle**:
    - `playwright.config.ts` launches or connects to `node dist-server/server.cjs` serving pre-built assets in `dist/` with `reuseExistingServer: true`.
    - When modifying frontend components or server routes before running Playwright tests, always execute `npm run build` and ensure any stale running process on port 3000 is terminated so tests evaluate the latest code rather than stale cached bundles.
+
+15b. **E2E Mutation Isolation, Dual-Write Sync Interception & Server Test Guards**:
+   - Because `App.tsx` dual-writes every collection mutation to both REST endpoints (`/api/comics*`, `/api/comics/batch`) and `POST /api/sync` (via IndexedDB `sync_outbox`), any Playwright E2E test that creates, edits, moves, or purchases comics must intercept `**/api/sync` alongside `/api/comics*` (and `**/api/boxes/*/comics` when opening the 3D visualizer) so synthetic test data never persists to Cloud Firestore, `master_comics`, or PostgreSQL.
+   - Keep client-side `isSampleComicId()` (`src/data/initialData.ts`) scoped to legacy sample/corrupt IDs so mocked browser fixtures (`test-*`, `stamp-test-*`, `Wishlist Hero*`) continue rendering inside Playwright tests. Enforce `isE2ETestComicRecord()` on the server (`server/routes/collection.ts`) across read, write, batch, and sync endpoints as a defense-in-depth guard.
+   - E2E cleanup scripts (`scripts/cleanup-test-wishlist.ts`) must only delete synthetic test records matching `isE2ETestComicRecord()` and must **never** hardcode state resets on real user collection comic IDs (`imported-*`); E2E tests must mock mutations instead of mutating and "restoring" live user comics.
+   - In `Box3DVisualizer` Playwright assertions, target the Full Art showcase opener using `/View Full (Wraparound Cover Art|Art Spread)/i` rather than `'Full Art'`, which collides with the `ComicDetailPanel` preview toggle.
 
 ## Multi-Tenant Cloud Firestore & Two-Tier Cover Storage Architecture
 16. **Two-Tier Cover Image Resolution & Firebase Storage Invariants**:

@@ -79,6 +79,60 @@ test.describe('Wishlist In-Store Shopping Priority Feature', () => {
   });
 
   test('Interactive selection and Mark Purchased commits to collection', async ({ page }) => {
+    // Intercept comic write & sync endpoints so test purchase does not mutate real wishlist items in Firestore/PostgreSQL
+    await page.route(/.*\/api\/comics(\/.*)?$/, async (route) => {
+      const method = route.request().method();
+      if (method === 'PUT' || method === 'DELETE') {
+        await route.fulfill({ status: 204 });
+      } else if (method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/comics/batch', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const count = Array.isArray(body.comics) ? body.comics.length : 0;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, count }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     await page.goto('/');
     await page.getByRole('button', { name: /Wishlist Hunter/i }).click();
     await expect(page.getByRole('heading', { name: 'Top 60 Wishlist Hunt List' })).toBeVisible({ timeout: 15000 });
