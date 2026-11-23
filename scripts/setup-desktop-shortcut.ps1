@@ -1,3 +1,7 @@
+param(
+    [string]$CloudUrl = ""
+)
+
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
@@ -111,6 +115,15 @@ $Bmp.Dispose()
 $WshShell = New-Object -ComObject WScript.Shell
 $VbsLauncher = Join-Path $ProjectRoot "Launch Comic Vault.vbs"
 
+$BrowserCandidates = @(
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+)
+$BrowserExe = $BrowserCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+
 $ShortcutLocations = @(
     (Join-Path ([Environment]::GetFolderPath('Desktop')) "Comic Archive Pro.lnk"),
     (Join-Path ([Environment]::GetFolderPath('Programs')) "Comic Archive Pro.lnk")
@@ -118,11 +131,18 @@ $ShortcutLocations = @(
 
 foreach ($ShortcutPath in $ShortcutLocations) {
     $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = "$env:SystemRoot\System32\wscript.exe"
-    $Shortcut.Arguments = "`"$VbsLauncher`""
+    if ($CloudUrl -and $BrowserExe) {
+        # Direct Chrome/Edge standalone PWA launch (< 0.5s, zero local server)
+        $Shortcut.TargetPath = $BrowserExe
+        $Shortcut.Arguments = "--app=`"$CloudUrl`" --window-size=1440,920"
+        $Shortcut.Description = "Launch Comic Archive Pro (Cloud)"
+    } else {
+        $Shortcut.TargetPath = "$env:SystemRoot\System32\wscript.exe"
+        $Shortcut.Arguments = "`"$VbsLauncher`""
+        $Shortcut.Description = "Launch Comic Archive Pro"
+    }
     $Shortcut.WorkingDirectory = $ProjectRoot
     $Shortcut.IconLocation = "$IconPath,0"
-    $Shortcut.Description = "Launch Comic Archive Pro"
     $Shortcut.WindowStyle = 1
     $Shortcut.Save()
     Write-Output "Created shortcut: $ShortcutPath"

@@ -1,5 +1,15 @@
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
+import {
+  getAuth,
+  signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  User,
+  signOut,
+} from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -201,6 +211,27 @@ const withCoopSafePopup = async <T>(fn: () => Promise<T>): Promise<T> => {
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
+
+    // On Android/iOS Capacitor, WebView popups fail and leave a blank white screen after account selection.
+    // Use native Google Sign-In via @capacitor-firebase/authentication and bridge the credential to Firebase JS Auth.
+    if (Capacitor.isNativePlatform()) {
+      const nativeResult = await FirebaseAuthentication.signInWithGoogle({
+        scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      });
+      const idToken = nativeResult.credential?.idToken;
+      const accessToken = nativeResult.credential?.accessToken || '';
+      if (!idToken) {
+        throw new Error('Google Sign-In did not return an ID token. Please try again.');
+      }
+
+      const credential = GoogleAuthProvider.credential(idToken, accessToken || undefined);
+      const userCred = await signInWithCredential(auth, credential);
+      if (accessToken) {
+        writeStoredAccessToken(accessToken);
+      }
+      return { user: userCred.user, accessToken };
+    }
+
     provider.setCustomParameters({ prompt: 'select_account' });
     const result = await withCoopSafePopup(() => signInWithPopup(auth, provider));
     const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -247,6 +278,13 @@ export const getAuthHeaders = async (): Promise<Record<string, string>> => {
 };
 
 export const logout = async () => {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await FirebaseAuthentication.signOut();
+    } catch {
+      // Ignore native signOut error if not natively signed in
+    }
+  }
   await signOut(auth);
   clearCachedAccessToken();
 };

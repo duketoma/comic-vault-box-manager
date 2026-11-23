@@ -37,11 +37,22 @@ export const FIREBASE_STORAGE_BUCKET =
  *  2. Raw JSON string ("{ \"type\": \"service_account\", ... }")
  *  3. Base64-encoded JSON string
  */
+function isGcpManagedRuntime(): boolean {
+  return Boolean(
+    (process.env.K_SERVICE || '').trim() ||
+    (process.env.FUNCTION_TARGET || '').trim() ||
+    (process.env.GOOGLE_CLOUD_PROJECT || '').trim()
+  );
+}
+
 function resolveServiceAccountCredential() {
   const rawKey = (process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim();
   if (!rawKey) {
     const gac = (process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
     if (gac && fs.existsSync(path.resolve(gac))) {
+      return applicationDefault();
+    }
+    if (isGcpManagedRuntime()) {
       return applicationDefault();
     }
     return null;

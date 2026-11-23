@@ -187,7 +187,7 @@ export default function App() {
   const [isServerModalOpen, setIsServerModalOpen] = useState<boolean>(false);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState<boolean>(false);
   const [isAdminPortalOpen, setIsAdminPortalOpen] = useState<boolean>(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, firebaseUser } = useAuth();
 
   const [syncStatus, setSyncStatus] = useState<SyncStatusState>({
     connectionState: 'online',
@@ -351,6 +351,13 @@ export default function App() {
     // Only run on initial mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 1b. Re-hydrate from backend once Firebase Auth session finishes restoring (critical for cloud hosting)
+  useEffect(() => {
+    if (firebaseUser?.uid) {
+      void refreshCollectionData();
+    }
+  }, [firebaseUser?.uid, refreshCollectionData]);
 
   // 2. Auto-sync when returning to Wi-Fi / online or unlocking mobile screen
   useEffect(() => {

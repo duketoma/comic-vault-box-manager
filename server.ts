@@ -1,43 +1,13 @@
 import express from 'express';
-import cors from 'cors';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { pool, initDatabase } from './server/db';
-import { collectionRouter } from './server/routes/collection';
-import { challengesRouter } from './server/routes/challenges';
-import { masterCatalogRouter } from './server/routes/masterCatalog';
-import { storageUploadRouter } from './server/routes/storageUpload';
-import { aiAndProxyRouter } from './server/routes/aiAndProxy';
-import { importsAndExportsRouter } from './server/routes/importsAndExports';
-import { valuationRouter } from './server/routes/valuation';
-import { proposalsRouter } from './server/routes/proposals';
+import { createApp } from './server/createApp';
 import { valuationBatchManager } from './server/services/valuationEngine';
 
 async function startServer() {
-  const app = express();
+  const app = createApp();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-
-  const ALLOWED_ORIGINS = new Set([
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'capacitor://localhost',
-    'http://localhost',
-    'null',
-    ...(process.env.ALLOWED_ORIGINS?.split(',').map((s) => s.trim()) || []),
-  ]);
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin || ALLOWED_ORIGINS.has(origin)) callback(null, true);
-        else callback(new Error('Not allowed by CORS'));
-      },
-      credentials: true,
-    })
-  );
-  app.use(express.json({ limit: '25mb' }));
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true });
-  });
 
   if (pool) {
     try {
@@ -48,16 +18,6 @@ async function startServer() {
       console.warn('Database initialization warning:', err);
     }
   }
-
-  // Mount modular API routers
-  app.use(collectionRouter);
-  app.use(challengesRouter);
-  app.use(masterCatalogRouter);
-  app.use(storageUploadRouter);
-  app.use(aiAndProxyRouter);
-  app.use(importsAndExportsRouter);
-  app.use(valuationRouter);
-  app.use(proposalsRouter);
 
   // --- VITE MIDDLEWARE / PRODUCTION STATIC SETUP ---
   if (process.env.NODE_ENV?.trim() !== 'production') {

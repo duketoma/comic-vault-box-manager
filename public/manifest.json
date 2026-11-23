@@ -1,0 +1,16 @@
+{
+  "name": "Comic Archive Pro",
+  "short_name": "Comic Vault",
+  "description": "Comic Book Collection, Storage Box Manager & In-Store Wishlist Hunter",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "256x256 64x64 32x32 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

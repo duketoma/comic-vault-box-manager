@@ -60,7 +60,7 @@ export function buildApiUrl(path: string): string {
  */
 export async function testApiConnection(targetUrl?: string): Promise<{ success: boolean; latencyMs: number; error?: string }> {
   const base = targetUrl !== undefined ? targetUrl.trim().replace(/\/+$/, '') : getApiBaseUrl();
-  const checkUrl = base ? `${base}/api/creator-types` : '/api/creator-types';
+  const checkUrl = base ? `${base}/api/health` : '/api/health';
 
   const startTime = performance.now();
   try {

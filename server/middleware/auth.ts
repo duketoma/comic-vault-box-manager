@@ -192,14 +192,25 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+function isCloudAuthRequired(): boolean {
+  return (
+    process.env.REQUIRE_AUTH === 'true' ||
+    Boolean((process.env.K_SERVICE || '').trim() || (process.env.FUNCTION_TARGET || '').trim())
+  );
+}
+
 /**
  * Middleware: Optional authentication.
  * If a valid token is present, populates `req.user`.
- * If no token is provided, falls back to the default Admin account in local/dev environments
- * so existing single-user PC workflows continue seamlessly without forced login.
+ * In cloud runtime (`K_SERVICE` / `FUNCTION_TARGET` / `REQUIRE_AUTH=true`), returns 401
+ * so unauthenticated internet traffic cannot access the Admin's personal collection.
+ * In local desktop/dev environments, falls back to the default Admin account seamlessly.
  */
-export async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+export async function optionalAuth(req: Request, res: Response, next: NextFunction) {
   const user = await authenticateToken(req);
+  if (!user && isCloudAuthRequired()) {
+    return res.status(401).json({ error: 'Authentication required. Please sign in.' });
+  }
   req.user = user || getDefaultAdminUser();
   next();
 }

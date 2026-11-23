@@ -1,0 +1,19 @@
+{
+  "name": "comic-vault-functions",
+  "private": true,
+  "main": "lib/index.cjs",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^6.3.2",
+    "googleapis": "^173.0.0",
+    "pg": "^8.22.0",
+    "sharp": "^0.35.5"
+  }
+}

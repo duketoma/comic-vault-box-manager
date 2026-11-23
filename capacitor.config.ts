@@ -12,6 +12,10 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    FirebaseAuthentication: {
+      skipNativeAuth: true,
+      providers: ['google.com'],
+    },
     SplashScreen: {
       launchShowDuration: 1200,
       backgroundColor: '#0f172a',
