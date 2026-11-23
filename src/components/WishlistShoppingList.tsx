@@ -185,7 +185,7 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-40 md:pb-28">
       {/* Toast Notification */}
       {purchaseToast && (
         <div className="fixed top-4 right-4 z-50 bg-emerald-700 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center justify-between gap-4 border border-emerald-500 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -663,7 +663,7 @@ export const WishlistShoppingList: React.FC<WishlistShoppingListProps> = ({
       )}
 
       {/* Floating Bottom Purchase Bar (Optimized for In-Store Phone Shopping) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-2xl py-3 px-4 sm:px-8">
+      <div className="fixed bottom-[calc(61px+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 md:z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-2xl py-2.5 sm:py-3 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Status Counter */}
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">

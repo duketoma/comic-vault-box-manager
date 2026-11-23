@@ -154,4 +154,89 @@ test.describe('Wishlist In-Store Shopping Priority Feature', () => {
     // Verify toast confirmation
     await expect(page.getByText(/Purchased 1 comic/i)).toBeVisible({ timeout: 10000 });
   });
+
+  test('Mobile viewport: Mark Purchased bar sits above MobileBottomNav and is clickable', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    // Intercept comic write & sync endpoints so test purchase does not mutate real wishlist items
+    await page.route(/.*\/api\/comics(\/.*)?$/, async (route) => {
+      const method = route.request().method();
+      if (method === 'PUT' || method === 'DELETE') {
+        await route.fulfill({ status: 204 });
+      } else if (method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/comics/batch', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const count = Array.isArray(body.comics) ? body.comics.length : 0;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, count }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.route('**/api/sync', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() || {};
+        const mutations = Array.isArray(body.mutations) ? body.mutations : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            serverTimestamp: new Date().toISOString(),
+            isFullSync: false,
+            pushedCount: mutations.length,
+            comics: [],
+            boxes: [],
+            seriesTotals: [],
+            creatorTypes: [],
+            deletedComicIds: [],
+            deletedBoxIds: [],
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/');
+
+    // Open Wishlist Hunter via MobileBottomNav
+    const mobileBottomNav = page.locator('.md\\:hidden.fixed.bottom-0');
+    await expect(mobileBottomNav).toBeVisible({ timeout: 15000 });
+    await mobileBottomNav.getByRole('button', { name: /Hunter/i }).click();
+    await expect(page.getByRole('heading', { name: 'Top 60 Wishlist Hunt List' })).toBeVisible({ timeout: 15000 });
+
+    // Check off the first comic
+    const firstCard = page.locator('.grid.grid-cols-1.md\\:grid-cols-2.xl\\:grid-cols-3 > div').first();
+    await firstCard.getByRole('button', { name: /Mark Found/i }).click();
+
+    const purchaseBtn = page.getByRole('button', { name: /Mark Purchased \(1\)/i });
+    await expect(purchaseBtn).toBeVisible();
+    await expect(purchaseBtn).toBeEnabled();
+
+    // Verify Mark Purchased button sits completely above MobileBottomNav (not obscured)
+    const navBox = await mobileBottomNav.boundingBox();
+    const btnBox = await purchaseBtn.boundingBox();
+    expect(navBox).not.toBeNull();
+    expect(btnBox).not.toBeNull();
+    expect(btnBox!.y + btnBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
+
+    // Click Mark Purchased (1) without force:true to verify real tap hit-testing succeeds
+    await purchaseBtn.click();
+    await expect(page.getByText(/Purchased 1 comic/i)).toBeVisible({ timeout: 10000 });
+  });
 });
