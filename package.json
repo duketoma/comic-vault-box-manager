@@ -87,5 +87,10 @@
     "tesseract.js@7.0.0": true,
     "@firebase/util@1.15.3": true,
     "protobufjs@7.6.6": true
+  },
+  "overrides": {
+    "@capacitor-firebase/authentication": {
+      "firebase": "$firebase"
+    }
   }
 }
