@@ -38,6 +38,7 @@ interface NavbarProps {
   onOpenDriveModal: () => void;
   onOpenValuationModal?: () => void;
   onOpenStyleStudioModal?: () => void;
+  onOpenCommandPalette?: () => void;
   onOpenDataManagementModal?: () => void;
   onOpenCommunityVoting?: () => void;
   onOpenAdminPortal?: () => void;
@@ -65,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDriveModal,
   onOpenValuationModal,
   onOpenStyleStudioModal,
+  onOpenCommandPalette,
   onOpenDataManagementModal,
   onOpenCommunityVoting,
   onOpenAdminPortal,
@@ -211,7 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
                 className="w-full pl-9 pr-16 py-1.5 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-md text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600 focus:bg-white dark:focus:bg-slate-800 transition-all"
               />
-              {localSearch && (
+              {localSearch ? (
                 <button
                   type="button"
                   onClick={handleClear}
@@ -222,7 +224,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <X className="w-3.5 h-3.5" />
                   <span className="text-[11px] font-medium">Clear</span>
                 </button>
-              )}
+              ) : onOpenCommandPalette ? (
+                <button
+                  type="button"
+                  onClick={onOpenCommandPalette}
+                  data-testid="navbar-command-palette-hint"
+                  className="hidden sm:inline-flex items-center gap-0.5 absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700/80 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-slate-500 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-200 text-[10px] font-mono font-bold border border-slate-300/70 dark:border-slate-600 transition-colors cursor-pointer"
+                  title="Open Vault Command Palette (Ctrl+K)"
+                  aria-label="Open Command Palette"
+                >
+                  <span>Ctrl</span>
+                  <span>K</span>
+                </button>
+              ) : null}
             </div>
           </div>
 

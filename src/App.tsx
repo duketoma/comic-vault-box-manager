@@ -24,6 +24,7 @@ import {
   deleteLocalComicAndEnqueue,
   loadLocalSnapshot,
   LocalDbSnapshot,
+  putLocalBoxesDirect,
   putLocalComicsDirect,
   replaceAllLocalComicsAndEnqueue,
   saveLocalBoxAndEnqueue,
@@ -68,9 +69,23 @@ const ValuationManagerModal = React.lazy(() => import('./components/ValuationMan
 const StyleStudioModal = React.lazy(() => import('./components/StyleStudioModal').then(m => ({ default: m.StyleStudioModal })));
 const CommunityVotingModal = React.lazy(() => import('./components/CommunityVotingModal').then(m => ({ default: m.CommunityVotingModal })));
 const AdminPortalModal = React.lazy(() => import('./components/AdminPortalModal').then(m => ({ default: m.AdminPortalModal })));
+const VaultCommandPalette = React.lazy(() => import('./components/VaultCommandPalette').then(m => ({ default: m.VaultCommandPalette })));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'boxes' | 'challenge' | 'stats' | 'sheets' | 'database' | 'shopping'>('catalog');
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+
+  // Global Ctrl+K / Cmd+K shortcut for Vault Command Palette
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   const [statsSubTab, setStatsSubTab] = useState<'events' | 'series' | 'creators' | 'achievements' | 'general'>('events');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [challengePrefillEvent, setChallengePrefillEvent] = useState<string | null>(null);
@@ -301,7 +316,10 @@ export default function App() {
     }
     return loadCollection()
       .then(({ comics: storedComics, boxes: storedBoxes, seriesTotals: storedSeriesTotals, creatorTypes: storedCreatorTypes }) => {
-        if (storedBoxes.length > 0) setBoxes(storedBoxes);
+        if (storedBoxes.length > 0) {
+          setBoxes(storedBoxes);
+          void putLocalBoxesDirect(storedBoxes);
+        }
         if (storedSeriesTotals && storedSeriesTotals.length > 0) setSeriesTotals(storedSeriesTotals);
         if (storedCreatorTypes && storedCreatorTypes.length > 0) setCreatorTypes(storedCreatorTypes);
         if (storedComics.length > 0) {
@@ -914,6 +932,7 @@ export default function App() {
         onOpenDriveModal={() => setIsDriveModalOpen(true)}
         onOpenValuationModal={() => setIsValuationModalOpen(true)}
         onOpenStyleStudioModal={() => setIsStyleStudioModalOpen(true)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onOpenDataManagementModal={() => setIsDataModalOpen(true)}
         onOpenCommunityVoting={() => setIsVotingModalOpen(true)}
         onOpenAdminPortal={isAdmin ? () => setIsAdminPortalOpen(true) : undefined}
@@ -1196,6 +1215,32 @@ export default function App() {
             isOpen={isVotingModalOpen}
             onClose={() => setIsVotingModalOpen(false)}
             onOpenAdminPortal={isAdmin ? () => setIsAdminPortalOpen(true) : undefined}
+          />
+        )}
+
+        {isCommandPaletteOpen && (
+          <VaultCommandPalette
+            isOpen={isCommandPaletteOpen}
+            onClose={() => setIsCommandPaletteOpen(false)}
+            comics={comics}
+            boxes={boxes}
+            activeSkin={uiStylePrefs.skin}
+            darkMode={darkMode}
+            onSelectComic={setSelectedComic}
+            onNavigateTab={handleSetActiveTab}
+            onSelectSkin={(skin) => setUiStylePrefs((prev) => ({ ...prev, skin }))}
+            onToggleDarkMode={handleToggleDarkMode}
+            onOpenAddModal={() => {
+              setInitialScanMode(false);
+              setIsAddModalOpen(true);
+            }}
+            onOpenScanModal={() => {
+              setInitialScanMode(true);
+              setIsAddModalOpen(true);
+            }}
+            onOpenValuationModal={() => setIsValuationModalOpen(true)}
+            onOpenDriveModal={() => setIsDriveModalOpen(true)}
+            onOpenStyleStudioModal={() => setIsStyleStudioModalOpen(true)}
           />
         )}
 

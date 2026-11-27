@@ -209,6 +209,13 @@ test.describe('Swappable Comic UI Themes & Dynamic Motion FX Studio', () => {
     await expect(readBurst).toContainText('Moon Knight #1');
 
     // 2. Include Wishlist in Catalog and open Daredevil #1 (1 of 5 in series) to trigger COLLECTED! 💥
+    const filterDrawerToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if (await filterDrawerToggle.isVisible()) {
+      const expanded = await filterDrawerToggle.getAttribute('aria-expanded');
+      if (expanded !== 'true') {
+        await filterDrawerToggle.click();
+      }
+    }
     const wishlistFilterSelect = page.locator('label:has-text("Wishlist Filter") + select');
     await wishlistFilterSelect.selectOption('include');
 

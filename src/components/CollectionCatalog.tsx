@@ -26,9 +26,12 @@ import {
 } from '../utils/catalogFilterUtils';
 import { CatalogSortModal } from './CatalogSortModal';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
+import { VaultSpotlightBanner } from './VaultSpotlightBanner';
+import { LongboxFlipView } from './LongboxFlipView';
 import { 
   Grid3X3, 
   List, 
+  GalleryHorizontalEnd,
   Filter, 
   BookOpen, 
   Star, 
@@ -235,7 +238,8 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
   );
 
   const viewMode = activeFilters.viewMode;
-  const setViewMode = (mode: 'grid' | 'table') => updateFilter('viewMode', mode);
+  const setViewMode = (mode: 'grid' | 'table' | 'flip') => updateFilter('viewMode', mode);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState<boolean>(false);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [visibleCount, setVisibleCount] = useState<number>(() => (viewMode === 'grid' ? CHUNK_SIZE_GRID : CHUNK_SIZE_TABLE));
@@ -692,31 +696,89 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
     yearRange[0] !== MIN_CATALOG_PUBLISH_YEAR ||
     yearRange[1] !== MAX_CATALOG_PUBLISH_YEAR;
 
+  const activeFilterChips: { key: string; label: string; onClear: () => void }[] = [];
+  if (selectedSeries !== 'all') activeFilterChips.push({ key: 'series', label: `Series: ${selectedSeries}`, onClear: () => setSelectedSeries('all') });
+  if (selectedGenre !== 'all') activeFilterChips.push({ key: 'genre', label: `Genre: ${selectedGenre}`, onClear: () => setSelectedGenre('all') });
+  if (selectedPublisher !== 'all') activeFilterChips.push({ key: 'publisher', label: `Publisher: ${selectedPublisher}`, onClear: () => setSelectedPublisher('all') });
+  if (selectedAuthor !== 'all') activeFilterChips.push({ key: 'author', label: `Creator: ${selectedAuthor}`, onClear: () => setSelectedAuthor('all') });
+  if (selectedCharacter !== 'all') activeFilterChips.push({ key: 'character', label: `Character: ${selectedCharacter}`, onClear: () => setSelectedCharacter('all') });
+  if (selectedBoxId !== 'all') activeFilterChips.push({ key: 'box', label: selectedBoxId === '0' ? 'Box #0 (Staging)' : `Box #${selectedBoxId}`, onClear: () => setSelectedBoxId('all') });
+  if (selectedStatus !== 'all') activeFilterChips.push({ key: 'status', label: `Status: ${selectedStatus}`, onClear: () => setSelectedStatus('all') });
+  if (selectedWishlistScope !== 'exclude') activeFilterChips.push({ key: 'wishlist', label: selectedWishlistScope === 'only' ? 'Wishlist Only' : 'Include Wishlist', onClear: () => setSelectedWishlistScope('exclude') });
+  if (selectedFormat !== 'all') activeFilterChips.push({ key: 'format', label: `Format: ${selectedFormat}`, onClear: () => setSelectedFormat('all') });
+  if (selectedEvent !== 'all') activeFilterChips.push({ key: 'event', label: `Event: ${selectedEvent}`, onClear: () => setSelectedEvent('all') });
+  if (startDate || endDate) activeFilterChips.push({ key: 'date', label: `Date: ${startDate || '...'} → ${endDate || '...'}`, onClear: () => { setStartDate(''); setEndDate(''); } });
+  const activeDrawerFilterCount = activeFilterChips.length;
+
   return (
-    <div className="space-y-6">
-      
+    <div className="space-y-5">
+      {/* Vault Spotlight Hero Banner (Collapsible, defaults to expanded) */}
+      {!isLoading && !searchQuery.trim() && selectedSeries === 'all' && (
+        <VaultSpotlightBanner
+          comics={comics}
+          seriesRunCounts={seriesRunCounts}
+          onSelectComic={onSelectComic}
+          uiStylePrefs={uiStylePrefs}
+          onQuickFilter={(filterType) => {
+            if (filterType === 'complete') {
+              setSelectedRunProgress(selectedRunProgress === 'complete' ? 'all' : 'complete');
+            } else if (filterType === 'unread') {
+              setSelectedStatus(selectedStatus === 'Unread' ? 'all' : 'Unread');
+            } else if (filterType === 'fullArt') {
+              setOnlyFullArt(!onlyFullArt);
+            }
+          }}
+        />
+      )}
+
       {/* Top Filter Toolbar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm transition-colors">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 flex-wrap">
             <Filter className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-            <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Collection Filters</h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
-              Showing <strong className="text-slate-900 dark:text-slate-100">{visibleComics.length}</strong> of <strong className="text-slate-900 dark:text-slate-100">{filteredComics.length}</strong> comics ({totalOwnedCount} Owned, {totalWishlistCount} Wishlist)
+            <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Collection Catalog</h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400 sm:ml-2">
+              Showing <strong className="text-slate-900 dark:text-slate-100">{viewMode === 'flip' ? filteredComics.length : visibleComics.length}</strong> of <strong className="text-slate-900 dark:text-slate-100">{filteredComics.length}</strong> comics ({totalOwnedCount} Owned, {totalWishlistCount} Wishlist)
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {/* Collapsible Filter Drawer Toggle */}
+            <button
+              type="button"
+              data-testid="catalog-filter-drawer-toggle"
+              onClick={() => setIsFilterDrawerOpen((prev) => !prev)}
+              aria-expanded={isFilterDrawerOpen}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                isFilterDrawerOpen || activeDrawerFilterCount > 0
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 shadow-2xs'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeDrawerFilterCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[10px] font-black">
+                  {activeDrawerFilterCount}
+                </span>
+              )}
+              {isFilterDrawerOpen ? (
+                <ChevronUp className="w-3.5 h-3.5 opacity-75" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 opacity-75" />
+              )}
+            </button>
+
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
-                className="flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium px-2.5 py-1 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
               >
                 <X className="w-3 h-3" /> Reset Filters
               </button>
             )}
 
-            {/* View Switcher */}
+            {/* View Switcher (Grid | Table | Longbox Flip) */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
               <button
                 onClick={() => setViewMode('grid')}
@@ -724,6 +786,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   viewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
                 title="Grid View"
+                aria-label="Grid View"
               >
                 <Grid3X3 className="w-4 h-4" />
               </button>
@@ -733,8 +796,20 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
                   viewMode === 'table' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
                 title="Table List View"
+                aria-label="Table List View"
               >
                 <List className="w-4 h-4" />
+              </button>
+              <button
+                data-testid="view-mode-flip"
+                onClick={() => setViewMode('flip')}
+                className={`p-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === 'flip' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title="Longbox Cover-Flow Flip View"
+                aria-label="Longbox Flip View"
+              >
+                <GalleryHorizontalEnd className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -817,8 +892,31 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
           )}
         </div>
 
-        {/* Filter Controls Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pt-3">
+        {/* Active Filter Chips Strip (visible even when filter drawer is collapsed) */}
+        {activeFilterChips.length > 0 && (
+          <div className="pt-2.5 flex items-center flex-wrap gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mr-0.5">Active:</span>
+            {activeFilterChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onClear}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-800 dark:text-indigo-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition-colors cursor-pointer"
+                title={`Remove ${chip.label} filter`}
+              >
+                <span>{chip.label}</span>
+                <X className="w-3 h-3" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Collapsible Filter Controls Drawer */}
+        {isFilterDrawerOpen && (
+        <div
+          data-testid="catalog-filter-drawer"
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pt-3 mt-2 border-t border-slate-100 dark:border-slate-800"
+        >
           
           {/* Series Run */}
           <div>
@@ -1001,6 +1099,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
           </div>
 
         </div>
+        )}
       </div>
 
       {/* Interactive Multi-Sort Chain Toolbar */}
@@ -1397,7 +1496,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
 
       {/* Catalog Display */}
       {isLoading || !isSettled ? (
-        <CatalogSkeletonGrid viewMode={viewMode} count={viewMode === 'grid' ? CHUNK_SIZE_GRID : 20} />
+        <CatalogSkeletonGrid viewMode={viewMode === 'table' ? 'table' : 'grid'} count={viewMode === 'table' ? 20 : CHUNK_SIZE_GRID} />
       ) : filteredComics.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm">
           <BookOpen className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
@@ -1414,6 +1513,16 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
             </button>
           )}
         </div>
+      ) : viewMode === 'flip' ? (
+        /* LONGBOX COVER-FLOW FLIP VIEW */
+        <LongboxFlipView
+          comics={filteredComics}
+          boxes={boxes}
+          onSelectComic={onSelectComic}
+          onQuickStatusChange={onQuickStatusChange}
+          onOpenFullArt={(comic) => setFullArtComic(comic)}
+          uiStylePrefs={uiStylePrefs}
+        />
       ) : viewMode === 'grid' ? (
         
         /* GRID VIEW */
@@ -2006,7 +2115,7 @@ export const CollectionCatalog: React.FC<CollectionCatalogProps> = ({
       )}
 
       {/* Progressive Loading Sentinel / Progress Indicator */}
-      {!isLoading && isSettled && filteredComics.length > 0 && (
+      {!isLoading && isSettled && viewMode !== 'flip' && filteredComics.length > 0 && (
         <div className="w-full">
           {hasMore ? (
             <div

@@ -23,7 +23,7 @@ export interface CatalogFilters {
   endDate: string;
   yearRange: [number, number];
   onlyFullArt: boolean;
-  viewMode: 'grid' | 'table';
+  viewMode: 'grid' | 'table' | 'flip';
 }
 
 export const DEFAULT_CATALOG_FILTERS: CatalogFilters = {
@@ -95,7 +95,7 @@ export function loadSavedCatalogFilters(): CatalogFilters {
       endDate: typeof parsed.endDate === 'string' ? parsed.endDate : '',
       yearRange,
       onlyFullArt: Boolean(parsed.onlyFullArt),
-      viewMode: parsed.viewMode === 'table' ? 'table' : 'grid',
+      viewMode: parsed.viewMode === 'table' || parsed.viewMode === 'flip' ? parsed.viewMode : 'grid',
     };
   } catch (err) {
     console.error('Failed to load saved catalog filters:', err);

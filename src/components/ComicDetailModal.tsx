@@ -56,8 +56,12 @@ import {
   RotateCcw,
   Vote,
   Upload,
-  ChevronDown
+  ChevronDown,
+  TrendingUp,
+  TrendingDown,
+  Boxes
 } from 'lucide-react';
+import { getSlabNumericGradeLabel, isComicHolofoilEligible } from '../utils/uiThemeConfig';
 import { submitProposal } from '../services/proposalClientService';
 
 interface ComicDetailModalProps {
@@ -111,6 +115,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 }) => {
   const { isAdmin, isVip } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [activeDossierTab, setActiveDossierTab] = useState<'overview' | 'creators' | 'market' | 'art'>('overview');
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverActionMessage, setCoverActionMessage] = useState<string | null>(null);
   const [showCoverMenu, setShowCoverMenu] = useState(false);
@@ -179,6 +184,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
   const resetFormFields = () => {
     if (!comic) return;
+    setActiveDossierTab('overview');
     setTitle(comic.title || '');
     setIssueNumber(comic.issueNumber || '1');
     setReadingStatus(comic.readingStatus || 'Unread');
@@ -828,26 +834,97 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
 
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
-          {/* Top Image & Hero Overlay */}
-          <div className="relative bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start">
+          {/* Top Image & Cinematic Ambient-Backdrop Hero */}
+          {(() => {
+            const heroCoverSrc =
+              heroViewMode === 'full' && (coverImageFull || comic.coverImageFull)
+                ? formatDriveImageUrl(coverImageFull || comic.coverImageFull!)
+                : getComicCoverUrl(coverImage || comic.coverImage);
+            const heroEstVal =
+              estimatedValue.trim() !== '' && !Number.isNaN(Number(estimatedValue))
+                ? Number(estimatedValue)
+                : comic.estimatedValue != null && !Number.isNaN(Number(comic.estimatedValue))
+                  ? Number(comic.estimatedValue)
+                  : null;
+            const heroPrevVal =
+              previousEstimatedValue != null && !Number.isNaN(Number(previousEstimatedValue))
+                ? Number(previousEstimatedValue)
+                : null;
+            const heroDeltaPct =
+              heroEstVal !== null && heroPrevVal !== null && heroPrevVal > 0
+                ? ((heroEstVal - heroPrevVal) / heroPrevVal) * 100
+                : null;
+            const heroSlabGrade = getSlabNumericGradeLabel(condition, tags, notes);
+            const heroHolofoil = isComicHolofoilEligible(
+              {
+                estimatedValue: heroEstVal ?? undefined,
+                condition,
+                issueNumber,
+                coverImageFull: coverImageFull || comic.coverImageFull,
+                tags,
+                notes,
+              },
+              'keys'
+            );
+
+            return (
+          <div
+            data-testid="comic-dossier-hero"
+            className="relative overflow-hidden bg-slate-50 dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-start"
+          >
+            {/* Ambient Cover-Matched Blurred Backdrop */}
+            {!isPlaceholderCover && (
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+                <img
+                  src={heroCoverSrc}
+                  alt=""
+                  onError={handleImageError}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover blur-3xl scale-125 opacity-25 dark:opacity-35 saturate-150"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-white/65 via-white/80 to-white dark:from-slate-900/55 dark:via-slate-900/80 dark:to-slate-900" />
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleModalClose}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-colors cursor-pointer"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white p-1.5 rounded-lg bg-white/70 dark:bg-slate-800/70 hover:bg-white dark:hover:bg-slate-700 backdrop-blur-xs border border-slate-200/70 dark:border-slate-700/70 transition-colors cursor-pointer"
               title="Close (Esc)"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className={`flex flex-col items-center shrink-0 space-y-2 ${isViewingFull ? 'w-60 sm:w-72' : 'w-36 sm:w-40'}`}>
-              <div className="relative group">
+            <div className={`relative z-10 flex flex-col items-center shrink-0 space-y-2 ${isViewingFull ? 'w-60 sm:w-72' : 'w-36 sm:w-40'}`}>
+              <div
+                className="relative group comic-tilt-wrapper rounded-xl overflow-hidden shadow-xl border border-slate-200/90 dark:border-white/15"
+                onPointerMove={(e) => {
+                  const el = e.currentTarget;
+                  const rect = el.getBoundingClientRect();
+                  const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                  const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                  el.setAttribute('data-tilting', 'true');
+                  el.style.setProperty('--rx', `${((0.5 - py) * 12).toFixed(2)}deg`);
+                  el.style.setProperty('--ry', `${((px - 0.5) * 12).toFixed(2)}deg`);
+                  el.style.setProperty('--glare-x', `${Math.round(px * 100)}%`);
+                  el.style.setProperty('--glare-y', `${Math.round(py * 100)}%`);
+                }}
+                onPointerLeave={(e) => {
+                  const el = e.currentTarget;
+                  el.removeAttribute('data-tilting');
+                  el.style.removeProperty('--rx');
+                  el.style.removeProperty('--ry');
+                }}
+              >
+                {heroSlabGrade && !isViewingFull && (
+                  <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-2 py-0.5 text-[10px] font-black flex items-center justify-between tracking-tight">
+                    <span>{heroSlabGrade.grade} {heroSlabGrade.code}</span>
+                    <span className="uppercase opacity-80 truncate max-w-[80px]">{condition}</span>
+                  </div>
+                )}
                 <img
-                  src={
-                    heroViewMode === 'full' && (coverImageFull || comic.coverImageFull)
-                      ? formatDriveImageUrl(coverImageFull || comic.coverImageFull!)
-                      : getComicCoverUrl(coverImage || comic.coverImage)
-                  }
+                  src={heroCoverSrc}
                   alt={comic.title}
                   onError={handleImageError}
                   referrerPolicy="no-referrer"
@@ -855,12 +932,14 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                     heroViewMode === 'full' && (coverImageFull || comic.coverImageFull)
                       ? 'w-60 h-40 sm:w-72 sm:h-48 object-contain bg-black/40'
                       : 'w-36 h-54 sm:w-40 sm:h-60 object-cover'
-                  } rounded-xl shadow-md border border-slate-200 dark:border-slate-700 transition-all cursor-pointer`}
+                  } transition-all cursor-pointer block`}
                   onClick={() => {
                     if (comic.coverImageFull) setShowFullArtModal(true);
                   }}
                   title={comic.coverImageFull ? 'Click to open full-art showcase' : undefined}
                 />
+                <div className="comic-mylar-glare" />
+                {heroHolofoil && <div className="comic-holofoil-overlay" />}
 
                 {(coverImageFull || comic.coverImageFull) && (
                   <button
@@ -869,7 +948,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
                       e.stopPropagation();
                       setShowFullArtModal(true);
                     }}
-                    className="absolute bottom-2 right-2 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold px-2 py-1 rounded-lg shadow-lg flex items-center gap-1 transition-all cursor-pointer"
+                    className="absolute bottom-2 right-2 z-10 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold px-2 py-1 rounded-lg shadow-lg flex items-center gap-1 transition-all cursor-pointer"
                     title="Open Full Art Showcase"
                   >
                     <Sparkles className="w-3 h-3" />
@@ -1053,36 +1132,85 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               )}
             </div>
 
-            <div className="flex-1 space-y-2 text-center sm:text-left min-w-0 w-full">
+            <div className="relative z-10 flex-1 space-y-2.5 text-center sm:text-left min-w-0 w-full">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:pr-8">
-                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-[11px] font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-white/80 dark:bg-slate-800/90 backdrop-blur-xs text-slate-800 dark:text-slate-200 border border-slate-300/80 dark:border-slate-700 text-[11px] font-bold shadow-2xs">
                   {comic.publisher} • {formatPublicationDate(publicationYear, publicationMonth)}
                 </span>
                 {(isEditing ? event : comic.event) && (
-                  <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span className="bg-purple-100/90 dark:bg-purple-950/75 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
                     ⚡ Event: {isEditing ? event : comic.event}
                   </span>
                 )}
               </div>
 
-              <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-tight sm:pr-8">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight sm:pr-8 drop-shadow-2xs">
                 {isEditing ? (title || 'Untitled Comic') : (comic.title || comic.fullTitle || comic.seriesName || 'Untitled Comic')}{' '}
                 {!isYearDesignatedAnnual(comic) && (
-                  <span className="text-slate-600 dark:text-slate-400">#{isEditing ? issueNumber : comic.issueNumber}</span>
+                  <span className="text-indigo-600 dark:text-indigo-300">#{isEditing ? issueNumber : comic.issueNumber}</span>
                 )}
               </h2>
 
               {(isEditing ? seriesName : comic.seriesName) && (
-                <p className="text-xs text-indigo-700 dark:text-indigo-400 font-semibold">
+                <p className="text-xs text-indigo-700 dark:text-indigo-300 font-bold">
                   {isEditing ? seriesName : comic.seriesName}
                 </p>
               )}
 
               {(isEditing ? volume : comic.volume) && !(isEditing ? seriesName : comic.seriesName) && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
                   {isEditing ? volume : comic.volume}
                 </p>
               )}
+
+              {/* Collector Stat Pill Strip */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-0.5">
+                {heroEstVal !== null && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-300 text-xs font-black shadow-2xs">
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>{heroEstVal.toFixed(2)}</span>
+                    {heroDeltaPct !== null && Math.abs(heroDeltaPct) >= 0.5 && (
+                      <span className={`inline-flex items-center text-[10px] font-bold ml-0.5 ${heroDeltaPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {heroDeltaPct >= 0 ? <TrendingUp className="w-3 h-3 mr-0.5" /> : <TrendingDown className="w-3 h-3 mr-0.5" />}
+                        {heroDeltaPct >= 0 ? '+' : ''}{heroDeltaPct.toFixed(0)}%
+                      </span>
+                    )}
+                  </span>
+                )}
+
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/85 dark:bg-slate-800/85 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold shadow-2xs">
+                  <Boxes className="w-3.5 h-3.5 text-sky-500" />
+                  <span>
+                    {readingStatus === 'Wishlist' || boxId < 0
+                      ? 'Wishlist'
+                      : boxId === 0
+                      ? 'Box #0 (Staging)'
+                      : `Box #${boxId}`}
+                  </span>
+                </span>
+
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-bold shadow-2xs ${
+                    readingStatus === 'Read'
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                      : readingStatus === 'Reading'
+                      ? 'bg-amber-50/90 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                      : readingStatus === 'Wishlist'
+                      ? 'bg-rose-50/90 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                      : 'bg-indigo-50/90 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{readingStatus}</span>
+                </span>
+
+                {userRating > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-black shadow-2xs">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                    <span>{userRating}/5</span>
+                  </span>
+                )}
+              </div>
 
               {/* Series Run Collection Progress Widget */}
               {seriesInfo && seriesInfo.totalPublished > 0 && (
@@ -1164,11 +1292,68 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               )}
             </div>
           </div>
+            );
+          })()}
+
+        {/* Segmented Dossier Navigation Tabs (View Mode) */}
+        {!isEditing && (
+          <div
+            role="tablist"
+            aria-label="Comic dossier sections"
+            data-testid="comic-dossier-tabs"
+            className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center gap-1 overflow-x-auto scrollbar-none"
+          >
+            {([
+              { id: 'overview', label: 'Overview' },
+              {
+                id: 'creators',
+                label: 'Creators & Cast',
+                count: contributions.length + characters.length,
+              },
+              { id: 'market', label: 'Market & Grading' },
+              { id: 'art', label: 'Cover Art' },
+            ] as const).map((tab) => {
+              const isActive = activeDossierTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  data-testid={`dossier-tab-${tab.id}`}
+                  onClick={() => setActiveDossierTab(tab.id)}
+                  className={`relative px-3.5 py-2.5 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    isActive
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {'count' in tab && tab.count > 0 && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                        isActive
+                          ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                  {isActive && (
+                    <span className="absolute bottom-0 inset-x-1.5 h-0.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Modal Main Content */}
         <div className="p-6 space-y-5">
           
-          {/* Quick Edit Controls */}
+          {/* Quick Edit Controls (Overview tab or Edit Mode) */}
+          {(isEditing || activeDossierTab === 'overview') && (
           <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-4">
             <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
@@ -1457,8 +1642,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               </div>
             )}
           </div>
+          )}
 
-          {/* Creators & Characters Card */}
+          {/* Creators & Characters Card (Creators tab or Edit Mode) */}
+          {(isEditing || activeDossierTab === 'creators') && (
           <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-4">
             {/* Creators & Contributions Section */}
             <div className="space-y-2">
@@ -1660,9 +1847,10 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               )}
             </div>
           </div>
+          )}
 
-          {/* Issue Summary / Notes */}
-          {comic.notes && (
+          {/* Issue Summary / Notes (Overview tab or Edit Mode) */}
+          {(isEditing || activeDossierTab === 'overview') && comic.notes && (
             <div>
               <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Issue Notes & Summary</h4>
               <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 p-3 rounded-xl">
@@ -1671,7 +1859,48 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
             </div>
           )}
 
-          {/* Metadata Grid */}
+          {/* Dedicated Market & Grading ROI Banner (Market tab in View Mode) */}
+          {!isEditing && activeDossierTab === 'market' && (() => {
+            const pPrice = comic.purchasePrice != null && !Number.isNaN(Number(comic.purchasePrice)) ? Number(comic.purchasePrice) : null;
+            const eVal = comic.estimatedValue != null && !Number.isNaN(Number(comic.estimatedValue)) ? Number(comic.estimatedValue) : null;
+            const gain = pPrice !== null && eVal !== null ? eVal - pPrice : null;
+            const roiPct = pPrice !== null && pPrice > 0 && gain !== null ? (gain / pPrice) * 100 : null;
+            const gradeBadge = getSlabNumericGradeLabel(comic.condition, comic.tags, comic.notes);
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/35 border border-emerald-200 dark:border-emerald-800/70">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Market Estimate</div>
+                  <div className="text-xl font-black text-emerald-800 dark:text-emerald-300 mt-1">
+                    {eVal !== null ? `$${eVal.toFixed(2)}` : 'Unvalued'}
+                  </div>
+                  <div className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
+                    {valueSource ? `Source: ${valueSource}` : 'Click Refresh below to fetch comps'}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-800/70">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Condition & Grade</div>
+                  <div className="text-xl font-black text-amber-800 dark:text-amber-300 mt-1">
+                    {gradeBadge ? `${gradeBadge.grade} ${gradeBadge.code}` : (comic.condition || 'Near Mint')}
+                  </div>
+                  <div className="text-[10px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+                    {comic.condition || 'Near Mint'} • {comic.format || 'Single Issue'}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/35 border border-indigo-200 dark:border-indigo-800/70">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Collector ROI</div>
+                  <div className="text-xl font-black text-indigo-800 dark:text-indigo-300 mt-1">
+                    {gain !== null ? `${gain >= 0 ? '+' : '-'}$${Math.abs(gain).toFixed(2)}` : 'N/A'}
+                  </div>
+                  <div className="text-[10px] text-indigo-700/80 dark:text-indigo-400/80 mt-0.5">
+                    {roiPct !== null ? `${roiPct >= 0 ? '+' : ''}${roiPct.toFixed(0)}% vs. $${pPrice!.toFixed(2)} paid` : 'Add purchase price to track ROI'}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Metadata Grid (Overview tab, Market tab, or Edit Mode) */}
+          {(isEditing || activeDossierTab === 'overview' || activeDossierTab === 'market') && (
           <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
             {isEditing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[0.95fr_1.05fr_0.7fr_0.9fr_2.05fr] gap-2.5 items-start">
@@ -1956,8 +2185,84 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               </div>
             )}
           </div>
+          )}
 
-          {/* Tags Section */}
+          {/* Cover Art Studio Tab (View Mode) */}
+          {!isEditing && activeDossierTab === 'art' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Front Cover</span>
+                    <button
+                      type="button"
+                      onClick={() => setCropperTargetField('front')}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Crop className="w-3 h-3" />
+                      <span>Scan / Crop</span>
+                    </button>
+                  </div>
+                  <div className="aspect-[2/3] max-h-72 mx-auto rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900/20 shadow-md">
+                    <img
+                      src={getComicCoverUrl(coverImage || comic.coverImage)}
+                      alt={comic.title}
+                      onError={handleImageError}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2.5 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Full Wraparound Art</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCropperTargetField('full')}
+                      className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Crop className="w-3 h-3" />
+                      <span>Scan / Crop</span>
+                    </button>
+                  </div>
+                  {(coverImageFull || comic.coverImageFull) ? (
+                    <div className="space-y-2">
+                      <div className="aspect-[4/3] max-h-60 mx-auto rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800 bg-black/50 shadow-md">
+                        <img
+                          src={formatDriveImageUrl(coverImageFull || comic.coverImageFull!)}
+                          alt={`${comic.title} full art`}
+                          onError={handleImageError}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-contain cursor-pointer"
+                          onClick={() => setShowFullArtModal(true)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowFullArtModal(true)}
+                        className="w-full py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Open Full-Screen Art Showcase</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-h-[160px] flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-500 dark:text-slate-400 gap-2">
+                      <ImageIcon className="w-6 h-6 opacity-50" />
+                      <span>No wraparound spread saved yet.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tags Section (Overview tab or Edit Mode) */}
+          {(isEditing || activeDossierTab === 'overview') && (
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
@@ -2044,6 +2349,7 @@ export const ComicDetailModal: React.FC<ComicDetailModalProps> = ({
               )
             )}
           </div>
+          )}
 
         </div>
         {/* End of Modal Main Content */}

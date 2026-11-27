@@ -335,6 +335,50 @@ export async function putLocalComicsDirect(comics: ComicBook[]): Promise<void> {
 }
 
 /**
+ * Directly populates storage boxes in IndexedDB without enqueuing them to sync_outbox
+ * (used when hydrating from backend loadCollection so delta syncs never drop boxes).
+ */
+export async function putLocalBoxesDirect(boxes: StorageBox[]): Promise<void> {
+  if (boxes.length === 0) return;
+  const db = await openLocalDb();
+  const tx = db.transaction([STORE_BOXES, STORE_OUTBOX], 'readwrite');
+  const boxStore = tx.objectStore(STORE_BOXES);
+  const outboxStore = tx.objectStore(STORE_OUTBOX);
+
+  const [existingBoxes, pendingOutbox] = await Promise.all([
+    getAllFromStore<StorageBox>(boxStore),
+    getAllFromStore<SyncMutation>(outboxStore),
+  ]);
+
+  const pendingUpsertIds = new Set<number>();
+  for (const mut of pendingOutbox) {
+    if (mut.entityType === 'box' && mut.operation === 'UPSERT') {
+      pendingUpsertIds.add(Number(mut.entityId));
+    }
+  }
+
+  const validBoxes = boxes.filter((b) => b && Number(b.id) > 0);
+  const incomingIds = new Set(validBoxes.map((b) => Number(b.id)));
+
+  for (const existing of existingBoxes) {
+    if (!incomingIds.has(Number(existing.id)) && !pendingUpsertIds.has(Number(existing.id))) {
+      boxStore.delete(existing.id);
+    }
+  }
+
+  for (const b of validBoxes) {
+    if (!pendingUpsertIds.has(Number(b.id))) {
+      boxStore.put(b);
+    }
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
  * Saves a single comic to IndexedDB and enqueues an UPSERT mutation in sync_outbox.
  */
 export async function saveLocalComicAndEnqueue(

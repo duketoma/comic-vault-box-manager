@@ -306,7 +306,8 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
     await expect(coverMenu).toHaveCount(0);
     await expect(modal).toBeVisible();
 
-    // 4. Creators & Role Contributions orders Writer and Penciller first
+    // 4. Creators & Role Contributions orders Writer and Penciller first (in Creators & Cast dossier tab)
+    await modal.getByTestId('dossier-tab-creators').click();
     const creatorNames = await modal
       .locator('h4:has-text("Comic Creators & Role Contributions")')
       .locator('..')
@@ -320,6 +321,9 @@ test.describe('Comic Detail Modal Large Character & Creator Overflow Handling', 
       'Gregory Wright',
       'Bobbie Chase',
     ]);
+
+    // Switch back to Overview tab for Metadata Grid assertion
+    await modal.getByTestId('dossier-tab-overview').click();
 
     // 5. Copies Owned appears in the bottom Metadata Grid in both View and Edit modes
     const metadataGrid = modal.locator('div').filter({ hasText: /^Condition/ }).filter({ hasText: /Est\. Value/ }).first();
