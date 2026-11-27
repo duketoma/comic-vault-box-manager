@@ -11,6 +11,12 @@ test.describe('Catalog View - Wishlist Card Overlay Badges', () => {
     const catalogTab = page.getByRole('button', { name: /Catalog/i });
     await catalogTab.click();
 
+    // Open collapsible Filter Drawer
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
+
     // Filter by Wishlist Scope to isolate wishlist cards
     const wishlistSelect = page.locator('label:has-text("Wishlist Filter") + select');
     await expect(wishlistSelect).toBeVisible();
@@ -49,6 +55,12 @@ test.describe('Catalog View - Wishlist Card Overlay Badges', () => {
     // Ensure we are on the Catalog tab
     const catalogTab = page.getByRole('button', { name: /Catalog/i });
     await catalogTab.click();
+
+    // Open collapsible Filter Drawer
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
 
     // Filter by Read status
     const statusSelect = page.locator('label:has-text("Reading Status") + select');

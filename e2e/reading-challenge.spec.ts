@@ -372,7 +372,7 @@ test.describe('Reading Challenge Feature', () => {
     await challengeTab.click();
 
     // Verify queue displays comic item
-    await expect(page.getByText('Batman: Year One #404')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Batman: Year One #404' })).toBeVisible();
 
     // Click the comic cover thumbnail
     const comicThumbnail = page.locator('div[title="Click to view comic details"]').first();

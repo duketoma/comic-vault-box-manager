@@ -279,7 +279,7 @@ test.describe('Catalog View Multi-Sort and Annuals Separation', () => {
     await closeBtn.click();
 
     // Verify the breadcrumb bar updated
-    await expect(page.locator('text=Release Date').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Publication Year \/ Date/i }).first()).toBeVisible();
   });
 
   test('Preset dropdown and direction button in toolbar update sort hierarchy', async ({ page }) => {

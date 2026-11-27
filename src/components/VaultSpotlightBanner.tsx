@@ -338,12 +338,12 @@ export const VaultSpotlightBanner: React.FC<VaultSpotlightBannerProps> = ({
 
         {/* Right: Grail Spotlight Card */}
         {activeGrail && (
-          <div className="lg:col-span-5 w-full h-full flex items-center gap-4 bg-white/7 hover:bg-white/11 backdrop-blur-md border border-white/12 rounded-2xl p-3.5 sm:p-4 transition-all group">
+          <div className="lg:col-span-5 w-full h-full flex items-center gap-4 bg-white/7 hover:bg-white/11 backdrop-blur-md border border-white/12 rounded-2xl p-3.5 sm:p-4 transition-all group/grail">
             {/* Tilted Cover */}
             <button
               type="button"
               onClick={() => onSelectComic(activeGrail)}
-              className="relative w-20 sm:w-24 aspect-[2/3] shrink-0 rounded-lg overflow-hidden shadow-xl border border-white/20 -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+              className="relative w-20 sm:w-24 aspect-[2/3] shrink-0 rounded-lg overflow-hidden shadow-xl border border-white/20 -rotate-2 group-hover/grail:rotate-0 group-hover/grail:scale-105 transition-transform duration-300 cursor-pointer"
               title={`Inspect ${activeGrail.title || activeGrail.seriesName || 'Grail Comic'}`}
             >
               <img
@@ -388,7 +388,7 @@ export const VaultSpotlightBanner: React.FC<VaultSpotlightBannerProps> = ({
                 onClick={() => onSelectComic(activeGrail)}
                 className="text-left block w-full cursor-pointer"
               >
-                <div className="font-black text-sm sm:text-base text-white truncate group-hover:text-amber-200 transition-colors">
+                <div className="font-black text-sm sm:text-base text-white truncate group-hover/grail:text-amber-200 transition-colors">
                   {activeGrail.title || activeGrail.fullTitle || activeGrail.seriesName || 'Untitled'}{' '}
                   <span className="text-indigo-300">#{activeGrail.issueNumber}</span>
                 </div>

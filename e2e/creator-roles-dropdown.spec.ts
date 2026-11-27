@@ -131,7 +131,8 @@ test.describe('Comic Detail Modal - Comprehensive Creator Role Types Dropdown', 
     // Verify edit mode exited (button says "Edit Values" again)
     await expect(modal.getByRole('button', { name: /Edit Values/i })).toBeVisible({ timeout: 5000 });
 
-    // Verify badges remain on the comic after saving
+    // Verify badges remain on the comic after saving (inside Creators & Cast dossier tab)
+    await modal.getByTestId('dossier-tab-creators').click();
     await expect(modal.locator('.inline-flex').filter({ hasText: testArtistName }).first()).toBeVisible();
     await expect(modal.locator('.inline-flex').filter({ hasText: testCustomName }).first()).toBeVisible();
   });

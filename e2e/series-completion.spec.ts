@@ -45,8 +45,14 @@ test.describe('Series Collection Completion Tracking', () => {
     // Click "100% Full Runs" filter
     await fullRunsBtn.click();
     
+    // Open collapsible Filter Drawer so Series Run dropdown is visible
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
+
     // Series dropdown should now be filtered or available
-    const seriesSelect = page.locator('select').filter({ hasText: /Series Run/i }).or(page.locator('select').nth(1));
+    const seriesSelect = page.locator('label:has-text("Series Run") + select');
     await expect(seriesSelect).toBeVisible();
 
     // Select the first complete series from the dropdown

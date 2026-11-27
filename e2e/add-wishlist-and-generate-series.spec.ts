@@ -143,7 +143,11 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     // Modal should close
     await expect(modal).not.toBeVisible({ timeout: 10000 });
 
-    // Filter by Wishlist Scope in Catalog View
+    // Open collapsible Filter Drawer & filter by Wishlist Scope in Catalog View
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
     const wishlistFilterSelect = page.locator('label:has-text("Wishlist Filter") + select');
     await wishlistFilterSelect.selectOption('only');
 
@@ -179,7 +183,11 @@ test.describe('Add Wishlist Comic and Auto-Generate Missing Series Wishlist', ()
     const catalogTab = page.getByRole('button', { name: /Catalog/i }).first();
     await catalogTab.click();
 
-    // Select Captain America (Vol. 1) in the Series Run dropdown
+    // Open collapsible Filter Drawer & select Captain America (Vol. 1) in the Series Run dropdown
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
     const seriesSelect = page.locator('label:has-text("Series Run") + select');
     await expect(seriesSelect).toBeVisible();
 

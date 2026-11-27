@@ -53,7 +53,11 @@ test.describe('Negative Comic Issue Numbers Handling (e.g. #-1)', () => {
     await expect(page.getByRole('heading', { name: 'Comic Archive Pro' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /Runs:?\s*[1-9]/i })).toBeVisible({ timeout: 45000 });
 
-    // In the collection dataset, X-Factor #-1 is a wishlisted issue. Set Wishlist Filter to Include Wishlist.
+    // Open collapsible Filter Drawer & set Wishlist Filter to Include Wishlist.
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
     const wishlistFilter = page.getByRole('combobox', { name: 'Wishlist Filter' });
     await expect(wishlistFilter).toBeVisible();
     await wishlistFilter.selectOption('include');

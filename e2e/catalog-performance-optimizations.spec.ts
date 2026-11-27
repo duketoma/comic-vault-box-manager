@@ -135,6 +135,14 @@ test.describe('Catalog Performance Optimizations & Progressive Loading', () => {
     await sentinel.scrollIntoViewIfNeeded();
     await expect(counter).toContainText('Showing 96 of 120 comics', { timeout: 10000 });
 
+    // Open collapsible Filter Drawer before selecting filters
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if (await filterToggle.isVisible()) {
+      if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+        await filterToggle.click();
+      }
+    }
+
     // Filter by Publisher: DC Comics (60 items in dataset)
     const publisherSelect = page.locator('label:has-text("Publisher") + select');
     await publisherSelect.selectOption('DC Comics');
@@ -307,6 +315,12 @@ test.describe('Catalog Performance Optimizations & Progressive Loading', () => {
     await sentinel.scrollIntoViewIfNeeded();
     await expect(counter).toContainText('Showing 96 of 120 comics', { timeout: 10000 });
     await expect(page.locator('.grid > div.group')).toHaveCount(96);
+
+    // Open collapsible Filter Drawer before selecting Publisher
+    const filterToggle = page.getByTestId('catalog-filter-drawer-toggle');
+    if ((await filterToggle.getAttribute('aria-expanded')) !== 'true') {
+      await filterToggle.click();
+    }
 
     // Filter by Publisher: Marvel Comics (60 items)
     const publisherSelect = page.locator('label:has-text("Publisher") + select');
