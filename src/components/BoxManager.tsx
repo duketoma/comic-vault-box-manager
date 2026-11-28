@@ -1203,7 +1203,16 @@ export const BoxManager: React.FC<BoxManagerProps> = ({
           <Box3DVisualizerModal
             isOpen={is3DViewerOpen}
             box={selected3DBox}
+            allBoxes={sortedBoxes}
             comics={box3DComics}
+            grailComics={inCollectionComics
+              .filter((c) => c.coverImage && !c.coverImage.toLowerCase().includes('noimage'))
+              .sort((a, b) => (Number(b.estimatedValue) || 0) - (Number(a.estimatedValue) || 0))
+              .slice(0, 3)}
+            onSwitchBox={(nextBox) => {
+              setActiveBoxId(nextBox.id);
+              void handleOpen3DViewer(nextBox);
+            }}
             onClose={() => {
               setIs3DViewerOpen(false);
               setSelected3DBox(null);

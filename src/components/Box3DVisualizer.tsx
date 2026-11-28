@@ -10,11 +10,14 @@ import * as THREE from 'three';
 import { ComicBook, StorageBox } from '../types';
 import { sortComicsByBoxOrder } from '../utils/comicSortUtils';
 import {
+  BOX_DIMENSIONS,
   createBoxStack,
   buildBoxStackMeshes,
   calculateCameraPosition,
   updateComicHighlight,
   pickComicFromRay,
+  setShortboxFlipTargets,
+  stepShortboxFlipParting,
   BoxStack,
 } from '../utils/three-geometry';
 import {
@@ -25,44 +28,68 @@ import {
   disposeScene,
   createRaycaster,
   getNormalizedCoordinates,
+  applySceneLightingMood,
+  animateCameraTo,
+  CameraPreset,
   SceneContext,
 } from '../utils/three-scene';
+import {
+  buildVaultRoomEnvironment,
+  applyRoomMood,
+  VaultLightingMood,
+  VaultRoomHandles,
+} from '../utils/three-room';
 import { 
   ChevronLeft, 
   RotateCcw, 
-  X, 
   Zap, 
   ArrowDownToLine, 
   ChevronRight, 
   HelpCircle,
-  Sparkles
+  Sparkles,
+  Camera,
+  Sun,
+  Boxes,
 } from 'lucide-react';
 import { createComicPuller, ComicPuller } from '../utils/comic-puller';
 import { preloadComicTextures, clearTextureCache } from '../utils/three-textures';
 
 export interface Box3DVisualizerProps {
   box: StorageBox;
+  allBoxes?: StorageBox[];
   comics: ComicBook[];
+  grailComics?: ComicBook[];
+  onSwitchBox?: (box: StorageBox) => void;
   onSelectComic?: (comic: ComicBook) => void;
   onViewFullArt?: (comic: ComicBook) => void;
   onClose?: () => void;
   highlightedComicId?: string;
+  isFullscreen?: boolean;
 }
 
 export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   box,
+  allBoxes = [],
   comics: rawComics,
+  grailComics = [],
+  onSwitchBox,
   onSelectComic,
   onViewFullArt,
   onClose,
   highlightedComicId,
+  isFullscreen = false,
 }) => {
   const comics = useMemo(() => sortComicsByBoxOrder(rawComics), [rawComics]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const sceneContextRef = useRef<SceneContext | null>(null);
+  const roomHandlesRef = useRef<VaultRoomHandles | null>(null);
+  const activeBoxGroupRef = useRef<THREE.Group | null>(null);
   const boxStackRef = useRef<BoxStack | null>(null);
   const comicMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
+  const dividerGroupsRef = useRef<THREE.Group[]>([]);
+  const hoveredShelfMeshRef = useRef<THREE.Mesh | null>(null);
   const previousHighlightRef = useRef<string | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
@@ -77,6 +104,10 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   const [isComicPulled, setIsComicPulled] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lightingMood, setLightingMood] = useState<VaultLightingMood>('warm');
+  const [activePreset, setActivePreset] = useState<CameraPreset>('table');
+  const [flipMode, setFlipMode] = useState<'peek' | 'lift'>('peek');
+  const [hoveredShelfBox, setHoveredShelfBox] = useState<StorageBox | null>(null);
 
   // Animation controller for pulling comics
   const pullerRef = useRef<ComicPuller>(createComicPuller());
@@ -95,8 +126,8 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
       // Preload comic textures asynchronously in background
       preloadComicTextures(comics);
 
-      // Initialize scene context (camera, renderer, controls, lights)
-      const sceneContext = initializeScene(canvas);
+      // Initialize scene context (camera, renderer, controls, lights, fog)
+      const sceneContext = initializeScene(canvas, lightingMood);
       sceneContextRef.current = sceneContext;
       raycasterRef.current = createRaycaster();
 
@@ -104,34 +135,62 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
       const boxStack = createBoxStack(box, comics, highlightedComicId);
       boxStackRef.current = boxStack;
 
-      // Generate Three.js meshes (storage box container + comics)
-      const meshGroup = buildBoxStackMeshes(boxStack, box);
+      // Build 3D Collector's Vault Room environment (table, lid, LED shelving rack, framed wall Grails)
+      const resolvedGrails =
+        grailComics.length > 0
+          ? grailComics
+          : [...comics]
+              .sort((a, b) => (Number(b.estimatedValue) || 0) - (Number(a.estimatedValue) || 0))
+              .slice(0, 2);
 
-      // Store comic meshes for interaction
+      const roomHandles = buildVaultRoomEnvironment({
+        activeBox: box,
+        allBoxes: allBoxes.length > 0 ? allBoxes : [box],
+        boxInnerDimensions: boxStack.innerDimensions,
+        boxWallThickness: BOX_DIMENSIONS.WALL_THICKNESS,
+        grailComics: resolvedGrails,
+        mood: lightingMood,
+      });
+      roomHandlesRef.current = roomHandles;
+      sceneContext.scene.add(roomHandles.group);
+
+      // Generate Three.js meshes (storage box container + divider tabs + comics)
+      const meshGroup = buildBoxStackMeshes(boxStack, box);
+      activeBoxGroupRef.current = meshGroup;
+
+      // Store comic meshes & divider groups for interaction & stack leaning
       comicMeshesRef.current.clear();
+      dividerGroupsRef.current = [];
       meshGroup.traverse((child) => {
         if (child instanceof THREE.Mesh && (child.userData as any).comicId) {
           const comicId = (child.userData as any).comicId;
           comicMeshesRef.current.set(comicId, child);
+        } else if (child instanceof THREE.Group && (child.userData as any).isDivider) {
+          dividerGroupsRef.current.push(child);
         }
       });
 
       // Add to scene
       addBoxStackToScene(sceneContext, meshGroup);
 
-      // Position camera at optimal 3/4 elevated angle looking into the box
+      // Position camera at optimal 3/4 elevated angle framing box on table & shelves behind
       const cameraPos = calculateCameraPosition(boxStack);
       sceneContext.camera.position.copy(cameraPos);
-      sceneContext.camera.lookAt(0, 0, 0);
-      sceneContext.controls.target.set(0, 0, 0);
+      sceneContext.camera.lookAt(0, 0.3, -1.0);
+      sceneContext.controls.target.set(0, 0.3, -1.0);
       sceneContext.controls.update();
 
-      // Setup animation loop
+      // Setup animation loop (comic puller + shortbox finger-flip parting for comics & dividers)
       const stopAnimation = setupAnimationLoop(sceneContext, (delta: number) => {
         pullerRef.current?.update(delta);
+        stepShortboxFlipParting(comicMeshesRef.current, dividerGroupsRef.current, delta);
       });
       cleanupRef.current = stopAnimation;
 
+      setSelectedComicId(null);
+      setIsComicPulled(false);
+      setHoveredShelfBox(null);
+      setActivePreset('table');
       setIsLoading(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to initialize 3D viewer';
@@ -153,22 +212,42 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   }, [box, comics]);
 
   /**
-   * Handle canvas resize
+   * Handle canvas resize (observe outer flex container + react immediately to Full Screen toggle)
    */
   useEffect(() => {
+    const container = canvasContainerRef.current;
     const canvas = canvasRef.current;
-    const sceneContext = sceneContextRef.current;
+    if (!container || !canvas) return;
 
-    if (!canvas || !sceneContext) return;
+    const syncSize = () => {
+      const sceneContext = sceneContextRef.current;
+      if (!sceneContext) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      sceneContext.camera.aspect = w / h;
+      sceneContext.camera.updateProjectionMatrix();
+      sceneContext.renderer.setSize(w, h, false);
+      sceneContext.canvasSize = { width: w, height: h };
+    };
 
     const resizeObserver = new ResizeObserver(() => {
-      handleWindowResize(sceneContext, canvas);
+      syncSize();
     });
+    resizeObserver.observe(container);
+    window.addEventListener('resize', syncSize);
 
-    resizeObserver.observe(canvas);
+    // Trigger after layout settles (e.g. Full Screen CSS transition)
+    const raf = requestAnimationFrame(syncSize);
+    const timer = setTimeout(syncSize, 180);
 
-    return () => resizeObserver.disconnect();
-  }, []);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', syncSize);
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [box, comics, isFullscreen]);
 
   /**
    * Pointer down: record start coordinate to differentiate drags from clicks
@@ -177,6 +256,41 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
     pointerDownPosRef.current = { x: event.clientX, y: event.clientY };
     isDraggingRef.current = false;
   };
+
+  /**
+   * Raycast background shelf boxes with full depth/occlusion checking against the
+   * walnut table, lid, and active storage box so hidden shelf boxes are never picked.
+   */
+  const pickUnoccludedShelfBox = useCallback(
+    (raycaster: THREE.Raycaster): { box: StorageBox; mesh: THREE.Mesh } | null => {
+      const roomHandles = roomHandlesRef.current;
+      if (!roomHandles || roomHandles.shelfBoxMeshes.length === 0) return null;
+
+      const testObjects: THREE.Object3D[] = [
+        ...roomHandles.shelfBoxMeshes,
+        ...roomHandles.occluderMeshes,
+      ];
+      if (activeBoxGroupRef.current) {
+        testObjects.push(activeBoxGroupRef.current);
+      }
+
+      const hits = raycaster.intersectObjects(testObjects, true);
+      if (hits.length === 0) return null;
+
+      // Only accept if the CLOSEST hit along the ray belongs to a background shelf box
+      let hitObj: THREE.Object3D | null = hits[0].object;
+      while (hitObj && !(hitObj.userData as any)?.shelfBox) {
+        hitObj = hitObj.parent;
+      }
+      const shelfBox = (hitObj?.userData as any)?.shelfBox as StorageBox | undefined;
+      if (!shelfBox) return null;
+
+      const rootMesh =
+        roomHandles.shelfBoxMeshes.find((m) => (m.userData as any)?.shelfBoxId === shelfBox.id) || null;
+      return rootMesh ? { box: shelfBox, mesh: rootMesh } : null;
+    },
+    []
+  );
 
   /**
    * Pointer move: if moved more than 5px, it's an OrbitControls drag.
@@ -198,8 +312,39 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
     raycaster.setFromCamera(coords, sceneContext.camera);
 
     const meshArray = Array.from(comicMeshesRef.current.values());
-    const picked = pickComicFromRay(raycaster, meshArray);
-    canvas.style.cursor = picked ? 'pointer' : 'grab';
+    const pickedComic = pickComicFromRay(raycaster, meshArray);
+    if (pickedComic) {
+      if (hoveredShelfMeshRef.current) {
+        const mat = hoveredShelfMeshRef.current.material as THREE.MeshStandardMaterial;
+        mat.emissive?.setHex(0x000000);
+        hoveredShelfMeshRef.current = null;
+        setHoveredShelfBox(null);
+      }
+      canvas.style.cursor = 'pointer';
+      return;
+    }
+
+    // Depth-checked raycast for unoccluded background shelf boxes
+    if (onSwitchBox) {
+      const shelfHit = pickUnoccludedShelfBox(raycaster);
+      if (shelfHit) {
+        if (hoveredShelfMeshRef.current && hoveredShelfMeshRef.current !== shelfHit.mesh) {
+          (hoveredShelfMeshRef.current.material as THREE.MeshStandardMaterial).emissive?.setHex(0x000000);
+        }
+        (shelfHit.mesh.material as THREE.MeshStandardMaterial).emissive?.setHex(0x1e3a8a);
+        hoveredShelfMeshRef.current = shelfHit.mesh;
+        setHoveredShelfBox(shelfHit.box);
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+    }
+
+    if (hoveredShelfMeshRef.current) {
+      (hoveredShelfMeshRef.current.material as THREE.MeshStandardMaterial).emissive?.setHex(0x000000);
+      hoveredShelfMeshRef.current = null;
+      setHoveredShelfBox(null);
+    }
+    canvas.style.cursor = 'grab';
   };
 
   /**
@@ -238,9 +383,18 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           pullerRef.current?.pullComic(comicId, picked);
           setIsComicPulled(pullerRef.current?.isSettled(comicId) || false);
         }
+        return;
+      }
+
+      // Check if user clicked an unoccluded box on the background 3D shelf to swap onto the table
+      if (onSwitchBox) {
+        const shelfHit = pickUnoccludedShelfBox(raycaster);
+        if (shelfHit && shelfHit.box.id !== box.id) {
+          onSwitchBox(shelfHit.box);
+        }
       }
     },
-    [comics, onSelectComic]
+    [comics, onSelectComic, onSwitchBox, box.id, pickUnoccludedShelfBox]
   );
 
   /**
@@ -257,19 +411,71 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
       }
     }
 
-    // Apply new highlight
+    // Apply new highlight & zero-clipping V-parting lean
+    const innerDepth = boxStackRef.current?.innerDimensions.depth;
     if (highlightId) {
       const mesh = comicMeshesRef.current.get(highlightId);
       if (mesh) {
         updateComicHighlight(mesh, true);
         setIsComicPulled(pullerRef.current?.isSettled(highlightId) || false);
       }
+      const focusedIdx = comics.findIndex((c) => c.id === highlightId);
+      setShortboxFlipTargets(comicMeshesRef.current, dividerGroupsRef.current, comics, focusedIdx, innerDepth);
     } else {
       setIsComicPulled(false);
+      setShortboxFlipTargets(comicMeshesRef.current, dividerGroupsRef.current, comics, -1, innerDepth);
     }
 
     previousHighlightRef.current = highlightId || null;
-  }, [highlightedComicId, selectedComicId]);
+  }, [highlightedComicId, selectedComicId, comics]);
+
+  // Live-update 3D lighting mood & room LED strips without rebuilding WebGL scene
+  useEffect(() => {
+    if (sceneContextRef.current) {
+      applySceneLightingMood(sceneContextRef.current, lightingMood);
+    }
+    if (roomHandlesRef.current) {
+      applyRoomMood(roomHandlesRef.current, lightingMood);
+    }
+  }, [lightingMood]);
+
+  /**
+   * Smoothly transition camera to a named Vault Room preset
+   */
+  const handleSelectCameraPreset = (preset: CameraPreset) => {
+    const sceneContext = sceneContextRef.current;
+    const boxStack = boxStackRef.current;
+    if (!sceneContext || !boxStack) return;
+
+    setActivePreset(preset);
+    const { innerDimensions } = boxStack;
+
+    if (preset === 'table') {
+      const pos = calculateCameraPosition(boxStack);
+      animateCameraTo(sceneContext, pos, new THREE.Vector3(0, 0.3, -1.0));
+    } else if (preset === 'dig') {
+      // Close-up elevated front view peering straight into the parted comic covers
+      const selectedIdx = comics.findIndex((c) => c.id === selectedComicId);
+      const mesh = selectedComicId ? comicMeshesRef.current.get(selectedComicId) : null;
+      const focusZ = mesh ? mesh.position.z : innerDimensions.depth * 0.25;
+      animateCameraTo(
+        sceneContext,
+        new THREE.Vector3(0.45, innerDimensions.height * 0.95, focusZ + 5.2),
+        new THREE.Vector3(0, 0.35, focusZ - 0.5)
+      );
+      if (selectedIdx === -1 && comics.length > 0) {
+        setSelectedComicId(comics[0].id);
+        onSelectComic?.(comics[0]);
+      }
+    } else {
+      // 'room' — wide cinematic shot showcasing the walnut table, lid, shelves, and framed wall Grails
+      animateCameraTo(
+        sceneContext,
+        new THREE.Vector3(8.5, 6.8, innerDimensions.depth / 2 + 12.5),
+        new THREE.Vector3(0, 0.8, -5.5)
+      );
+    }
+  };
 
   /**
    * Toggle pull/return for the currently selected comic
@@ -287,24 +493,43 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
   };
 
   /**
+   * Focus a comic by index honoring active Flip Mode ('peek' stays low & leans neighbors, 'lift' pulls comic out)
+   */
+  const focusComicByIndex = (targetIndex: number, modeOverride?: 'peek' | 'lift') => {
+    const target = comics[targetIndex];
+    if (!target) return;
+    const activeMode = modeOverride ?? flipMode;
+
+    setSelectedComicId(target.id);
+    if (onSelectComic) onSelectComic(target);
+
+    const mesh = comicMeshesRef.current.get(target.id);
+    if (!mesh) return;
+
+    if (activeMode === 'lift') {
+      if (!pullerRef.current?.isSettled(target.id)) {
+        pullerRef.current?.pullComic(target.id, mesh);
+      }
+      setIsComicPulled(true);
+    } else {
+      // Peek & Lean mode: ensure any previously pulled comic slides smoothly back down
+      comicMeshesRef.current.forEach((m, id) => {
+        if (pullerRef.current?.isSettled(id)) {
+          pullerRef.current.pullComic(id, m);
+        }
+      });
+      setIsComicPulled(false);
+    }
+  };
+
+  /**
    * Navigate to previous comic in box
    */
   const handlePrevComic = () => {
     if (comics.length === 0) return;
     const currentIndex = comics.findIndex((c) => c.id === selectedComicId);
     const prevIndex = currentIndex <= 0 ? comics.length - 1 : currentIndex - 1;
-    const target = comics[prevIndex];
-    if (target) {
-      setSelectedComicId(target.id);
-      if (onSelectComic) onSelectComic(target);
-
-      // Auto pull newly selected comic
-      const mesh = comicMeshesRef.current.get(target.id);
-      if (mesh) {
-        pullerRef.current?.pullComic(target.id, mesh);
-        setIsComicPulled(true);
-      }
-    }
+    focusComicByIndex(prevIndex);
   };
 
   /**
@@ -314,33 +539,14 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
     if (comics.length === 0) return;
     const currentIndex = comics.findIndex((c) => c.id === selectedComicId);
     const nextIndex = currentIndex === -1 || currentIndex >= comics.length - 1 ? 0 : currentIndex + 1;
-    const target = comics[nextIndex];
-    if (target) {
-      setSelectedComicId(target.id);
-      if (onSelectComic) onSelectComic(target);
-
-      // Auto pull newly selected comic
-      const mesh = comicMeshesRef.current.get(target.id);
-      if (mesh) {
-        pullerRef.current?.pullComic(target.id, mesh);
-        setIsComicPulled(true);
-      }
-    }
+    focusComicByIndex(nextIndex);
   };
 
   /**
    * Reset camera to optimal 3/4 default view
    */
   const handleResetCamera = () => {
-    const sceneContext = sceneContextRef.current;
-    const boxStack = boxStackRef.current;
-
-    if (!sceneContext || !boxStack) return;
-
-    const cameraPos = calculateCameraPosition(boxStack);
-    sceneContext.camera.position.copy(cameraPos);
-    sceneContext.controls.target.set(0, 0, 0);
-    sceneContext.controls.update();
+    handleSelectCameraPreset('table');
   };
 
   // Keyboard arrow keys for flipping through comics
@@ -523,7 +729,7 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
       </div>
 
       {/* 3D Canvas Area */}
-      <div className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
+      <div ref={canvasContainerRef} className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-slate-900/70 z-20 backdrop-blur-xs">
             <div className="text-center">
@@ -547,15 +753,148 @@ export const Box3DVisualizer: React.FC<Box3DVisualizerProps> = ({
           className="w-full h-full block cursor-grab active:cursor-grabbing touch-none"
         />
 
-        {/* Floating Hint Overlay */}
-        <div className="absolute bottom-3 left-3 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-xs border border-slate-200 dark:border-slate-700 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5 sm:gap-2 pointer-events-none">
-          <HelpCircle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <span className="hidden sm:inline">
-            <strong>Drag</strong> to rotate • <strong>Scroll</strong> to zoom • <strong>Click</strong> to select • <strong>Double-click</strong> to lift comic
-          </span>
-          <span className="sm:hidden">
-            <strong>Drag</strong> to rotate • <strong>Tap</strong> to select
-          </span>
+        {/* Floating Hover Tooltip for Background 3D Shelf Boxes */}
+        {hoveredShelfBox && (
+          <div
+            data-testid="shelf-box-hover-tooltip"
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none bg-slate-900/92 text-white backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-xl border border-indigo-400/50 text-xs font-bold flex items-center gap-2"
+          >
+            <Boxes className="w-3.5 h-3.5 text-indigo-300" />
+            <span>
+              Box #{hoveredShelfBox.id}: {hoveredShelfBox.name}
+            </span>
+            <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-wider">
+              • Click to Swap
+            </span>
+          </div>
+        )}
+
+        {/* Vault Room Floating Controls HUD (Camera Presets, Lighting Moods & Flip Scrubber) */}
+        <div
+          data-testid="vault-room-hud"
+          className="absolute bottom-3 inset-x-3 z-10 flex flex-col gap-2 pointer-events-none"
+        >
+          {/* Flip-Through Scrubber Bar with Peek & Lean vs Lift & Inspect Mode Toggle */}
+          {comics.length > 1 && (
+            <div className="pointer-events-auto mx-auto w-full max-w-xl bg-slate-950/85 backdrop-blur-md border border-white/12 rounded-xl px-2.5 py-1.5 shadow-lg flex flex-wrap sm:flex-nowrap items-center gap-2 text-[10px] text-slate-300">
+              {/* Flip Mode Segmented Toggle */}
+              <div className="flex items-center bg-white/8 rounded-lg p-0.5 border border-white/10 shrink-0">
+                <button
+                  type="button"
+                  data-testid="flip-mode-peek"
+                  onClick={() => {
+                    setFlipMode('peek');
+                    const idx = comics.findIndex((c) => c.id === selectedComicId);
+                    if (idx >= 0) focusComicByIndex(idx, 'peek');
+                  }}
+                  className={`px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer ${
+                    flipMode === 'peek'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                  title="Keep comics low in box and lean neighboring comics away"
+                >
+                  Peek &amp; Lean
+                </button>
+                <button
+                  type="button"
+                  data-testid="flip-mode-lift"
+                  onClick={() => {
+                    setFlipMode('lift');
+                    const idx = comics.findIndex((c) => c.id === selectedComicId);
+                    if (idx >= 0) focusComicByIndex(idx, 'lift');
+                  }}
+                  className={`px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer ${
+                    flipMode === 'lift'
+                      ? 'bg-amber-500 text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                  title="Lift each focused comic out of the box as you flip"
+                >
+                  Lift &amp; Inspect
+                </button>
+              </div>
+
+              <input
+                type="range"
+                data-testid="box3d-flip-scrubber"
+                min={0}
+                max={comics.length - 1}
+                value={Math.max(0, comics.findIndex((c) => c.id === selectedComicId))}
+                onChange={(e) => {
+                  focusComicByIndex(Number(e.target.value));
+                }}
+                aria-label="Flip through comics in box"
+                className="flex-1 min-w-[120px] accent-indigo-500 h-1.5 bg-white/15 rounded-lg cursor-pointer"
+              />
+              <span className="font-mono font-bold text-slate-200 shrink-0">
+                {Math.max(1, comics.findIndex((c) => c.id === selectedComicId) + 1)}/{comics.length}
+              </span>
+            </div>
+          )}
+
+          {/* Bottom Row: Camera Presets + Lighting Moods + Hint */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Camera Presets */}
+            <div className="pointer-events-auto flex items-center gap-1 bg-slate-950/80 backdrop-blur-md border border-white/12 rounded-xl p-1 shadow-lg">
+              <Camera className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-0.5 hidden sm:block" />
+              {([
+                { id: 'table', label: 'Table View' },
+                { id: 'dig', label: 'Dig View' },
+                { id: 'room', label: 'Vault Room' },
+              ] as const).map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  data-testid={`camera-preset-${preset.id}`}
+                  onClick={() => handleSelectCameraPreset(preset.id)}
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                    activePreset === preset.id
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Lighting Mood Switcher */}
+            <div className="pointer-events-auto flex items-center gap-1 bg-slate-950/80 backdrop-blur-md border border-white/12 rounded-xl p-1 shadow-lg">
+              <Sun className="w-3.5 h-3.5 text-amber-400 ml-1.5 mr-0.5 hidden sm:block" />
+              {([
+                { id: 'warm', label: 'Warm Den' },
+                { id: 'museum', label: 'Museum' },
+                { id: 'cyber', label: 'Cyber' },
+              ] as const).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  data-testid={`lighting-mood-${m.id}`}
+                  onClick={() => setLightingMood(m.id)}
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                    lightingMood === m.id
+                      ? m.id === 'warm'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : m.id === 'cyber'
+                        ? 'bg-fuchsia-600 text-white shadow-xs'
+                        : 'bg-slate-200 text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Compact Controls Hint */}
+            <div className="hidden xl:flex bg-slate-950/75 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 text-[10px] text-slate-300 items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span>
+                <strong>Drag</strong> orbit • <strong>Click shelf box</strong> swap • <strong>Double-click</strong> lift
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 

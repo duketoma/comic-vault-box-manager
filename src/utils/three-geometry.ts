@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { ComicBook, StorageBox } from '../types';
 import { createComicFaceMaterials } from './three-textures';
+import { createCorrugatedCardboardTexture } from './three-room';
 
 /**
  * Physical dimensions for standard American comic books (normalized)
@@ -165,13 +166,13 @@ export function buildStorageBoxMesh(
   const wt = BOX_DIMENSIONS.WALL_THICKNESS;
 
   const colorHex = box.colorTag || '#3b82f6';
-  const boxColor = new THREE.Color(colorHex);
+  const cardboardTex = createCorrugatedCardboardTexture(colorHex);
 
-  // Outer material (tinted by box.colorTag)
+  // Corrugated cardboard outer material tinted by box.colorTag
   const outerMaterial = new THREE.MeshStandardMaterial({
-    color: boxColor,
-    roughness: 0.75,
-    metalness: 0.1,
+    map: cardboardTex,
+    roughness: 0.78,
+    metalness: 0.06,
   });
 
   const wallMat = outerMaterial;
@@ -226,10 +227,52 @@ export function buildStorageBoxMesh(
     metalness: 0.1,
   });
   const labelMesh = new THREE.Mesh(labelGeo, labelMat);
-  labelMesh.position.set(0, 0, id / 2 + wt + 0.01);
+  labelMesh.position.set(0, -0.18, id / 2 + wt + 0.012);
   boxGroup.add(labelMesh);
 
+  // 7. Recessed Oval Hand-Grip Cutouts on Front & Back Walls
+  const handleMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0d14,
+    roughness: 0.95,
+    metalness: 0.05,
+  });
+  const handleGeo = new THREE.BoxGeometry(0.95, 0.28, 0.03);
+  const frontHandle = new THREE.Mesh(handleGeo, handleMat);
+  frontHandle.position.set(0, ih / 2 - 0.42, id / 2 + wt + 0.005);
+  boxGroup.add(frontHandle);
+
+  const backHandle = new THREE.Mesh(handleGeo, handleMat);
+  backHandle.position.set(0, ih / 2 - 0.42, -id / 2 - wt - 0.005);
+  boxGroup.add(backHandle);
+
   return boxGroup;
+}
+
+/**
+ * Create a crisp archival white plastic series divider tab texture
+ */
+function createDividerTabTexture(seriesLabel: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, 252, 60);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const upper = seriesLabel.toUpperCase();
+    const trimmed = upper.length > 16 ? `${upper.slice(0, 15)}…` : upper;
+    ctx.fillText(trimmed, 128, 40);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /**
@@ -314,8 +357,66 @@ export function buildBoxStackMeshes(stack: BoxStack, box?: StorageBox): THREE.Gr
     group.add(boxMesh);
   }
 
-  // 2. Build comic meshes
-  for (const comicGeo of stack.comics) {
+  // 2. Build comic meshes & automatic Series Divider Tabs
+  const dividerMat = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.45,
+    metalness: 0.05,
+  });
+  const dividerBodyGeo = new THREE.BoxGeometry(COMIC_DIMENSIONS.WIDTH + 0.06, COMIC_DIMENSIONS.HEIGHT + 0.04, 0.015);
+  const dividerTabGeo = new THREE.BoxGeometry(0.92, 0.28, 0.018);
+
+  let lastSeriesKey = '';
+  let dividerCount = 0;
+  const MAX_DIVIDERS = 24;
+
+  for (let i = 0; i < stack.comics.length; i++) {
+    const comicGeo = stack.comics[i];
+    const seriesLabel = (comicGeo.comic.seriesName || comicGeo.comic.title || '').trim();
+    const seriesKey = seriesLabel.toLowerCase();
+
+    // Insert archival series divider tab whenever the series changes (grouped so it leans with the stack)
+    if (seriesKey && seriesKey !== lastSeriesKey && dividerCount < MAX_DIVIDERS) {
+      lastSeriesKey = seriesKey;
+      const tabSlot = dividerCount % 3; // stagger left (-0.7), center (0), right (+0.7)
+      const tabOffsetX = (tabSlot - 1) * 0.72;
+      const dividerZ = comicGeo.position.z + comicGeo.thickness / 2 + 0.012;
+
+      const dividerGroup = new THREE.Group();
+      dividerGroup.position.set(0, comicGeo.position.y + 0.02, dividerZ);
+      dividerGroup.userData = {
+        isDivider: true,
+        stackIndex: i,
+        basePosition: dividerGroup.position.clone(),
+        targetFlipRotX: 0,
+        targetFlipOffsetZ: 0,
+      };
+
+      const divMesh = new THREE.Mesh(dividerBodyGeo, dividerMat);
+      divMesh.position.set(0, 0, 0);
+      dividerGroup.add(divMesh);
+
+      const tabTex = createDividerTabTexture(seriesLabel);
+      const tabFaceMat = new THREE.MeshStandardMaterial({
+        map: tabTex,
+        roughness: 0.4,
+        metalness: 0.05,
+      });
+      const tabMesh = new THREE.Mesh(dividerTabGeo, [
+        dividerMat,
+        dividerMat,
+        dividerMat,
+        dividerMat,
+        tabFaceMat,
+        tabFaceMat,
+      ]);
+      tabMesh.position.set(tabOffsetX, COMIC_DIMENSIONS.HEIGHT / 2 + 0.12, 0);
+      dividerGroup.add(tabMesh);
+
+      group.add(dividerGroup);
+      dividerCount++;
+    }
+
     const mesh = new THREE.Mesh(comicGeo.geometry, comicGeo.material);
     mesh.position.copy(comicGeo.position);
     mesh.castShadow = true;
@@ -325,8 +426,11 @@ export function buildBoxStackMeshes(stack: BoxStack, box?: StorageBox): THREE.Gr
     (mesh.userData as any).comicId = comicGeo.id;
     (mesh.userData as any).comicTitle = comicGeo.title;
     (mesh.userData as any).comic = comicGeo.comic;
+    (mesh.userData as any).stackIndex = i;
     (mesh.userData as any).basePosition = comicGeo.position.clone();
     (mesh.userData as any).baseRotation = new THREE.Euler(0, 0, 0);
+    (mesh.userData as any).targetFlipRotX = 0;
+    (mesh.userData as any).targetFlipOffsetZ = 0;
 
     if (comicGeo.highlighted) {
       updateComicHighlight(mesh, true);
@@ -336,6 +440,150 @@ export function buildBoxStackMeshes(stack: BoxStack, box?: StorageBox): THREE.Gr
   }
 
   return group;
+}
+
+/**
+ * Helper to compute clamped lean angle & Z offset for an item at stackIndex
+ * so the entire front stack leans forward and entire back stack leans backward
+ * without ever clipping through the front or back box walls.
+ */
+function computeClampedStackLean(
+  itemIndex: number,
+  focusedIndex: number,
+  baseZ: number,
+  halfThickness: number,
+  maxFrontZ: number,
+  minBackZ: number,
+  isDivider: boolean
+): { rotX: number; offsetZ: number } {
+  if (focusedIndex < 0) return { rotX: 0, offsetZ: 0 };
+
+  const halfHeight = COMIC_DIMENSIONS.HEIGHT / 2 + (isDivider ? 0.14 : 0);
+
+  // Entire front stack (items in front of focusedIndex) leans forward (+rotateX)
+  // Note: a divider at stackIndex === focusedIndex sits right in front of the focused comic, so it leans forward too!
+  const isFrontSide = isDivider ? itemIndex <= focusedIndex : itemIndex < focusedIndex;
+  const isBackSide = itemIndex > focusedIndex;
+
+  if (isFrontSide) {
+    const dist = Math.max(1, focusedIndex - itemIndex);
+    // Gentle broad taper across the whole front stack (keeps strong lean across ~25+ issues)
+    const weight = Math.max(0.28, 1 / (1 + (dist - 1) * 0.06));
+    const desiredRotX = 0.22 * weight;
+    const desiredOffZ = 0.16 * weight;
+    const availFront = Math.max(0, maxFrontZ - (baseZ + halfThickness));
+
+    const maxAllowedSin = Math.min(1, Math.max(0, (availFront * 0.78) / halfHeight));
+    const clampedRotX = Math.min(desiredRotX, Math.asin(maxAllowedSin));
+    const usedByRot = halfHeight * Math.sin(clampedRotX);
+    const clampedOffZ = Math.min(desiredOffZ, Math.max(0, availFront - usedByRot));
+
+    return { rotX: clampedRotX, offsetZ: clampedOffZ };
+  }
+
+  if (isBackSide) {
+    const dist = itemIndex - focusedIndex;
+    const weight = Math.max(0.28, 1 / (1 + (dist - 1) * 0.06));
+    const desiredRotX = 0.2 * weight;
+    const desiredOffZ = 0.14 * weight;
+    const availBack = Math.max(0, (baseZ - halfThickness) - minBackZ);
+
+    const maxAllowedSin = Math.min(1, Math.max(0, (availBack * 0.78) / halfHeight));
+    const clampedRotX = Math.min(desiredRotX, Math.asin(maxAllowedSin));
+    const usedByRot = halfHeight * Math.sin(clampedRotX);
+    const clampedOffZ = Math.min(desiredOffZ, Math.max(0, availBack - usedByRot));
+
+    return { rotX: -clampedRotX, offsetZ: -clampedOffZ };
+  }
+
+  return { rotX: 0, offsetZ: 0 };
+}
+
+/**
+ * Sets target parting lean across the ENTIRE front and back comic stacks + series divider tabs,
+ * mathematically clamped against the inner front/back walls of the box so nothing clips!
+ */
+export function setShortboxFlipTargets(
+  comicMeshes: Map<string, THREE.Mesh>,
+  dividerGroups: THREE.Group[],
+  orderedComics: ComicBook[],
+  focusedIndex: number,
+  innerDepth?: number
+): void {
+  const maxFrontZ = innerDepth != null ? innerDepth / 2 - 0.06 : Infinity;
+  const minBackZ = innerDepth != null ? -innerDepth / 2 + 0.06 : -Infinity;
+
+  for (let i = 0; i < orderedComics.length; i++) {
+    const mesh = comicMeshes.get(orderedComics[i].id);
+    if (!mesh) continue;
+    const basePos = (mesh.userData as any).basePosition as THREE.Vector3 | undefined;
+    if (!basePos) continue;
+    const halfThickness =
+      (Number((mesh.userData as any).comic?.sizeThickness || 1) * COMIC_DIMENSIONS.UNIT_THICKNESS) / 2;
+
+    const { rotX, offsetZ } = computeClampedStackLean(
+      i,
+      focusedIndex,
+      basePos.z,
+      halfThickness,
+      maxFrontZ,
+      minBackZ,
+      false
+    );
+    (mesh.userData as any).targetFlipRotX = rotX;
+    (mesh.userData as any).targetFlipOffsetZ = offsetZ;
+  }
+
+  // Lean all series divider tabs right along with the stack
+  for (const divGroup of dividerGroups) {
+    const basePos = (divGroup.userData as any).basePosition as THREE.Vector3 | undefined;
+    const stackIndex = Number((divGroup.userData as any).stackIndex ?? -1);
+    if (!basePos || stackIndex < 0) continue;
+
+    const { rotX, offsetZ } = computeClampedStackLean(
+      stackIndex,
+      focusedIndex,
+      basePos.z,
+      0.01,
+      maxFrontZ,
+      minBackZ,
+      true
+    );
+    (divGroup.userData as any).targetFlipRotX = rotX;
+    (divGroup.userData as any).targetFlipOffsetZ = offsetZ;
+  }
+}
+
+/**
+ * Smoothly interpolates shortbox parting tilt every animation frame (comics + series dividers)
+ */
+export function stepShortboxFlipParting(
+  comicMeshes: Map<string, THREE.Mesh>,
+  dividerGroups: THREE.Group[],
+  delta: number
+): void {
+  const lerpAlpha = Math.min(1, delta * 10);
+
+  comicMeshes.forEach((mesh) => {
+    if ((mesh.userData as any).isPulled) return;
+    const basePos = (mesh.userData as any).basePosition as THREE.Vector3 | undefined;
+    if (!basePos) return;
+    const targetRotX = Number((mesh.userData as any).targetFlipRotX || 0);
+    const targetOffZ = Number((mesh.userData as any).targetFlipOffsetZ || 0);
+    mesh.rotation.x += (targetRotX - mesh.rotation.x) * lerpAlpha;
+    const desiredZ = basePos.z + targetOffZ;
+    mesh.position.z += (desiredZ - mesh.position.z) * lerpAlpha;
+  });
+
+  for (const divGroup of dividerGroups) {
+    const basePos = (divGroup.userData as any).basePosition as THREE.Vector3 | undefined;
+    if (!basePos) continue;
+    const targetRotX = Number((divGroup.userData as any).targetFlipRotX || 0);
+    const targetOffZ = Number((divGroup.userData as any).targetFlipOffsetZ || 0);
+    divGroup.rotation.x += (targetRotX - divGroup.rotation.x) * lerpAlpha;
+    const desiredZ = basePos.z + targetOffZ;
+    divGroup.position.z += (desiredZ - divGroup.position.z) * lerpAlpha;
+  }
 }
 
 /**

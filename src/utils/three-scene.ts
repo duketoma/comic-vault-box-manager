@@ -7,6 +7,9 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { VaultLightingMood } from './three-room';
+
+export type CameraPreset = 'table' | 'dig' | 'room';
 
 export interface SceneContext {
   scene: THREE.Scene;
@@ -15,36 +18,49 @@ export interface SceneContext {
   controls: OrbitControls;
   lights: {
     ambient: THREE.AmbientLight;
+    hemisphere: THREE.HemisphereLight;
     directional: THREE.DirectionalLight;
+    spot: THREE.SpotLight;
     fill: THREE.DirectionalLight;
     back: THREE.DirectionalLight;
+  };
+  cameraTransition: {
+    active: boolean;
+    targetPos: THREE.Vector3;
+    targetLookAt: THREE.Vector3;
   };
   canvasSize: {
     width: number;
     height: number;
   };
   pixelRatio: number;
+  isMobile: boolean;
 }
 
 /**
- * Initialize a Three.js scene for the comic box visualizer
+ * Initialize a Three.js scene for the 3D Collector's Vault Room
  */
-export function initializeScene(canvas: HTMLCanvasElement): SceneContext {
+export function initializeScene(
+  canvas: HTMLCanvasElement,
+  initialMood: VaultLightingMood = 'warm'
+): SceneContext {
   const width = Math.max(canvas.clientWidth, 100);
   const height = Math.max(canvas.clientHeight, 100);
-  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
+  const shadowMapSize = isMobile ? 1024 : 2048;
 
-  // Scene setup
+  // Scene setup with atmospheric depth fog
   const scene = new THREE.Scene();
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  scene.background = new THREE.Color(isDark ? 0x0f172a : 0xf1f5f9); // Slate-900 in dark mode, Slate-100 in light mode
+  scene.background = new THREE.Color(0x0b0e16);
+  scene.fog = new THREE.FogExp2(0x0b0e16, 0.018);
 
   // Camera setup
   const camera = new THREE.PerspectiveCamera(
-    45, // Comfortable FOV for inspection
+    45,
     width / height,
     0.1,
-    200
+    180
   );
   camera.position.set(5, 7, 12);
   camera.lookAt(0, 0, 0);
@@ -53,7 +69,7 @@ export function initializeScene(canvas: HTMLCanvasElement): SceneContext {
   const renderer = new THREE.WebGLRenderer({ 
     canvas, 
     alpha: false,
-    antialias: true,
+    antialias: !isMobile,
     powerPreference: 'high-performance', 
   });
 
@@ -62,72 +78,162 @@ export function initializeScene(canvas: HTMLCanvasElement): SceneContext {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.08;
 
   // OrbitControls setup
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.screenSpacePanning = true;
-  controls.minDistance = 2.0;
-  controls.maxDistance = 40.0;
-  // Prevent camera from orbiting under the floor
-  controls.maxPolarAngle = Math.PI / 2 - 0.05;
+  controls.minDistance = 2.5;
+  controls.maxDistance = 32.0;
+  // Prevent camera from orbiting below the tabletop
+  controls.maxPolarAngle = Math.PI / 2 - 0.04;
   controls.target.set(0, 0, 0);
 
-  // Ground plane to receive realistic soft shadow under the box
-  const groundGeo = new THREE.PlaneGeometry(60, 60);
-  const groundMat = new THREE.ShadowMaterial({ opacity: 0.15 });
-  const groundPlane = new THREE.Mesh(groundGeo, groundMat);
-  groundPlane.rotation.x = -Math.PI / 2;
-  groundPlane.position.y = -2.2; // Under the box
-  groundPlane.receiveShadow = true;
-  scene.add(groundPlane);
+  const cameraTransition = {
+    active: false,
+    targetPos: new THREE.Vector3(),
+    targetLookAt: new THREE.Vector3(),
+  };
 
-  // Lighting
-  // 1. Soft ambient light for base visibility
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+  // Cancel scripted camera lerp immediately when the user grabs OrbitControls
+  controls.addEventListener('start', () => {
+    cameraTransition.active = false;
+  });
+
+  // Lighting Rig
+  const ambientLight = new THREE.AmbientLight(0xfff4e6, 0.45);
   scene.add(ambientLight);
 
-  // 2. Main key light (casts soft shadows)
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.95);
-  directionalLight.position.set(10, 15, 12);
+  const hemisphereLight = new THREE.HemisphereLight(0xffe8cc, 0x1e293b, 0.55);
+  scene.add(hemisphereLight);
+
+  // Main key directional light (casts crisp soft shadows)
+  const directionalLight = new THREE.DirectionalLight(0xfff5e4, 0.9);
+  directionalLight.position.set(9, 14, 11);
   directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048;
-  directionalLight.shadow.mapSize.height = 2048;
-  directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 45;
-  directionalLight.shadow.camera.left = -15;
-  directionalLight.shadow.camera.right = 15;
-  directionalLight.shadow.camera.top = 15;
-  directionalLight.shadow.camera.bottom = -15;
+  directionalLight.shadow.mapSize.width = shadowMapSize;
+  directionalLight.shadow.mapSize.height = shadowMapSize;
+  directionalLight.shadow.camera.near = 1;
+  directionalLight.shadow.camera.far = 48;
+  directionalLight.shadow.camera.left = -16;
+  directionalLight.shadow.camera.right = 16;
+  directionalLight.shadow.camera.top = 16;
+  directionalLight.shadow.camera.bottom = -16;
   directionalLight.shadow.bias = -0.0005;
   scene.add(directionalLight);
 
-  // 3. Fill light (soft cool tone from left)
-  const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.4);
+  // Warm overhead pendant spotlight focused onto the inspection table
+  const spotLight = new THREE.SpotLight(0xffdca8, 28, 36, Math.PI / 4, 0.55, 1.3);
+  spotLight.position.set(0, 12.5, 2.5);
+  spotLight.target.position.set(0, -1, 0);
+  scene.add(spotLight);
+  scene.add(spotLight.target);
+
+  // Soft cool fill light from left
+  const fillLight = new THREE.DirectionalLight(0xc7d2fe, 0.38);
   fillLight.position.set(-10, 8, 8);
   scene.add(fillLight);
 
-  // 4. Back light for rim lighting (separates comics from background)
-  const backLight = new THREE.DirectionalLight(0xfff7ed, 0.35);
-  backLight.position.set(0, 10, -12);
+  // Warm rim/back light separating box & comics from the shelves
+  const backLight = new THREE.DirectionalLight(0xffedd5, 0.42);
+  backLight.position.set(0, 10, -10);
   scene.add(backLight);
 
-  return {
+  const ctx: SceneContext = {
     scene,
     camera,
     renderer,
     controls,
     lights: {
       ambient: ambientLight,
+      hemisphere: hemisphereLight,
       directional: directionalLight,
+      spot: spotLight,
       fill: fillLight,
       back: backLight,
     },
+    cameraTransition,
     canvasSize: { width, height },
     pixelRatio,
+    isMobile,
   };
+
+  applySceneLightingMood(ctx, initialMood);
+  return ctx;
+}
+
+/**
+ * Switch the 3D Vault Room lighting & atmospheric fog live between Warm Den, Museum, and Cyber moods
+ */
+export function applySceneLightingMood(
+  ctx: SceneContext,
+  mood: VaultLightingMood
+): void {
+  if (mood === 'warm') {
+    ctx.scene.background = new THREE.Color(0x0d0c12);
+    ctx.scene.fog = new THREE.FogExp2(0x0d0c12, 0.017);
+    ctx.lights.ambient.color.setHex(0xfff1de);
+    ctx.lights.ambient.intensity = 0.5;
+    ctx.lights.hemisphere.color.setHex(0xffe6c7);
+    ctx.lights.hemisphere.groundColor.setHex(0x1f1918);
+    ctx.lights.hemisphere.intensity = 0.55;
+    ctx.lights.directional.color.setHex(0xfff4e0);
+    ctx.lights.directional.intensity = 0.92;
+    ctx.lights.spot.color.setHex(0xffd79e);
+    ctx.lights.spot.intensity = 30;
+    ctx.lights.fill.color.setHex(0xc7d2fe);
+    ctx.lights.fill.intensity = 0.35;
+    ctx.lights.back.color.setHex(0xfde68a);
+    ctx.lights.back.intensity = 0.45;
+  } else if (mood === 'museum') {
+    ctx.scene.background = new THREE.Color(0x1b2433);
+    ctx.scene.fog = new THREE.FogExp2(0x1b2433, 0.013);
+    ctx.lights.ambient.color.setHex(0xffffff);
+    ctx.lights.ambient.intensity = 0.68;
+    ctx.lights.hemisphere.color.setHex(0xf8fafc);
+    ctx.lights.hemisphere.groundColor.setHex(0x334155);
+    ctx.lights.hemisphere.intensity = 0.65;
+    ctx.lights.directional.color.setHex(0xffffff);
+    ctx.lights.directional.intensity = 1.05;
+    ctx.lights.spot.color.setHex(0xf8fafc);
+    ctx.lights.spot.intensity = 22;
+    ctx.lights.fill.color.setHex(0xe0f2fe);
+    ctx.lights.fill.intensity = 0.45;
+    ctx.lights.back.color.setHex(0xf1f5f9);
+    ctx.lights.back.intensity = 0.4;
+  } else {
+    // 'cyber'
+    ctx.scene.background = new THREE.Color(0x060813);
+    ctx.scene.fog = new THREE.FogExp2(0x060813, 0.02);
+    ctx.lights.ambient.color.setHex(0xc4b5fd);
+    ctx.lights.ambient.intensity = 0.42;
+    ctx.lights.hemisphere.color.setHex(0x38bdf8);
+    ctx.lights.hemisphere.groundColor.setHex(0x1e1b4b);
+    ctx.lights.hemisphere.intensity = 0.55;
+    ctx.lights.directional.color.setHex(0xe0f2fe);
+    ctx.lights.directional.intensity = 0.85;
+    ctx.lights.spot.color.setHex(0x818cf8);
+    ctx.lights.spot.intensity = 34;
+    ctx.lights.fill.color.setHex(0x22d3ee);
+    ctx.lights.fill.intensity = 0.55;
+    ctx.lights.back.color.setHex(0xe879f9);
+    ctx.lights.back.intensity = 0.6;
+  }
+}
+
+/**
+ * Trigger a smooth camera lerp to a target position & lookAt point
+ */
+export function animateCameraTo(
+  ctx: SceneContext,
+  targetPos: THREE.Vector3,
+  targetLookAt: THREE.Vector3
+): void {
+  ctx.cameraTransition.targetPos.copy(targetPos);
+  ctx.cameraTransition.targetLookAt.copy(targetLookAt);
+  ctx.cameraTransition.active = true;
 }
 
 /**
@@ -202,6 +308,19 @@ export function setupAnimationLoop(
     const currentTime = performance.now();
     const delta = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
+
+    // Smoothly interpolate camera presets when active
+    if (sceneContext.cameraTransition.active) {
+      const alpha = Math.min(1, delta * 5.5);
+      sceneContext.camera.position.lerp(sceneContext.cameraTransition.targetPos, alpha);
+      sceneContext.controls.target.lerp(sceneContext.cameraTransition.targetLookAt, alpha);
+      if (
+        sceneContext.camera.position.distanceTo(sceneContext.cameraTransition.targetPos) < 0.05 &&
+        sceneContext.controls.target.distanceTo(sceneContext.cameraTransition.targetLookAt) < 0.05
+      ) {
+        sceneContext.cameraTransition.active = false;
+      }
+    }
 
     // Update OrbitControls smooth damping
     sceneContext.controls.update();

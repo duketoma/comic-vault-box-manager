@@ -10,12 +10,15 @@ import { ComicBook, StorageBox } from '../types';
 import Box3DVisualizer from './Box3DVisualizer';
 import { ComicDetailPanel } from './ComicDetailPanel';
 import { FullArtShowcaseModal } from './FullArtShowcaseModal';
-import { X } from 'lucide-react';
+import { X, Maximize2, Minimize2 } from 'lucide-react';
 
 export interface Box3DVisualizerModalProps {
   isOpen: boolean;
   box: StorageBox;
+  allBoxes?: StorageBox[];
   comics: ComicBook[];
+  grailComics?: ComicBook[];
+  onSwitchBox?: (box: StorageBox) => void;
   onClose: () => void;
   onUpdateComic?: (comic: ComicBook) => void;
   onDeleteComic?: (comicId: string) => void;
@@ -24,13 +27,22 @@ export interface Box3DVisualizerModalProps {
 export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
   isOpen,
   box,
+  allBoxes,
   comics,
+  grailComics,
+  onSwitchBox,
   onClose,
   onUpdateComic,
   onDeleteComic,
 }) => {
   const [selectedComic, setSelectedComic] = useState<ComicBook | null>(null);
   const [fullArtComic, setFullArtComic] = useState<ComicBook | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Clear comic selection when switching boxes on the 3D shelf
+  useEffect(() => {
+    setSelectedComic(null);
+  }, [box.id]);
 
   // Close on Escape key press
   useEffect(() => {
@@ -51,24 +63,48 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center safe-top safe-bottom p-0 sm:p-4 select-none"
+      className={`fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center safe-top safe-bottom select-none ${
+        isFullscreen ? 'p-0' : 'p-0 sm:p-4'
+      }`}
     >
-      <div className="bg-white dark:bg-slate-900 border-0 sm:border border-slate-200 dark:border-slate-800 w-full h-full sm:w-11/12 sm:h-5/6 sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header with accessible close button */}
+      <div
+        className={`bg-white dark:bg-slate-900 border-0 shadow-2xl flex flex-col overflow-hidden transition-all ${
+          isFullscreen
+            ? 'w-full h-full rounded-none'
+            : 'sm:border border-slate-200 dark:border-slate-800 w-full h-full sm:w-11/12 sm:h-5/6 sm:rounded-2xl'
+        }`}
+      >
+        {/* Header with Full Screen & accessible close button */}
         <div className="flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 text-white px-4 sm:px-6 py-2.5 sm:py-3.5 border-b border-slate-700/60 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <h1 className="text-base sm:text-xl font-bold truncate">3D Box Visualizer</h1>
-            <span className="text-xs text-slate-400 truncate hidden sm:inline">• {box.name}</span>
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/35 text-amber-300 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
+              Vault Room
+            </span>
+            <span className="text-xs text-slate-400 truncate hidden md:inline">• Box #{box.id} {box.name}</span>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all touch-manipulation cursor-pointer shrink-0"
-            title="Close (Esc)"
-            aria-label="Close 3D Visualizer"
-          >
-            <X className="w-5 h-5 sm:w-6 sm:h-6" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="box3d-fullscreen-toggle"
+              onClick={() => setIsFullscreen((prev) => !prev)}
+              className="hidden sm:flex items-center gap-1.5 px-3 h-10 rounded-xl bg-white/10 hover:bg-indigo-600/80 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer"
+              title={isFullscreen ? 'Exit Full Screen' : 'Expand to Full Screen'}
+              aria-label={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              <span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all touch-manipulation cursor-pointer shrink-0"
+              title="Close (Esc)"
+              aria-label="Close 3D Visualizer"
+            >
+              <X className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Main content: 3D viewer + detail panel */}
@@ -77,11 +113,15 @@ export const Box3DVisualizerModal: React.FC<Box3DVisualizerModalProps> = ({
           <div className="flex-1 min-w-0 h-full">
             <Box3DVisualizer
               box={box}
+              allBoxes={allBoxes}
               comics={comics}
+              grailComics={grailComics}
+              onSwitchBox={onSwitchBox}
               onSelectComic={setSelectedComic}
               onViewFullArt={(comic) => setFullArtComic(comic)}
               onClose={onClose}
               highlightedComicId={selectedComic?.id}
+              isFullscreen={isFullscreen}
             />
           </div>
 
